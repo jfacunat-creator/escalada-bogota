@@ -1,0 +1,500 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────────────
+
+enum RolUsuario {
+  escalador
+  entrenador
+  admin
+}
+
+enum EstadoEscalador {
+  activo
+  inactivo
+  congelado
+}
+
+enum RangoEtario {
+  menor_6_9
+  menor_10_12
+  menor_13_15
+  adulto
+}
+
+enum ModalidadPlan {
+  autonomo
+  acompanado
+}
+
+enum EstadoCohorte {
+  abierta
+  cerrada
+  en_curso
+  finalizada
+}
+
+enum EstadoInscripcion {
+  activa
+  congelada
+  cancelada
+  completada
+}
+
+enum EstadoPago {
+  pendiente
+  pagado
+  vencido
+}
+
+enum MetodoPago {
+  transferencia
+  efectivo
+}
+
+enum TipoEvaluacion {
+  entrada
+  salida
+}
+
+enum EstadoEvaluacion {
+  programada
+  realizada
+}
+
+enum TipoSesion {
+  regular
+  juego_cierre
+  test
+  checkpoint_fest
+}
+
+enum TipoConsentimiento {
+  informado
+  menores
+  datos_personales
+}
+
+enum Semaforo {
+  verde
+  amarillo
+  rojo
+}
+
+enum TipoAliadoSalud {
+  fisioterapia
+  nutricion
+}
+
+enum EstadoRemision {
+  pendiente
+  atendida
+}
+
+enum PoblacionPrograma {
+  menor
+  adulto
+}
+
+enum TipoContenido {
+  plan_entrenamiento
+  video_tecnica
+  video_sesion
+  documento_apoyo
+  nutricion
+  fisioterapia
+}
+
+// ─── MODELOS ────────────────────────────────────────────────
+
+model Usuario {
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique @db.VarChar(255)
+  passwordHash String      @map("password_hash") @db.VarChar(255)
+  rol          RolUsuario
+  activo       Boolean     @default(true)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz()
+
+  escalador  Escalador?
+  entrenador Entrenador?
+
+  @@map("usuario")
+}
+
+model Escalador {
+  id                 String          @id @default(uuid()) @db.Uuid
+  usuarioId          String          @unique @map("usuario_id") @db.Uuid
+  nombre             String          @db.VarChar(100)
+  apellido           String          @db.VarChar(100)
+  fechaNacimiento    DateTime        @map("fecha_nacimiento") @db.Date
+  rangoEtario        RangoEtario     @map("rango_etario")
+  pesoKg             Decimal?        @map("peso_kg") @db.Decimal(5, 2)
+  telefono           String?         @db.VarChar(20)
+  contactoEmergencia String          @map("contacto_emergencia") @db.VarChar(200)
+  estado             EstadoEscalador @default(activo)
+  fotoUrl            String?         @map("foto_url") @db.VarChar(500)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
+
+  usuario             Usuario              @relation(fields: [usuarioId], references: [id])
+  responsable         Responsable?
+  inscripciones       Inscripcion[]
+  asistencias         Asistencia[]
+  evaluaciones        Evaluacion[]
+  consentimientos     Consentimiento[]
+  remisiones          Remision[]
+  puntosLiga          PuntosLiga[]
+  progresoContenido   ProgresoContenido[]
+
+  @@index([estado])
+  @@index([rangoEtario])
+  @@map("escalador")
+}
+
+model Responsable {
+  id             String   @id @default(uuid()) @db.Uuid
+  escaladorId    String   @unique @map("escalador_id") @db.Uuid
+  nombreCompleto String   @map("nombre_completo") @db.VarChar(200)
+  cedula         String   @db.VarChar(20)
+  telefono       String   @db.VarChar(20)
+  parentesco     String   @db.VarChar(50)
+  email          String?  @db.VarChar(255)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  escalador      Escalador        @relation(fields: [escaladorId], references: [id])
+  consentimientos Consentimiento[]
+
+  @@map("responsable")
+}
+
+model Entrenador {
+  id            String   @id @default(uuid()) @db.Uuid
+  usuarioId     String   @unique @map("usuario_id") @db.Uuid
+  nombre        String   @db.VarChar(200)
+  licenciaLey181 String? @map("licencia_ley181") @db.VarChar(50)
+  maxGrupos     Int      @default(6) @map("max_grupos")
+  fechaIngreso  DateTime @map("fecha_ingreso") @db.Date
+  telefono      String?  @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  usuario  Usuario   @relation(fields: [usuarioId], references: [id])
+  cohortes Cohorte[]
+
+  @@map("entrenador")
+}
+
+model Programa {
+  id                 String             @id @default(uuid()) @db.Uuid
+  nombre             String             @db.VarChar(100)
+  poblacion          PoblacionPrograma
+  rangoEtarioMenor   RangoEtario?       @map("rango_etario_menor")
+  nivel              String             @db.VarChar(50)
+  duracionSemanas    Int                @default(13) @map("duracion_semanas")
+  incluyeFisio       Boolean            @default(false) @map("incluye_fisio")
+  incluyeNutricion   Boolean            @default(false) @map("incluye_nutricion")
+  descripcion        String?            @db.Text
+  activo             Boolean            @default(true)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+
+  cohortes        Cohorte[]
+  contenidoCiclos ContenidoCiclo[]
+
+  @@map("programa")
+}
+
+model Ciclo {
+  id             String   @id @default(uuid()) @db.Uuid
+  codigo         String   @unique @db.VarChar(10)
+  anio           Int
+  trimestre      Int
+  fechaInicio    DateTime @map("fecha_inicio") @db.Date
+  fechaFin       DateTime @map("fecha_fin") @db.Date
+  semanaEmpalme  DateTime @map("semana_empalme") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  cohortes        Cohorte[]
+  contenidoCiclos ContenidoCiclo[]
+
+  @@unique([anio, trimestre])
+  @@map("ciclo")
+}
+
+model MuroAliado {
+  id                String   @id @default(uuid()) @db.Uuid
+  nombre            String   @db.VarChar(100)
+  direccion         String   @db.VarChar(300)
+  contacto          String?  @db.VarChar(200)
+  zonasDisponibles  Int      @default(1) @map("zonas_disponibles")
+  convenioActivo    Boolean  @default(true) @map("convenio_activo")
+  lat               Decimal? @db.Decimal(10, 7)
+  lng               Decimal? @db.Decimal(10, 7)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  cohortes Cohorte[]
+
+  @@map("muro_aliado")
+}
+
+model Cohorte {
+  id              String        @id @default(uuid()) @db.Uuid
+  programaId      String        @map("programa_id") @db.Uuid
+  cicloId         String        @map("ciclo_id") @db.Uuid
+  entrenadorId    String        @map("entrenador_id") @db.Uuid
+  muroId          String        @map("muro_id") @db.Uuid
+  modalidad       ModalidadPlan
+  horario         String        @db.VarChar(50)
+  cupoMaximo      Int           @default(8) @map("cupo_maximo")
+  inscritosActual Int           @default(0) @map("inscritos_actual")
+  estado          EstadoCohorte @default(abierta)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz()
+
+  programa      Programa      @relation(fields: [programaId], references: [id])
+  ciclo         Ciclo         @relation(fields: [cicloId], references: [id])
+  entrenador    Entrenador    @relation(fields: [entrenadorId], references: [id])
+  muro          MuroAliado    @relation(fields: [muroId], references: [id])
+  inscripciones Inscripcion[]
+  sesiones      Sesion[]
+  evaluaciones  Evaluacion[]
+  puntosLiga    PuntosLiga[]
+
+  @@unique([cicloId, entrenadorId, horario])
+  @@index([cicloId])
+  @@index([programaId])
+  @@index([estado])
+  @@map("cohorte")
+}
+
+model Inscripcion {
+  id                String             @id @default(uuid()) @db.Uuid
+  escaladorId       String             @map("escalador_id") @db.Uuid
+  cohorteId         String             @map("cohorte_id") @db.Uuid
+  fechaInscripcion  DateTime           @default(now()) @map("fecha_inscripcion") @db.Date
+  estado            EstadoInscripcion  @default(activa)
+  precioCiclo       Decimal            @map("precio_ciclo") @db.Decimal(10, 2)
+  descuentoAplicado String?            @map("descuento_aplicado") @db.VarChar(100)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
+
+  escalador Escalador @relation(fields: [escaladorId], references: [id])
+  cohorte   Cohorte   @relation(fields: [cohorteId], references: [id])
+  pagos     Pago[]
+
+  @@unique([escaladorId, cohorteId])
+  @@index([escaladorId])
+  @@index([cohorteId])
+  @@index([estado])
+  @@map("inscripcion")
+}
+
+model Pago {
+  id               String      @id @default(uuid()) @db.Uuid
+  inscripcionId    String      @map("inscripcion_id") @db.Uuid
+  monto            Decimal     @db.Decimal(10, 2)
+  fechaPago        DateTime?   @map("fecha_pago") @db.Date
+  fechaVencimiento DateTime?   @map("fecha_vencimiento") @db.Date
+  metodo           MetodoPago?
+  estado           EstadoPago  @default(pendiente)
+  referencia       String?     @db.VarChar(100)
+  comprobanteUrl   String?     @map("comprobante_url") @db.VarChar(500)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz()
+
+  inscripcion Inscripcion @relation(fields: [inscripcionId], references: [id])
+
+  @@index([inscripcionId])
+  @@index([estado])
+  @@map("pago")
+}
+
+model Sesion {
+  id              String     @id @default(uuid()) @db.Uuid
+  cohorteId       String     @map("cohorte_id") @db.Uuid
+  fecha           DateTime   @db.Date
+  horaInicio      DateTime   @map("hora_inicio") @db.Time()
+  horaFin         DateTime   @map("hora_fin") @db.Time()
+  numeroSesion    Int        @map("numero_sesion")
+  tipo            TipoSesion @default(regular)
+  notasEntrenador String?    @map("notas_entrenador") @db.Text
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+
+  cohorte     Cohorte      @relation(fields: [cohorteId], references: [id])
+  asistencias Asistencia[]
+
+  @@unique([cohorteId, numeroSesion])
+  @@index([cohorteId])
+  @@index([fecha])
+  @@map("sesion")
+}
+
+model Asistencia {
+  id            String   @id @default(uuid()) @db.Uuid
+  sesionId      String   @map("sesion_id") @db.Uuid
+  escaladorId   String   @map("escalador_id") @db.Uuid
+  asistio       Boolean
+  observaciones String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  sesion    Sesion    @relation(fields: [sesionId], references: [id])
+  escalador Escalador @relation(fields: [escaladorId], references: [id])
+
+  @@unique([sesionId, escaladorId])
+  @@index([escaladorId])
+  @@map("asistencia")
+}
+
+model Evaluacion {
+  id           String           @id @default(uuid()) @db.Uuid
+  escaladorId  String           @map("escalador_id") @db.Uuid
+  cohorteId    String           @map("cohorte_id") @db.Uuid
+  tipo         TipoEvaluacion
+  fecha        DateTime         @db.Date
+  estado       EstadoEvaluacion @default(programada)
+  notas        String?          @db.Text
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+
+  escalador   Escalador       @relation(fields: [escaladorId], references: [id])
+  cohorte     Cohorte         @relation(fields: [cohorteId], references: [id])
+  resultados  ResultadoTest[]
+  remisiones  Remision[]
+
+  @@index([escaladorId])
+  @@index([cohorteId])
+  @@map("evaluacion")
+}
+
+model ResultadoTest {
+  id            String   @id @default(uuid()) @db.Uuid
+  evaluacionId  String   @map("evaluacion_id") @db.Uuid
+  metrica       String   @db.VarChar(100)
+  valor         Decimal  @db.Decimal(10, 2)
+  unidad        String   @db.VarChar(20)
+  semaforo      Semaforo
+  percentil     Int?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  evaluacion Evaluacion @relation(fields: [evaluacionId], references: [id])
+
+  @@index([evaluacionId])
+  @@map("resultado_test")
+}
+
+model Consentimiento {
+  id             String              @id @default(uuid()) @db.Uuid
+  escaladorId    String              @map("escalador_id") @db.Uuid
+  responsableId  String?             @map("responsable_id") @db.Uuid
+  tipo           TipoConsentimiento
+  fechaFirma     DateTime            @map("fecha_firma") @db.Date
+  documentoUrl   String              @map("documento_url") @db.VarChar(500)
+  vigente        Boolean             @default(true)
+  notas          String?             @db.Text
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz()
+
+  escalador   Escalador    @relation(fields: [escaladorId], references: [id])
+  responsable Responsable? @relation(fields: [responsableId], references: [id])
+
+  @@index([escaladorId])
+  @@index([vigente])
+  @@map("consentimiento")
+}
+
+model AliadoSalud {
+  id        String          @id @default(uuid()) @db.Uuid
+  nombre    String          @db.VarChar(200)
+  tipo      TipoAliadoSalud
+  direccion String?         @db.VarChar(300)
+  contacto  String?         @db.VarChar(200)
+  activo    Boolean         @default(true)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+
+  remisiones Remision[]
+
+  @@map("aliado_salud")
+}
+
+model Remision {
+  id            String          @id @default(uuid()) @db.Uuid
+  escaladorId   String          @map("escalador_id") @db.Uuid
+  aliadoId      String          @map("aliado_id") @db.Uuid
+  evaluacionId  String?         @map("evaluacion_id") @db.Uuid
+  fecha         DateTime        @default(now()) @db.Date
+  motivo        String          @db.Text
+  estado        EstadoRemision  @default(pendiente)
+  notasAliado   String?         @map("notas_aliado") @db.Text
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
+
+  escalador  Escalador    @relation(fields: [escaladorId], references: [id])
+  aliado     AliadoSalud  @relation(fields: [aliadoId], references: [id])
+  evaluacion Evaluacion?  @relation(fields: [evaluacionId], references: [id])
+
+  @@index([escaladorId])
+  @@map("remision")
+}
+
+model PuntosLiga {
+  id           String   @id @default(uuid()) @db.Uuid
+  escaladorId  String   @map("escalador_id") @db.Uuid
+  cohorteId    String   @map("cohorte_id") @db.Uuid
+  sesionId     String?  @map("sesion_id") @db.Uuid
+  puntos       Int
+  motivo       String   @db.VarChar(200)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  escalador Escalador @relation(fields: [escaladorId], references: [id])
+  cohorte   Cohorte   @relation(fields: [cohorteId], references: [id])
+
+  @@index([escaladorId, cohorteId])
+  @@map("puntos_liga")
+}
+
+model ContenidoCiclo {
+  id          String        @id @default(uuid()) @db.Uuid
+  cicloId     String        @map("ciclo_id") @db.Uuid
+  programaId  String?       @map("programa_id") @db.Uuid
+  tipo        TipoContenido
+  titulo      String        @db.VarChar(300)
+  descripcion String?       @db.Text
+  archivoUrl  String        @map("archivo_url") @db.VarChar(500)
+  mimeType    String        @map("mime_type") @db.VarChar(100)
+  tamanoBytes BigInt?       @map("tamano_bytes")
+  duracionSeg Int?          @map("duracion_seg")
+  orden       Int           @default(0)
+  visible     Boolean       @default(true)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz()
+
+  ciclo     Ciclo     @relation(fields: [cicloId], references: [id])
+  programa  Programa? @relation(fields: [programaId], references: [id])
+  progresos ProgresoContenido[]
+
+  @@index([cicloId])
+  @@index([programaId])
+  @@index([tipo])
+  @@map("contenido_ciclo")
+}
+
+model ProgresoContenido {
+  id           String    @id @default(uuid()) @db.Uuid
+  escaladorId  String    @map("escalador_id") @db.Uuid
+  contenidoId  String    @map("contenido_id") @db.Uuid
+  visto        Boolean   @default(false)
+  progresoPct  Int       @default(0) @map("progreso_pct")
+  ultimoAcceso DateTime? @map("ultimo_acceso") @db.Timestamptz()
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  escalador Escalador      @relation(fields: [escaladorId], references: [id])
+  contenido ContenidoCiclo @relation(fields: [contenidoId], references: [id])
+
+  @@unique([escaladorId, contenidoId])
+  @@map("progreso_contenido")
+}
