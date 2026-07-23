@@ -95,7 +95,7 @@ router.post(
 // ─── POST /auth/login ────────────────────────────────────
 router.post(
   "/login",
-  [body("email").isEmail().normalizeEmail(), body("password").notEmpty()],
+  [body("email").isEmail(), body("password").notEmpty()],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
