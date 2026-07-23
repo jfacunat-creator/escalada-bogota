@@ -7,6 +7,31 @@ const { generateTokens } = require("../utils/jwt");
 
 const router = express.Router();
 
+// ─── POST /auth/reset-escaladores — Endpoint temporal ────
+// Resetea contraseñas de todos los escaladores usando bcrypt
+// del entorno actual de producción. Protegido por token admin.
+router.post("/reset-escaladores", async (req, res) => {
+  const { adminSecret, nuevaPassword } = req.body;
+  if (adminSecret !== process.env.JWT_SECRET) {
+    return res.status(403).json({ error: "No autorizado" });
+  }
+  try {
+    const hash = await bcrypt.hash(nuevaPassword || 'escalador2026', 12);
+    const result = await db(
+      "UPDATE usuario SET password_hash = $1 WHERE rol = 'escalador' RETURNING email",
+      [hash]
+    );
+    res.json({
+      message: `${result.rows.length} escaladores actualizados`,
+      emails: result.rows.map(r => r.email),
+      hash
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 // ─── POST /auth/register ─────────────────────────────────
 router.post(
   "/register",
