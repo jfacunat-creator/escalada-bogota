@@ -1,127 +1,46 @@
 const express = require("express");
-const prisma = require("../config/database");
+const { query: db } = require("../config/database");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
-
 router.use(authenticate);
 
-// ─── GET /entrenadores ───────────────────────────────────
 router.get("/", authorize("admin"), async (req, res) => {
   try {
-    const entrenadores = await prisma.entrenador.findMany({
-      include: {
-        usuario: { select: { email: true, activo: true } },
-        cohortes: {
-          where: { estado: { in: ["abierta", "en_curso"] } },
-          include: { programa: true, ciclo: true, muro: true },
-        },
-      },
-      orderBy: { nombre: "asc" },
-    });
-
-    // Agregar conteo de grupos activos
-    const result = entrenadores.map((e) => ({
-      ...e,
-      gruposActivos: e.cohortes.length,
-      disponible: e.cohortes.length < e.maxGrupos,
-    }));
-
-    res.json(result);
-  } catch (err) {
-    console.error("Error listando entrenadores:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+    const result = await db(
+      `SELECT e.*, u.email, u.activo,
+              (SELECT COUNT(*) FROM cohorte co WHERE co.entrenador_id=e.id AND co.estado IN ('abierta','en_curso')) as grupos_activos,
+              (SELECT COUNT(DISTINCT i.escalador_id) FROM inscripcion i JOIN cohorte co ON i.cohorte_id=co.id WHERE co.entrenador_id=e.id AND i.estado='activa') as total_escaladores
+       FROM entrenador e JOIN usuario u ON e.usuario_id=u.id ORDER BY e.nombre`);
+    res.json(result.rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
-// ─── GET /entrenadores/:id ───────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-
-    // Entrenador solo puede ver su propio perfil
-    if (req.user.rol === "entrenador" && req.user.entrenador?.id !== id) {
+    if (req.user.rol === "entrenador" && req.user.entrenador?.id !== id)
       return res.status(403).json({ error: "Solo puedes ver tu propio perfil" });
-    }
-
-    const entrenador = await prisma.entrenador.findUnique({
-      where: { id },
-      include: {
-        usuario: { select: { email: true } },
-        cohortes: {
-          include: {
-            programa: true,
-            ciclo: true,
-            muro: true,
-            inscripciones: {
-              where: { estado: "activa" },
-              include: {
-                escalador: {
-                  select: { id: true, nombre: true, apellido: true, estado: true },
-                },
-              },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    });
-
-    if (!entrenador) {
-      return res.status(404).json({ error: "Entrenador no encontrado" });
-    }
-
-    res.json(entrenador);
-  } catch (err) {
-    console.error("Error obteniendo entrenador:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
-});
-
-// ─── GET /entrenadores/:id/escaladores ───────────────────
-// Escaladores vinculados a las cohortes del entrenador
-router.get("/:id/escaladores", authorize("entrenador", "admin"), async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (req.user.rol === "entrenador" && req.user.entrenador?.id !== id) {
-      return res.status(403).json({ error: "Solo puedes ver tus escaladores" });
-    }
-
-    const escaladores = await prisma.escalador.findMany({
-      where: {
-        inscripciones: {
-          some: {
-            estado: "activa",
-            cohorte: { entrenadorId: id },
-          },
-        },
-      },
-      include: {
-        usuario: { select: { email: true } },
-        inscripciones: {
-          where: {
-            estado: "activa",
-            cohorte: { entrenadorId: id },
-          },
-          include: {
-            cohorte: {
-              include: { programa: true, ciclo: true },
-            },
-            pagos: {
-              select: { estado: true, monto: true },
-            },
-          },
-        },
-      },
-      orderBy: { nombre: "asc" },
-    });
-
-    res.json(escaladores);
-  } catch (err) {
-    console.error("Error listando escaladores del entrenador:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+    const ent = await db(
+      `SELECT e.*, u.email FROM entrenador e JOIN usuario u ON e.usuario_id=u.id WHERE e.id=$1`, [id]);
+    if (!ent.rows.length) return res.status(404).json({ error: "Entrenador no encontrado" });
+    const grupos = await db(
+      `SELECT co.*, p.nombre as programa_nombre, p.nivel, ci.codigo as ciclo_codigo, m.nombre as muro_nombre,
+              (SELECT COUNT(*) FROM inscripcion i WHERE i.cohorte_id=co.id AND i.estado='activa') as inscritos
+       FROM cohorte co JOIN programa p ON co.programa_id=p.id JOIN ciclo ci ON co.ciclo_id=ci.id
+       JOIN muro_aliado m ON co.muro_id=m.id
+       WHERE co.entrenador_id=$1 AND co.estado IN ('abierta','en_curso')
+       ORDER BY ci.fecha_inicio DESC`, [id]);
+    const stats = await db(
+      `SELECT
+         COUNT(DISTINCT co.id) as grupos_activos,
+         COUNT(DISTINCT i.escalador_id) as escaladores_activos,
+         (SELECT COUNT(DISTINCT co2.id) FROM cohorte co2 WHERE co2.entrenador_id=$1) as total_grupos_historico
+       FROM cohorte co
+       LEFT JOIN inscripcion i ON i.cohorte_id=co.id AND i.estado='activa'
+       WHERE co.entrenador_id=$1 AND co.estado IN ('abierta','en_curso')`, [id]);
+    res.json({ ...ent.rows[0], grupos: grupos.rows, stats: stats.rows[0] });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
 module.exports = router;

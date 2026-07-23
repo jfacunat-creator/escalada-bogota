@@ -1,158 +1,105 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import {
-  Users, Calendar, Mountain, MapPin, Loader2,
-  ChevronDown, ChevronUp, Clock, AlertTriangle
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { IconoCohorte, IconoEscalador, IconoPresa, IconoCronometro, IconoMuro } from '../components/Icons';
+
+function StatCard({ icon: Icon, label, value, color = '#D4AF37' }) {
+  return (
+    <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div style={{ padding: '10px', borderRadius: '10px', background: color + '18', color }}>
+        <Icon style={{ width: '22px', height: '22px' }} />
+      </div>
+      <div>
+        <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.8rem', color: '#F0EDE8', lineHeight: 1 }}>{value ?? '—'}</div>
+        <div style={{ fontSize: '0.8rem', color: '#A09A8C', marginTop: '2px' }}>{label}</div>
+      </div>
+    </div>
+  );
+}
 
 export default function EntrenadorDashboard() {
   const { user } = useAuth();
-  const [profile, setProfile] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [expandedCohorte, setExpandedCohorte] = useState(null);
-
-  const ent = user?.entrenador;
 
   useEffect(() => {
-    if (ent?.id) {
-      api.getEntrenador(ent.id).then(setProfile).catch(console.error).finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-  }, [ent?.id]);
+    if (user?.entrenador?.id) {
+      api.getEntrenador(user.entrenador.id).then(setData).catch(console.error).finally(() => setLoading(false));
+    } else { setLoading(false); }
+  }, [user?.entrenador?.id]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>;
 
-  const cohortes = profile?.cohortes || [];
-  const totalEscaladores = cohortes.reduce((sum, c) => sum + (c.inscripciones?.length || 0), 0);
+  const stats = data?.stats || {};
+  const grupos = data?.grupos || [];
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Panel de Entrenador</h1>
-        <p className="text-slate-500 mt-1">Hola, {ent?.nombre || 'Entrenador'}</p>
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8', marginBottom: '4px' }}>
+          Bienvenido, {data?.nombre || user?.entrenador?.nombre}
+        </h1>
+        <p style={{ color: '#A09A8C', fontSize: '0.9rem' }}>Panel de entrenador · {data?.licencia_ley181}</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-teal-50 rounded-lg"><Users className="w-5 h-5 text-teal-700" /></div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800">{cohortes.length}</p>
-              <p className="text-sm text-slate-500">Cohortes activas</p>
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-slate-400">Máximo: {profile?.maxGrupos || 6}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-50 rounded-lg"><Mountain className="w-5 h-5 text-amber-700" /></div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800">{totalEscaladores}</p>
-              <p className="text-sm text-slate-500">Escaladores</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-green-50 rounded-lg"><Calendar className="w-5 h-5 text-green-700" /></div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800">{profile?.licenciaLey181 || '—'}</p>
-              <p className="text-sm text-slate-500">Licencia Ley 181</p>
-            </div>
-          </div>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+        <StatCard icon={IconoCohorte} label="Grupos activos" value={stats.grupos_activos || 0} color="#D4AF37" />
+        <StatCard icon={IconoEscalador} label="Escaladores activos" value={stats.escaladores_activos || 0} color="#9E721D" />
+        <StatCard icon={IconoCronometro} label="Grupos histórico" value={stats.total_grupos_historico || 0} color="#A09A8C" />
+        <StatCard icon={IconoPresa} label="Máx. grupos" value={data?.max_grupos || 6} color="#A09A8C" />
       </div>
 
-      {/* Cohortes */}
-      <h2 className="text-lg font-semibold text-slate-800 mb-4">Mis Cohortes</h2>
+      {/* Grupos activos */}
+      <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.3rem', color: '#F0EDE8', marginBottom: '16px' }}>
+        Mis Grupos Activos
+      </h2>
 
-      {cohortes.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-          <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-          <p className="text-slate-500">No tienes cohortes asignadas en este momento.</p>
+      {grupos.length === 0 ? (
+        <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '48px', textAlign: 'center' }}>
+          <IconoCohorte style={{ width: '40px', height: '40px', color: '#2e2e2e', margin: '0 auto 12px' }} />
+          <p style={{ color: '#A09A8C' }}>No tienes grupos asignados en este ciclo.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {cohortes.map(c => {
-            const isOpen = expandedCohorte === c.id;
-            const escaladores = c.inscripciones || [];
-
-            return (
-              <div key={c.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <button
-                  onClick={() => setExpandedCohorte(isOpen ? null : c.id)}
-                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 transition"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-teal-50 rounded-lg">
-                      <Mountain className="w-5 h-5 text-teal-700" />
-                    </div>
-                    <div className="text-left">
-                      <h3 className="font-semibold text-slate-800">{c.programa?.nombre}</h3>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{c.horario}</span>
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{c.muro?.nombre}</span>
-                        <span>{c.ciclo?.codigo}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-slate-600">{escaladores.length}/{c.cupoMaximo || 8}</span>
-                    {isOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
-                  </div>
-                </button>
-
-                {isOpen && (
-                  <div className="border-t border-slate-100 px-5 py-4">
-                    {escaladores.length === 0 ? (
-                      <p className="text-sm text-slate-400 py-2">Sin escaladores inscritos aún.</p>
-                    ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
-                            <th className="pb-2 font-medium">Nombre</th>
-                            <th className="pb-2 font-medium">Estado</th>
-                            <th className="pb-2 font-medium">Pago</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {escaladores.map(insc => {
-                            const e = insc.escalador;
-                            const pagoStatus = insc.pagos?.[0]?.estado || 'pendiente';
-                            const pagoColor = pagoStatus === 'pagado' ? 'text-green-600' : 'text-amber-600';
-                            return (
-                              <tr key={e?.id || insc.id} className="border-b border-slate-50 last:border-0">
-                                <td className="py-2.5 font-medium text-slate-700">{e?.nombre} {e?.apellido}</td>
-                                <td className="py-2.5">
-                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    e?.estado === 'activo' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                                  }`}>
-                                    {e?.estado}
-                                  </span>
-                                </td>
-                                <td className={`py-2.5 font-medium ${pagoColor}`}>{pagoStatus}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {grupos.map(g => (
+            <div key={g.id} style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
+              <div style={{ padding: '14px 16px', background: '#4A2F0F', borderBottom: '1px solid #5a3a14' }}>
+                <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.05rem', color: '#F0EDE8' }}>{g.programa_nombre}</div>
+                <div style={{ fontSize: '0.75rem', color: '#D4AF37', marginTop: '2px' }}>{g.ciclo_codigo} · {g.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'}</div>
               </div>
-            );
-          })}
+              <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontSize: '0.85rem', color: '#A09A8C', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IconoCronometro style={{ width: '14px', height: '14px' }} /> {g.horario}
+                </div>
+                <div style={{ fontSize: '0.85rem', color: '#A09A8C', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IconoMuro style={{ width: '14px', height: '14px' }} /> {g.muro_nombre}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #2e2e2e' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#A09A8C' }}>Inscritos</span>
+                  <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: parseInt(g.inscritos) >= g.cupo_maximo ? '#f87171' : '#D4AF37' }}>
+                    {g.inscritos}/{g.cupo_maximo}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
+
+      {/* Info personal */}
+      <div style={{ marginTop: '32px', background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '20px' }}>
+        <h3 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: '#F0EDE8', marginBottom: '16px' }}>Mis datos</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+          {[['Email', data?.email], ['Teléfono', data?.telefono || '—'], ['Licencia Ley 181', data?.licencia_ley181 || '—'], ['Desde', data?.fecha_ingreso ? new Date(data.fecha_ingreso).toLocaleDateString('es-CO') : '—']].map(([k, v]) => (
+            <div key={k}>
+              <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>{k}</div>
+              <div style={{ fontSize: '0.9rem', color: '#F0EDE8', fontWeight: 500 }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

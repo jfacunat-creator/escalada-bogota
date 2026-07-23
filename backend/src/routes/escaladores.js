@@ -1,183 +1,75 @@
 const express = require("express");
-const { body, param, validationResult } = require("express-validator");
-const prisma = require("../config/database");
+const { body, validationResult } = require("express-validator");
+const { query: db } = require("../config/database");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
-
-// Todas las rutas requieren autenticación
 router.use(authenticate);
 
-// ─── GET /escaladores ────────────────────────────────────
-// Admin y entrenadores ven la lista de escaladores
 router.get("/", authorize("admin", "entrenador"), async (req, res) => {
   try {
-    const { estado, rangoEtario, buscar } = req.query;
-
-    const where = {};
-    if (estado) where.estado = estado;
-    if (rangoEtario) where.rangoEtario = rangoEtario;
-    if (buscar) {
-      where.OR = [
-        { nombre: { contains: buscar, mode: "insensitive" } },
-        { apellido: { contains: buscar, mode: "insensitive" } },
-      ];
-    }
-
-    // Si es entrenador, solo ve escaladores de SUS cohortes
-    if (req.user.rol === "entrenador") {
-      where.inscripciones = {
-        some: {
-          cohorte: { entrenadorId: req.user.entrenador.id },
-          estado: "activa",
-        },
-      };
-    }
-
-    const escaladores = await prisma.escalador.findMany({
-      where,
-      include: {
-        usuario: { select: { email: true, activo: true } },
-        responsable: true,
-        inscripciones: {
-          where: { estado: "activa" },
-          include: {
-            cohorte: {
-              include: { programa: true, ciclo: true },
-            },
-          },
-        },
-      },
-      orderBy: { nombre: "asc" },
-    });
-
-    res.json(escaladores);
-  } catch (err) {
-    console.error("Error listando escaladores:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+    const { estado, rangoEtario, buscar, cohorteId } = req.query;
+    let sql = `
+      SELECT e.*, u.email, u.activo as usuario_activo,
+             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado='activa') as grupos_activos
+      FROM escalador e JOIN usuario u ON e.usuario_id = u.id WHERE 1=1`;
+    const params = [];
+    if (estado) { params.push(estado); sql += ` AND e.estado = $${params.length}`; }
+    if (rangoEtario) { params.push(rangoEtario); sql += ` AND e.rango_etario = $${params.length}`; }
+    if (buscar) { params.push(`%${buscar}%`); sql += ` AND (e.nombre ILIKE $${params.length} OR e.apellido ILIKE $${params.length})`; }
+    if (cohorteId) { params.push(cohorteId); sql += ` AND EXISTS (SELECT 1 FROM inscripcion i WHERE i.escalador_id=e.id AND i.cohorte_id=$${params.length} AND i.estado='activa')`; }
+    if (req.user.rol === "entrenador") { params.push(req.user.entrenador.id); sql += ` AND EXISTS (SELECT 1 FROM inscripcion i JOIN cohorte co ON i.cohorte_id=co.id WHERE i.escalador_id=e.id AND co.entrenador_id=$${params.length} AND i.estado='activa')`; }
+    sql += " ORDER BY e.nombre, e.apellido";
+    const result = await db(sql, params);
+    res.json(result.rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
-// ─── GET /escaladores/:id ────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-
-    // Escalador solo puede ver su propio perfil
-    if (req.user.rol === "escalador" && req.user.escalador?.id !== id) {
+    if (req.user.rol === "escalador" && req.user.escalador?.id !== id)
       return res.status(403).json({ error: "Solo puedes ver tu propio perfil" });
-    }
-
-    const escalador = await prisma.escalador.findUnique({
-      where: { id },
-      include: {
-        usuario: { select: { email: true } },
-        responsable: true,
-        inscripciones: {
-          include: {
-            cohorte: {
-              include: { programa: true, ciclo: true, muro: true, entrenador: true },
-            },
-            pagos: true,
-          },
-          orderBy: { fechaInscripcion: "desc" },
-        },
-        evaluaciones: {
-          include: { resultados: true },
-          orderBy: { fecha: "desc" },
-        },
-        consentimientos: {
-          where: { vigente: true },
-        },
-      },
-    });
-
-    if (!escalador) {
-      return res.status(404).json({ error: "Escalador no encontrado" });
-    }
-
-    res.json(escalador);
-  } catch (err) {
-    console.error("Error obteniendo escalador:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+    const result = await db(
+      `SELECT e.*, u.email FROM escalador e JOIN usuario u ON e.usuario_id=u.id WHERE e.id=$1`, [id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Escalador no encontrado" });
+    const inscripciones = await db(
+      `SELECT i.*, p.nombre as programa, ci.codigo as ciclo, m.nombre as muro, co.horario, co.modalidad
+       FROM inscripcion i JOIN cohorte co ON i.cohorte_id=co.id JOIN programa p ON co.programa_id=p.id
+       JOIN ciclo ci ON co.ciclo_id=ci.id JOIN muro_aliado m ON co.muro_id=m.id
+       WHERE i.escalador_id=$1 ORDER BY i.created_at DESC`, [id]);
+    res.json({ ...result.rows[0], inscripciones: inscripciones.rows });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
-// ─── PUT /escaladores/:id ────────────────────────────────
-router.put(
-  "/:id",
-  [
-    body("nombre").optional().trim().notEmpty(),
-    body("apellido").optional().trim().notEmpty(),
-    body("pesoKg").optional().isFloat({ min: 20, max: 200 }),
-    body("telefono").optional().trim(),
-    body("contactoEmergencia").optional().trim().notEmpty(),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+router.put("/:id", [body("nombre").optional().trim(), body("apellido").optional().trim(), body("telefono").optional().trim()], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  try {
+    const { id } = req.params;
+    if (req.user.rol === "escalador" && req.user.escalador?.id !== id)
+      return res.status(403).json({ error: "Solo puedes editar tu propio perfil" });
+    const { nombre, apellido, pesoKg, telefono, contactoEmergencia } = req.body;
+    const sets = [], params = [];
+    if (nombre) { params.push(nombre); sets.push(`nombre=$${params.length}`); }
+    if (apellido) { params.push(apellido); sets.push(`apellido=$${params.length}`); }
+    if (pesoKg !== undefined) { params.push(pesoKg); sets.push(`peso_kg=$${params.length}`); }
+    if (telefono !== undefined) { params.push(telefono); sets.push(`telefono=$${params.length}`); }
+    if (contactoEmergencia) { params.push(contactoEmergencia); sets.push(`contacto_emergencia=$${params.length}`); }
+    if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
+    params.push(id);
+    const result = await db(`UPDATE escalador SET ${sets.join(',')} WHERE id=$${params.length} RETURNING *`, params);
+    res.json(result.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
+});
 
-    try {
-      const { id } = req.params;
-
-      // Solo el propio escalador o admin pueden editar
-      if (req.user.rol === "escalador" && req.user.escalador?.id !== id) {
-        return res.status(403).json({ error: "Solo puedes editar tu propio perfil" });
-      }
-
-      const { nombre, apellido, pesoKg, telefono, contactoEmergencia } = req.body;
-
-      const actualizado = await prisma.escalador.update({
-        where: { id },
-        data: {
-          ...(nombre && { nombre }),
-          ...(apellido && { apellido }),
-          ...(pesoKg !== undefined && { pesoKg }),
-          ...(telefono !== undefined && { telefono }),
-          ...(contactoEmergencia && { contactoEmergencia }),
-        },
-      });
-
-      res.json(actualizado);
-    } catch (err) {
-      console.error("Error actualizando escalador:", err);
-      res.status(500).json({ error: "Error interno" });
-    }
-  }
-);
-
-// ─── PATCH /escaladores/:id/estado ───────────────────────
-// Solo admin puede cambiar estado (activo/inactivo/congelado)
-router.patch(
-  "/:id/estado",
-  authorize("admin"),
-  [body("estado").isIn(["activo", "inactivo", "congelado"])],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    try {
-      const { id } = req.params;
-      const { estado } = req.body;
-
-      const actualizado = await prisma.escalador.update({
-        where: { id },
-        data: { estado },
-      });
-
-      res.json({
-        message: `Estado cambiado a ${estado}`,
-        escalador: actualizado,
-      });
-    } catch (err) {
-      console.error("Error cambiando estado:", err);
-      res.status(500).json({ error: "Error interno" });
-    }
-  }
-);
+router.patch("/:id/estado", authorize("admin"), [body("estado").isIn(["activo","inactivo","congelado"])], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  try {
+    await db("UPDATE escalador SET estado=$1 WHERE id=$2", [req.body.estado, req.params.id]);
+    res.json({ message: `Estado cambiado a ${req.body.estado}` });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
+});
 
 module.exports = router;
