@@ -6,144 +6,49 @@ import { Loader2 } from 'lucide-react';
 import { IconoRoca, IconoPresa, IconoSemaforo, IconoCronometro, IconoEscalador, IconoCuerda } from '../components/Icons';
 
 const metricaConfig = {
-  fuerza_dedos_kg:    { label: 'Fuerza de dedos',   Icon: IconoPresa,   color: '#0d9488', desc: 'Dinamometría (kg)' },
-  grado_max_boulder:  { label: 'Grado máximo',      Icon: IconoRoca,    color: '#7c3aed', desc: 'Boulder más alto enviado' },
-  resistencia_seg:    { label: 'Resistencia',        Icon: IconoCronometro, color: '#2563eb', desc: 'Tiempo en pared (seg)' },
-  flexibilidad_cm:    { label: 'Flexibilidad',       Icon: IconoCuerda,  color: '#059669', desc: 'Sit and reach (cm)' },
-  tecnica_caida:      { label: 'Técnica de caída',   Icon: IconoEscalador, color: '#d97706', desc: 'Evaluación 1-5' },
-  lectura_vias:       { label: 'Lectura de vías',    Icon: IconoRoca,    color: '#dc2626', desc: 'Evaluación 1-5' },
+  fuerza_dedos_kg: { label: 'Fuerza de dedos', Icon: IconoPresa, color: '#D4AF37' },
+  grado_max_boulder: { label: 'Grado máximo', Icon: IconoRoca, color: '#c084fc' },
+  resistencia_seg: { label: 'Resistencia', Icon: IconoCronometro, color: '#60a5fa' },
+  flexibilidad_cm: { label: 'Flexibilidad', Icon: IconoCuerda, color: '#22c55e' },
+  tecnica_caida: { label: 'Técnica de caída', Icon: IconoEscalador, color: '#f59e0b' },
+  lectura_vias: { label: 'Lectura de vías', Icon: IconoRoca, color: '#ef4444' },
 };
 
-const semaforoColor = { verde: '#16a34a', amarillo: '#f59e0b', rojo: '#dc2626' };
-
 function MetricaCard({ metrica, data }) {
-  const config = metricaConfig[metrica] || { label: metrica, Icon: IconoPresa, color: '#64748b', desc: '' };
+  const cfg = metricaConfig[metrica] || { label: metrica, Icon: IconoPresa, color: '#A09A8C' };
   const { puntos, tendencia, unidad } = data;
   const ultimo = puntos[puntos.length - 1];
-  const chartData = puntos.map(p => ({
-    name: `${p.ciclo} ${p.tipo === 'entrada' ? 'E' : 'S'}`,
-    valor: p.valor,
-    semaforo: p.semaforo,
-  }));
+  const chartData = puntos.map(p => ({ name: `${p.ciclo} ${p.tipo === 'entrada' ? 'E' : 'S'}`, valor: p.valor }));
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-100">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg" style={{ backgroundColor: config.color + '15', color: config.color }}>
-              <config.Icon className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-800 text-sm">{config.label}</h3>
-              <p className="text-xs text-slate-400">{config.desc}</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-bold" style={{ color: config.color }}>{ultimo.valor}</span>
-              <span className="text-xs text-slate-400">{unidad}</span>
-            </div>
-            <div className="flex items-center gap-1 mt-0.5">
-              <IconoSemaforo color={ultimo.semaforo} className="w-4 h-4" />
-              {tendencia && (
-                <span className={`text-xs font-medium ${tendencia.mejoro ? 'text-green-600' : 'text-red-500'}`}>
-                  {tendencia.mejoro ? '↑' : '↓'} {Math.abs(tendencia.cambioPct)}%
-                </span>
-              )}
-            </div>
+    <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid #242424', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ padding: '8px', borderRadius: '8px', background: cfg.color + '15', color: cfg.color }}><cfg.Icon style={{ width: '18px', height: '18px' }} /></div>
+          <div>
+            <div style={{ fontWeight: 600, color: '#F0EDE8', fontSize: '0.9rem' }}>{cfg.label}</div>
+            <div style={{ fontSize: '0.75rem', color: '#A09A8C' }}>{cfg.desc || metrica}</div>
           </div>
         </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontFamily: 'Antonio', fontSize: '1.4rem', color: cfg.color }}>{ultimo.valor} <span style={{ fontSize: '0.75rem', color: '#A09A8C' }}>{unidad}</span></div>
+          {tendencia && <div style={{ fontSize: '0.78rem', fontWeight: 600, color: tendencia.mejoro ? '#22c55e' : '#ef4444' }}>{tendencia.mejoro ? '↑' : '↓'} {Math.abs(tendencia.cambioPct)}%</div>}
+        </div>
       </div>
-
-      {/* Chart */}
       {puntos.length >= 2 && (
-        <div className="px-3 py-3">
-          <ResponsiveContainer width="100%" height={140}>
-            <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id={`grad-${metrica}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={config.color} stopOpacity={0.2} />
-                  <stop offset="95%" stopColor={config.color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                formatter={(val, name) => [`${val} ${unidad}`, config.label]}
-                labelStyle={{ fontWeight: 600, color: '#334155' }}
-              />
-              <Area type="monotone" dataKey="valor" stroke={config.color} strokeWidth={2.5}
-                fill={`url(#grad-${metrica})`} dot={{ r: 4, fill: config.color, strokeWidth: 2, stroke: '#fff' }} />
+        <div style={{ padding: '12px 8px' }}>
+          <ResponsiveContainer width="100%" height={130}>
+            <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+              <defs><linearGradient id={`g-${metrica}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={cfg.color} stopOpacity={0.2} /><stop offset="95%" stopColor={cfg.color} stopOpacity={0} /></linearGradient></defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: '#242424', border: '1px solid #2e2e2e', borderRadius: '8px', fontSize: '12px', color: '#F0EDE8' }} />
+              <Area type="monotone" dataKey="valor" stroke={cfg.color} strokeWidth={2.5} fill={`url(#g-${metrica})`} dot={{ r: 4, fill: cfg.color, strokeWidth: 2, stroke: '#1c1c1c' }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       )}
-
-      {/* Puntos de datos */}
-      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50">
-        <div className="flex gap-3 overflow-x-auto">
-          {puntos.map((p, i) => (
-            <div key={i} className="flex-shrink-0 text-center min-w-[60px]">
-              <p className="text-xs text-slate-400">{p.ciclo}</p>
-              <p className="text-xs text-slate-400">{p.tipo === 'entrada' ? 'Entrada' : 'Salida'}</p>
-              <p className="text-sm font-semibold" style={{ color: semaforoColor[p.semaforo] }}>{p.valor}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-      <IconoRoca className="w-14 h-14 text-slate-300 mx-auto mb-4" />
-      <h3 className="text-lg font-semibold text-slate-700 mb-2">Aún no tienes evaluaciones</h3>
-      <p className="text-slate-500 text-sm max-w-md mx-auto mb-4">
-        Las evaluaciones se realizan al inicio y final de cada ciclo (13 semanas).
-        Tu entrenador registrará los resultados de la batería Hörst, tests físicos
-        y rendimiento en muro.
-      </p>
-      <div className="flex flex-wrap justify-center gap-3 mt-6">
-        {Object.entries(metricaConfig).slice(0, 4).map(([key, cfg]) => (
-          <div key={key} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
-            <cfg.Icon className="w-4 h-4 text-slate-400" />
-            <span className="text-xs text-slate-500">{cfg.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function EvaluacionTimeline({ evaluaciones }) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
-      <h3 className="text-sm font-semibold text-slate-700 mb-4">Historial de Evaluaciones</h3>
-      <div className="space-y-3">
-        {evaluaciones.map((ev, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              ev.tipo === 'entrada' ? 'bg-amber-50 text-amber-600' : 'bg-teal-50 text-teal-600'
-            }`}>
-              <span className="text-xs font-bold">{ev.tipo === 'entrada' ? 'E' : 'S'}</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-slate-700">
-                Test de {ev.tipo} · {ev.ciclo}
-              </p>
-              <p className="text-xs text-slate-400">
-                {ev.programa} · {new Date(ev.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -154,19 +59,11 @@ export default function MiProgresoPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user?.escalador?.id) {
-      api.getProgreso(user.escalador.id)
-        .then(setProgreso)
-        .catch(console.error)
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    if (user?.escalador?.id) api.getProgreso(user.escalador.id).then(setProgreso).catch(console.error).finally(() => setLoading(false));
+    else setLoading(false);
   }, [user?.escalador?.id]);
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-teal-600 animate-spin" /></div>;
-  }
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>;
 
   const hayDatos = progreso?.hayDatos;
   const metricas = progreso?.metricas || {};
@@ -174,51 +71,37 @@ export default function MiProgresoPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Mi Progreso</h1>
-        <p className="text-slate-500 mt-1">Curvas de progreso trimestre a trimestre</p>
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8' }}>Mi Progreso</h1>
+        <p style={{ color: '#A09A8C', fontSize: '0.9rem' }}>Curvas de progreso trimestre a trimestre</p>
       </div>
-
       {!hayDatos ? (
-        <EmptyState />
+        <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '60px', textAlign: 'center' }}>
+          <IconoRoca style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
+          <h3 style={{ fontFamily: 'Antonio', fontSize: '1.2rem', color: '#A09A8C', marginBottom: '8px' }}>Aún no tienes evaluaciones</h3>
+          <p style={{ color: '#666', fontSize: '0.85rem', maxWidth: '400px', margin: '0 auto' }}>Las evaluaciones se realizan al inicio y final de cada ciclo. Tu entrenador registrará los resultados.</p>
+        </div>
       ) : (
-        <>
-          {/* Resumen rápido */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-xl border border-slate-200 p-4 text-center">
-              <p className="text-2xl font-bold text-slate-800">{evaluaciones.length}</p>
-              <p className="text-xs text-slate-500">Evaluaciones</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 text-center">
-              <p className="text-2xl font-bold text-teal-700">{Object.keys(metricas).length}</p>
-              <p className="text-xs text-slate-500">Métricas</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 text-center">
-              <p className="text-2xl font-bold text-green-600">
-                {Object.values(metricas).filter(m => m.tendencia?.mejoro).length}
-              </p>
-              <p className="text-xs text-slate-500">Mejorando</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 text-center">
-              <p className="text-2xl font-bold text-slate-700">{progreso.totalPuntos}</p>
-              <p className="text-xs text-slate-500">Datos totales</p>
-            </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }} className="prog-grid">
+          <style>{`@media(max-width:900px){.prog-grid{grid-template-columns:1fr!important}}`}</style>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {Object.entries(metricas).map(([k, d]) => <MetricaCard key={k} metrica={k} data={d} />)}
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Curvas de métricas */}
-            <div className="lg:col-span-2 space-y-4">
-              {Object.entries(metricas).map(([key, data]) => (
-                <MetricaCard key={key} metrica={key} data={data} />
-              ))}
-            </div>
-
-            {/* Timeline lateral */}
-            <div>
-              <EvaluacionTimeline evaluaciones={evaluaciones} />
-            </div>
+          <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '18px', height: 'fit-content' }}>
+            <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '14px' }}>Historial</div>
+            {evaluaciones.map((ev, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0', borderBottom: '1px solid #242424' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: ev.tipo === 'entrada' ? '#3a2e0a' : '#0a2e1a', color: ev.tipo === 'entrada' ? '#D4AF37' : '#22c55e', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
+                  {ev.tipo === 'entrada' ? 'E' : 'S'}
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.85rem', color: '#F0EDE8', fontWeight: 500 }}>Test de {ev.tipo} · {ev.ciclo}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#A09A8C' }}>{ev.programa}</div>
+                </div>
+              </div>
+            ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

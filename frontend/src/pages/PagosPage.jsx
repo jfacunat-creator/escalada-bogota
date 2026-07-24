@@ -2,23 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2 } from 'lucide-react';
-import { IconoPresa, IconoMagnesia, IconoCohorte, IconoCuerda, IconoCheck, IconoFalta } from '../components/Icons';
+import { IconoCohorte, IconoMagnesia, IconoPresa } from '../components/Icons';
 
-const estadoInscColor = {
-  activa: 'bg-green-100 text-green-700',
-  congelada: 'bg-amber-100 text-amber-700',
-  cancelada: 'bg-red-100 text-red-700',
-  completada: 'bg-teal-100 text-teal-700',
-};
-const estadoPagoColor = {
-  pagado: 'bg-green-100 text-green-700',
-  pendiente: 'bg-amber-100 text-amber-700',
-  vencido: 'bg-red-100 text-red-700',
-};
-
-function formatCOP(val) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(val);
-}
+function formatCOP(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v); }
 
 export default function PagosPage() {
   const { user } = useAuth();
@@ -27,168 +13,93 @@ export default function PagosPage() {
   const [pagos, setPagos] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showNuevoPago, setShowNuevoPago] = useState(null);
+  const [showPago, setShowPago] = useState(null);
   const [pagoForm, setPagoForm] = useState({ monto: '', metodo: 'transferencia', referencia: '' });
   const [saving, setSaving] = useState(false);
 
-  const isAdmin = user?.rol === 'admin';
-  const isEntrenador = user?.rol === 'entrenador';
-
   useEffect(() => { loadData(); }, [tab]);
-
   const loadData = async () => {
     setLoading(true);
     try {
-      if (tab === 'inscripciones') {
-        const data = await api.getInscripciones();
-        setInscripciones(data);
-      } else {
-        const [p, r] = await Promise.all([api.getPagos(), isAdmin ? api.getResumenPagos() : Promise.resolve(null)]);
-        setPagos(p);
-        setResumen(r);
-      }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+      if (tab === 'inscripciones') { setInscripciones(await api.getInscripciones()); }
+      else { const [p, r] = await Promise.all([api.getPagos(), api.getResumenPagos().catch(() => null)]); setPagos(p); setResumen(r); }
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  const handleRegistrarPago = async (inscripcionId) => {
+  const handlePago = async (iid) => {
     if (!pagoForm.monto || parseFloat(pagoForm.monto) <= 0) return;
     setSaving(true);
-    try {
-      await api.registrarPago({
-        inscripcionId,
-        monto: parseFloat(pagoForm.monto),
-        metodo: pagoForm.metodo,
-        referencia: pagoForm.referencia || undefined,
-      });
-      setShowNuevoPago(null);
-      setPagoForm({ monto: '', metodo: 'transferencia', referencia: '' });
-      loadData();
-    } catch (err) { alert(err.error || 'Error registrando pago'); }
-    finally { setSaving(false); }
+    try { await api.registrarPago({ inscripcionId: iid, monto: parseFloat(pagoForm.monto), metodo: pagoForm.metodo, referencia: pagoForm.referencia || undefined }); setShowPago(null); setPagoForm({ monto: '', metodo: 'transferencia', referencia: '' }); loadData(); }
+    catch (err) { alert(err.error || 'Error'); } finally { setSaving(false); }
   };
 
-  const handleCambiarEstadoInsc = async (id, estado) => {
-    try {
-      await api.cambiarEstadoInscripcion(id, estado);
-      loadData();
-    } catch (err) { alert(err.error || 'Error'); }
-  };
+  const cambiarEstado = async (id, est) => { try { await api.cambiarEstadoInscripcion(id, est); loadData(); } catch (err) { alert(err.error || 'Error'); } };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-teal-600 animate-spin" /></div>;
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>;
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Gestión Financiera</h1>
-        <p className="text-slate-500 mt-1">Inscripciones y pagos por ciclo</p>
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8' }}>Gestión Financiera</h1>
+        <p style={{ color: '#A09A8C', fontSize: '0.9rem' }}>Inscripciones y pagos por ciclo</p>
       </div>
 
-      {/* Resumen admin */}
       {resumen && tab === 'pagos' && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className="text-2xl font-bold text-slate-800">{resumen.activas}</p>
-            <p className="text-xs text-slate-500">Inscrip. activas</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className="text-lg font-bold text-slate-700">{formatCOP(resumen.ingresos_esperados)}</p>
-            <p className="text-xs text-slate-500">Esperado</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className="text-lg font-bold text-green-600">{formatCOP(resumen.ingresos_recibidos)}</p>
-            <p className="text-xs text-slate-500">Recaudado</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className="text-2xl font-bold text-amber-600">{resumen.pagos_pendientes}</p>
-            <p className="text-xs text-slate-500">Pendientes</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className={`text-2xl font-bold ${resumen.tasa_recaudo >= 70 ? 'text-green-600' : 'text-amber-600'}`}>{resumen.tasa_recaudo}%</p>
-            <p className="text-xs text-slate-500">Recaudo</p>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+          {[[resumen.activas, 'Activas', '#D4AF37'], [formatCOP(resumen.ingresos_esperados), 'Esperado', '#A09A8C'], [formatCOP(resumen.ingresos_recibidos), 'Recaudado', '#22c55e'], [resumen.pagos_pendientes, 'Pendientes', '#f59e0b'], [resumen.tasa_recaudo + '%', 'Recaudo', resumen.tasa_recaudo >= 70 ? '#22c55e' : '#f59e0b']].map(([v, l, c]) => (
+            <div key={l} style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Antonio', fontSize: '1.3rem', color: c }}>{v}</div>
+              <div style={{ fontSize: '0.72rem', color: '#A09A8C', marginTop: '2px' }}>{l}</div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
-        {[['inscripciones', 'Inscripciones'], ['pagos', 'Pagos']].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition ${tab === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-            {label}
-          </button>
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: '#1c1c1c', borderRadius: '8px', padding: '4px', width: 'fit-content', border: '1px solid #2e2e2e' }}>
+        {[['inscripciones', 'Inscripciones'], ['pagos', 'Pagos']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ padding: '8px 18px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 500, cursor: 'pointer', border: 'none', transition: 'all 0.15s', background: tab === k ? '#4A2F0F' : 'transparent', color: tab === k ? '#D4AF37' : '#A09A8C' }}>{l}</button>
         ))}
       </div>
 
-      {/* Inscripciones */}
       {tab === 'inscripciones' && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
           {inscripciones.length === 0 ? (
-            <div className="p-10 text-center">
-              <IconoCohorte className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-500">No hay inscripciones registradas.</p>
-            </div>
+            <div style={{ padding: '48px', textAlign: 'center' }}><IconoCohorte style={{ width: '40px', height: '40px', color: '#2e2e2e', margin: '0 auto 8px' }} /><p style={{ color: '#A09A8C' }}>Sin inscripciones.</p></div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-slate-500 border-b bg-slate-50">
-                    <th className="px-4 py-3 font-medium">Escalador</th>
-                    <th className="px-4 py-3 font-medium">Programa</th>
-                    <th className="px-4 py-3 font-medium">Ciclo</th>
-                    <th className="px-4 py-3 font-medium">Precio</th>
-                    <th className="px-4 py-3 font-medium">Pagado</th>
-                    <th className="px-4 py-3 font-medium">Estado</th>
-                    <th className="px-4 py-3 font-medium">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inscripciones.map(i => {
-                    const pagado = parseFloat(i.total_pagado) || 0;
-                    const precio = parseFloat(i.precio_ciclo) || 0;
-                    const saldo = precio - pagado;
-                    return (
-                      <tr key={i.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-700">{i.nombre} {i.apellido}</p>
-                          <p className="text-xs text-slate-400">{i.email}</p>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{i.programa}</td>
-                        <td className="px-4 py-3 text-slate-600">{i.ciclo}</td>
-                        <td className="px-4 py-3 font-medium text-slate-700">{formatCOP(precio)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`font-medium ${saldo <= 0 ? 'text-green-600' : 'text-amber-600'}`}>
-                            {formatCOP(pagado)}
-                          </span>
-                          {saldo > 0 && <p className="text-xs text-red-500">Debe: {formatCOP(saldo)}</p>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoInscColor[i.estado]}`}>{i.estado}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1.5">
-                            <button onClick={() => { setShowNuevoPago(i.id); setPagoForm({ monto: String(saldo > 0 ? saldo : precio), metodo: 'transferencia', referencia: '' }); }}
-                              className="px-2.5 py-1 bg-teal-50 text-teal-700 rounded text-xs font-medium hover:bg-teal-100 transition">
-                              + Pago
-                            </button>
-                            {isAdmin && i.estado === 'activa' && (
-                              <button onClick={() => handleCambiarEstadoInsc(i.id, 'congelada')}
-                                className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded text-xs font-medium hover:bg-amber-100 transition">
-                                Congelar
-                              </button>
-                            )}
-                            {isAdmin && i.estado === 'congelada' && (
-                              <button onClick={() => handleCambiarEstadoInsc(i.id, 'activa')}
-                                className="px-2.5 py-1 bg-green-50 text-green-700 rounded text-xs font-medium hover:bg-green-100 transition">
-                                Reactivar
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+                <thead><tr style={{ borderBottom: '1px solid #2e2e2e', background: '#242424' }}>
+                  {['Escalador', 'Programa', 'Ciclo', 'Precio', 'Pagado', 'Estado', 'Acciones'].map(h => (
+                    <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '0.72rem', color: '#A09A8C', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>{inscripciones.map(i => {
+                  const pag = parseFloat(i.total_pagado) || 0; const pre = parseFloat(i.precio_ciclo) || 0; const sal = pre - pag;
+                  return (
+                    <tr key={i.id} style={{ borderBottom: '1px solid #242424' }} onMouseEnter={e => e.currentTarget.style.background = '#242424'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '12px 14px' }}><div style={{ fontWeight: 600, color: '#F0EDE8', fontSize: '0.88rem' }}>{i.nombre} {i.apellido}</div><div style={{ fontSize: '0.75rem', color: '#666' }}>{i.email}</div></td>
+                      <td style={{ padding: '12px 14px', color: '#A09A8C', fontSize: '0.85rem' }}>{i.programa}</td>
+                      <td style={{ padding: '12px 14px', color: '#A09A8C', fontSize: '0.85rem' }}>{i.ciclo}</td>
+                      <td style={{ padding: '12px 14px', color: '#F0EDE8', fontWeight: 600, fontSize: '0.85rem' }}>{formatCOP(pre)}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{ fontWeight: 600, color: sal <= 0 ? '#22c55e' : '#f59e0b', fontSize: '0.85rem' }}>{formatCOP(pag)}</span>
+                        {sal > 0 && <div style={{ fontSize: '0.72rem', color: '#ef4444' }}>Debe: {formatCOP(sal)}</div>}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span className={`badge-${i.estado === 'activa' ? 'green' : i.estado === 'congelada' ? 'amber' : i.estado === 'cancelada' ? 'red' : 'gold'}`}
+                          style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 500 }}>{i.estado}</span>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button onClick={() => { setShowPago(i.id); setPagoForm({ monto: String(sal > 0 ? sal : pre), metodo: 'transferencia', referencia: '' }); }}
+                            style={{ padding: '5px 10px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', border: 'none', background: 'rgba(212,175,55,0.15)', color: '#D4AF37' }}>+ Pago</button>
+                          {i.estado === 'activa' && <button onClick={() => cambiarEstado(i.id, 'congelada')} style={{ padding: '5px 10px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', border: 'none', background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>Congelar</button>}
+                          {i.estado === 'congelada' && <button onClick={() => cambiarEstado(i.id, 'activa')} style={{ padding: '5px 10px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', border: 'none', background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>Reactivar</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}</tbody>
               </table>
             </div>
           )}
@@ -196,80 +107,46 @@ export default function PagosPage() {
       )}
 
       {/* Modal pago */}
-      {showNuevoPago && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowNuevoPago(null)}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-800 mb-4">Registrar Pago</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-slate-600 block mb-1">Monto (COP)</label>
-                <input type="number" value={pagoForm.monto} onChange={e => setPagoForm({...pagoForm, monto: e.target.value})}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500 outline-none" />
-              </div>
-              <div>
-                <label className="text-sm text-slate-600 block mb-1">Método</label>
-                <select value={pagoForm.metodo} onChange={e => setPagoForm({...pagoForm, metodo: e.target.value})}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500 outline-none">
-                  <option value="transferencia">Transferencia</option>
-                  <option value="efectivo">Efectivo</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm text-slate-600 block mb-1">Referencia / No. transferencia</label>
-                <input type="text" value={pagoForm.referencia} onChange={e => setPagoForm({...pagoForm, referencia: e.target.value})}
-                  placeholder="Opcional" className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500 outline-none" />
-              </div>
+      {showPago && (
+        <div onClick={() => setShowPago(null)} style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '360px' }}>
+            <h3 style={{ fontFamily: 'Antonio', fontSize: '1.2rem', color: '#F0EDE8', marginBottom: '16px' }}>Registrar Pago</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#A09A8C', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>Monto (COP)</label><input type="number" value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: e.target.value })} className="input-dark" /></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#A09A8C', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>Método</label><select value={pagoForm.metodo} onChange={e => setPagoForm({ ...pagoForm, metodo: e.target.value })} className="input-dark"><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option></select></div>
+              <div><label style={{ display: 'block', fontSize: '0.75rem', color: '#A09A8C', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>Referencia</label><input type="text" value={pagoForm.referencia} onChange={e => setPagoForm({ ...pagoForm, referencia: e.target.value })} className="input-dark" placeholder="Opcional" /></div>
             </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setShowNuevoPago(null)} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
-              <button onClick={() => handleRegistrarPago(showNuevoPago)} disabled={saving}
-                className="flex-1 py-2 bg-teal-700 text-white rounded-lg text-sm font-medium hover:bg-teal-800 disabled:opacity-50">
-                {saving ? 'Guardando...' : 'Registrar'}
-              </button>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button onClick={() => setShowPago(null)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #2e2e2e', background: 'transparent', color: '#A09A8C', cursor: 'pointer', fontSize: '0.88rem' }}>Cancelar</button>
+              <button onClick={() => handlePago(showPago)} disabled={saving} className="btn-primary" style={{ flex: 1 }}>{saving ? 'Guardando...' : 'Registrar'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Pagos */}
       {tab === 'pagos' && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
           {pagos.length === 0 ? (
-            <div className="p-10 text-center">
-              <IconoMagnesia className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-500">No hay pagos registrados.</p>
-            </div>
+            <div style={{ padding: '48px', textAlign: 'center' }}><IconoMagnesia style={{ width: '40px', height: '40px', color: '#2e2e2e', margin: '0 auto 8px' }} /><p style={{ color: '#A09A8C' }}>Sin pagos.</p></div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-slate-500 border-b bg-slate-50">
-                    <th className="px-4 py-3 font-medium">Escalador</th>
-                    <th className="px-4 py-3 font-medium">Programa</th>
-                    <th className="px-4 py-3 font-medium">Monto</th>
-                    <th className="px-4 py-3 font-medium">Método</th>
-                    <th className="px-4 py-3 font-medium">Referencia</th>
-                    <th className="px-4 py-3 font-medium">Fecha</th>
-                    <th className="px-4 py-3 font-medium">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagos.map(p => (
-                    <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-700">{p.nombre} {p.apellido}</td>
-                      <td className="px-4 py-3 text-slate-600">{p.programa}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{formatCOP(p.monto)}</td>
-                      <td className="px-4 py-3 text-slate-600 capitalize">{p.metodo || '—'}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">{p.referencia || '—'}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString('es-CO') : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoPagoColor[p.estado]}`}>{p.estado}</span>
-                      </td>
-                    </tr>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                <thead><tr style={{ borderBottom: '1px solid #2e2e2e', background: '#242424' }}>
+                  {['Escalador', 'Programa', 'Monto', 'Método', 'Referencia', 'Fecha', 'Estado'].map(h => (
+                    <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '0.72rem', color: '#A09A8C', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
                   ))}
-                </tbody>
+                </tr></thead>
+                <tbody>{pagos.map(p => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid #242424' }}>
+                    <td style={{ padding: '12px 14px', color: '#F0EDE8', fontWeight: 500, fontSize: '0.88rem' }}>{p.nombre} {p.apellido}</td>
+                    <td style={{ padding: '12px 14px', color: '#A09A8C', fontSize: '0.85rem' }}>{p.programa}</td>
+                    <td style={{ padding: '12px 14px', color: '#F0EDE8', fontWeight: 600 }}>{formatCOP(p.monto)}</td>
+                    <td style={{ padding: '12px 14px', color: '#A09A8C', fontSize: '0.85rem', textTransform: 'capitalize' }}>{p.metodo || '—'}</td>
+                    <td style={{ padding: '12px 14px', color: '#666', fontSize: '0.8rem' }}>{p.referencia || '—'}</td>
+                    <td style={{ padding: '12px 14px', color: '#A09A8C', fontSize: '0.85rem' }}>{p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString('es-CO') : '—'}</td>
+                    <td style={{ padding: '12px 14px' }}><span className={`badge-${p.estado === 'pagado' ? 'green' : p.estado === 'pendiente' ? 'amber' : 'red'}`} style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 500 }}>{p.estado}</span></td>
+                  </tr>
+                ))}</tbody>
               </table>
             </div>
           )}
