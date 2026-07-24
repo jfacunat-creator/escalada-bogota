@@ -17,6 +17,8 @@ import ProgramasAdminPage from './pages/ProgramasAdminPage';
 import MisGruposPage from './pages/MisGruposPage';
 import { Loader2 } from 'lucide-react';
 
+import LandingPage from './pages/LandingPage';
+
 const Spinner = () => (<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#121212' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>);
 
 function ProtectedRoute({ children }) { const { user, loading } = useAuth(); if (loading) return <Spinner />; if (!user) return <Navigate to="/login" replace />; return children; }
@@ -63,8 +65,8 @@ export default function App() {
             <Route path="programas" element={<ProgramasAdminPage />} />
             <Route path="pagos" element={<PagosPage />} />
           </Route>
-          <Route path="/" element={<Navigate to="/app" replace />} />
-          <Route path="*" element={<Navigate to="/app" replace />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
