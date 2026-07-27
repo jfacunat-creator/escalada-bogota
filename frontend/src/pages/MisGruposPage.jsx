@@ -1,15 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { Loader2 } from 'lucide-react';
-import { IconoCohorte, IconoEscalador, IconoCronometro, IconoMuro, IconoCheck, IconoFalta } from '../components/Icons';
+import { Loader2, Search, ChevronRight } from 'lucide-react';
+import { IconoCohorte, IconoCronometro, IconoMuro, IconoEscalador } from '../components/Icons';
+
+const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
+
+const horarioLabel = {
+  lun_mie_18_20: 'Lun y Mié · 18:00–20:00', lun_mie_20_22: 'Lun y Mié · 20:00–22:00',
+  mar_jue_18_20: 'Mar y Jue · 18:00–20:00', mar_jue_20_22: 'Mar y Jue · 20:00–22:00',
+  sab_dom_9_11: 'Sáb y Dom · 9:00–11:00',
+};
 
 export default function MisGruposPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [openId, setOpenId] = useState(null);
-  const [escaladoresPorGrupo, setEscaladoresPorGrupo] = useState({});
+  const [buscar, setBuscar] = useState('');
 
   useEffect(() => {
     if (user?.entrenador?.id)
@@ -17,105 +26,55 @@ export default function MisGruposPage() {
     else setLoading(false);
   }, [user?.entrenador?.id]);
 
-  const toggleGrupo = async (grupo) => {
-    if (openId === grupo.id) { setOpenId(null); return; }
-    setOpenId(grupo.id);
-    if (!escaladoresPorGrupo[grupo.id]) {
-      try {
-        const esc = await api.getEscaladores({ cohorteId: grupo.id });
-        setEscaladoresPorGrupo(p => ({ ...p, [grupo.id]: esc }));
-      } catch (err) { console.error(err); }
-    }
-  };
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: C.accent }} /></div>;
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>;
-
-  const grupos = data?.grupos || [];
-  const horarioMap = {
-    lun_mie_18_20: 'Lun y Mié · 18:00–20:00', lun_mie_20_22: 'Lun y Mié · 20:00–22:00',
-    mar_jue_18_20: 'Mar y Jue · 18:00–20:00', mar_jue_20_22: 'Mar y Jue · 20:00–22:00',
-    sab_dom_7_9: 'Sáb y Dom · 7:00–9:00', sab_dom_9_11: 'Sáb y Dom · 9:00–11:00', sab_dom_11_13: 'Sáb y Dom · 11:00–13:00',
-  };
+  const grupos = (data?.grupos || []).filter(g => !buscar || g.programa_nombre?.toLowerCase().includes(buscar.toLowerCase()) || g.muro_nombre?.toLowerCase().includes(buscar.toLowerCase()));
 
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8' }}>Mis Grupos</h1>
-        <p style={{ color: '#A09A8C', fontSize: '0.9rem' }}>{grupos.length} grupos activos</p>
+        <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Mis Grupos</h1>
+        <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>{data?.grupos?.length || 0} grupos activos · Haz click para ver escaladores, sesiones y asistencia</p>
+      </div>
+
+      <div style={{ position: 'relative', marginBottom: '16px' }}>
+        <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '15px', height: '15px', color: C.text2 }} />
+        <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar grupo..."
+          style={{ width: '100%', maxWidth: '360px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 12px 10px 36px', color: C.text, fontFamily: 'Poppins', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }} />
       </div>
 
       {grupos.length === 0 ? (
-        <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '60px', textAlign: 'center' }}>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '60px', textAlign: 'center' }}>
           <IconoCohorte style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
-          <p style={{ color: '#A09A8C' }}>No tienes grupos asignados en este ciclo.</p>
+          <p style={{ color: C.text2, fontFamily: 'Poppins' }}>{buscar ? 'Sin resultados' : 'No tienes grupos asignados.'}</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {grupos.map(g => {
-            const isOpen = openId === g.id;
-            const esc = escaladoresPorGrupo[g.id] || [];
-            return (
-              <div key={g.id} style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
-                {/* Header clickeable */}
-                <button onClick={() => toggleGrupo(g)} style={{
-                  width: '100%', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: isOpen ? '#242424' : 'transparent', border: 'none', cursor: 'pointer', transition: 'background 0.15s',
-                }}
-                onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = '#1e1e1e'; }}
-                onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent'; }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', textAlign: 'left' }}>
-                    <div style={{ padding: '10px', borderRadius: '10px', background: 'rgba(212,175,55,0.1)' }}>
-                      <IconoCohorte style={{ width: '22px', height: '22px', color: '#D4AF37' }} />
-                    </div>
-                    <div>
-                      <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.05rem', color: '#F0EDE8' }}>{g.programa_nombre}</div>
-                      <div style={{ fontSize: '0.78rem', color: '#A09A8C', marginTop: '2px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><IconoCronometro style={{ width: '12px', height: '12px' }} /> {horarioMap[g.horario] || g.horario}</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><IconoMuro style={{ width: '12px', height: '12px' }} /> {g.muro_nombre}</span>
-                        <span>{g.ciclo_codigo}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontFamily: 'Antonio', fontSize: '1.1rem', color: '#D4AF37' }}>{g.inscritos}/{g.cupo_maximo}</span>
-                    <span style={{ color: '#A09A8C', fontSize: '1.2rem', transition: 'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'rotate(0)' }}>▾</span>
-                  </div>
-                </button>
-
-                {/* Detalle expandible */}
-                {isOpen && (
-                  <div style={{ borderTop: '1px solid #2e2e2e', padding: '16px 20px' }}>
-                    {esc.length === 0 ? (
-                      <p style={{ color: '#666', fontSize: '0.85rem', padding: '8px' }}>Sin escaladores inscritos.</p>
-                    ) : (
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid #2e2e2e' }}>
-                            {['Nombre', 'Email', 'Teléfono', 'Estado'].map(h => (
-                              <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: '0.72rem', color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {esc.map(e => (
-                            <tr key={e.id} style={{ borderBottom: '1px solid #1e1e1e' }}>
-                              <td style={{ padding: '10px', color: '#F0EDE8', fontWeight: 500, fontSize: '0.88rem' }}>{e.nombre} {e.apellido}</td>
-                              <td style={{ padding: '10px', color: '#A09A8C', fontSize: '0.82rem' }}>{e.email}</td>
-                              <td style={{ padding: '10px', color: '#A09A8C', fontSize: '0.82rem' }}>{e.telefono || '—'}</td>
-                              <td style={{ padding: '10px' }}>
-                                <span className={`badge-${e.estado === 'activo' ? 'green' : e.estado === 'congelado' ? 'amber' : 'slate'}`}
-                                  style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 500 }}>{e.estado}</span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {grupos.map(g => (
+            <button key={g.id} onClick={() => navigate(`/app/mis-grupos/${g.id}`)}
+              style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 20px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s, background 0.15s', width: '100%' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = `${C.accent}40`; e.currentTarget.style.background = '#242424'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
+              <div style={{ padding: '12px', background: 'rgba(212,175,55,0.1)', borderRadius: '10px', flexShrink: 0 }}>
+                <IconoCohorte style={{ width: '22px', height: '22px', color: C.accent }} />
               </div>
-            );
-          })}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.05rem', color: C.text, marginBottom: '4px' }}>{g.programa_nombre}</div>
+                <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><IconoCronometro style={{ width: '12px', height: '12px' }} />{horarioLabel[g.horario] || g.horario}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><IconoMuro style={{ width: '12px', height: '12px' }} />{g.muro_nombre}</span>
+                  <span>{g.ciclo_codigo}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontFamily: 'Antonio', fontSize: '1.2rem', color: C.accent }}>{g.inscritos || 0}/{g.cupo_maximo}</div>
+                  <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins' }}>inscritos</div>
+                </div>
+                <ChevronRight size={18} color={C.text2} />
+              </div>
+            </button>
+          ))}
         </div>
       )}
     </div>
