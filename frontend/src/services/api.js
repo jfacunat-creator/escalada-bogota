@@ -48,12 +48,15 @@ class ApiService {
   getProgramas(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/programas${q}`); }
   getCiclos(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/ciclos${q}`); }
   getCicloActual() { return this.request('/catalogos/ciclos/actual'); }
+  crearCiclo(data) { return this.request('/catalogos/ciclos', { method: 'POST', body: JSON.stringify(data) }); }
   getMuros() { return this.request('/catalogos/muros'); }
 
   // Cohortes
   getCohortes(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/cohortes${q}`); }
   getCohorte(id) { return this.request(`/cohortes/${id}`); }
   getCohortesDisponibles() { return this.request('/cohortes/disponibles'); }
+  crearCohorte(data) { return this.request('/cohortes', { method: 'POST', body: JSON.stringify(data) }); }
+  cambiarEstadoCohorte(id, estado) { return this.request(`/cohortes/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
 
   // Escaladores
   getEscaladores(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/escaladores${q}`); }
@@ -102,6 +105,7 @@ class ApiService {
   registrarPago(data) { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
   cambiarEstadoPago(id, estado) { return this.request(`/pagos/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
   getResumenPagos(cicloId) { const q = cicloId ? `?cicloId=${cicloId}` : ''; return this.request(`/pagos/resumen/general${q}`); }
+  generarLinkPago(pagoId) { return this.request(`/pagos/${pagoId}/link-pago`, { method: 'POST' }); }
 }
 
 const api = new ApiService();

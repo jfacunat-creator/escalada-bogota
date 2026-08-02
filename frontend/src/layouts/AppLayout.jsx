@@ -9,6 +9,7 @@ const nav = {
     { to: '/app', icon: IconoPresa, label: 'Inicio' },
     { to: '/app/inscribirme', icon: IconoCohorte, label: 'Inscribirme' },
     { to: '/app/mi-grupo', icon: IconoMuro, label: 'Mi Grupo' },
+    { to: '/app/mis-pagos', icon: IconoRoca, label: 'Mis Pagos' },
     { to: '/app/contenido', icon: IconoPlanEntreno, label: 'Contenido' },
     { to: '/app/mi-progreso', icon: IconoRoca, label: 'Mi Progreso' },
   ],
@@ -24,6 +25,7 @@ const nav = {
     { to: '/app/entrenadores', icon: IconoCuerda, label: 'Entrenadores' },
     { to: '/app/programas', icon: IconoPlanEntreno, label: 'Programas' },
     { to: '/app/pagos', icon: IconoRoca, label: 'Pagos' },
+    { to: '/app/rrhh', icon: IconoCronometro, label: 'RRHH' },
   ],
 };
 

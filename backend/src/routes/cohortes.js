@@ -146,4 +146,22 @@ router.get("/:id", async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
+// ─── PATCH /cohortes/:id/estado — Cambiar estado de cohorte ───
+router.patch("/:id/estado", authorize("admin"), [
+  body("estado").isIn(["abierta", "cerrada", "en_curso", "finalizada"]),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  try {
+    const { estado } = req.body;
+    const coh = await db("SELECT id, estado FROM cohorte WHERE id=$1", [req.params.id]);
+    if (coh.rows.length === 0) return res.status(404).json({ error: "Cohorte no encontrada" });
+
+    await db("UPDATE cohorte SET estado=$1 WHERE id=$2", [estado, req.params.id]);
+    res.json({ message: `Estado cambiado a ${estado}` });
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: "Error interno" });
+  }
+});
+
 module.exports = router;

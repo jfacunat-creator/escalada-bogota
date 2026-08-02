@@ -22,6 +22,9 @@ import EntrenadoresAdminPage from './pages/EntrenadoresAdminPage';
 import ProgramasAdminPage from './pages/ProgramasAdminPage';
 import PagosPage from './pages/PagosPage';
 import InscripcionPage from './pages/InscripcionPage';
+import GruposAdminPage from './pages/GruposAdminPage';
+import MisPagosPage from './pages/MisPagosPage';
+import RRHHPage from './pages/RRHHPage';
 import { Loader2 } from 'lucide-react';
 
 const Spinner = () => (
@@ -93,15 +96,17 @@ export default function App() {
             <Route path="mi-grupo"      element={<MiGrupoPage />} />
             <Route path="contenido"     element={<ContenidoPage />} />
             <Route path="mi-progreso"   element={<MiProgresoPage />} />
+            <Route path="mis-pagos"     element={<MisPagosPage />} />
             <Route path="mis-grupos"    element={<MisGruposPage />} />
             <Route path="mis-grupos/:id" element={<GrupoDetallePage />} />
             <Route path="mis-escaladores" element={<EscaladoresAdminPage />} />
-            <Route path="grupos"        element={<Proximamente title="Gestión de Grupos" />} />
+            <Route path="grupos"        element={<GruposAdminPage />} />
             <Route path="grupos/:id"    element={<GrupoDetallePage />} />
             <Route path="escaladores"   element={<EscaladoresAdminPage />} />
             <Route path="entrenadores"  element={<EntrenadoresAdminPage />} />
             <Route path="programas"     element={<ProgramasAdminPage />} />
             <Route path="pagos"         element={<PagosPage />} />
+            <Route path="rrhh"          element={<RRHHPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
