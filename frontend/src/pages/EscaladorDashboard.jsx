@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2 } from 'lucide-react';
@@ -18,6 +19,7 @@ function Stat({ icon: Icon, label, value, color = '#D4AF37' }) {
 
 export default function EscaladorDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [programas, setProgramas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,18 @@ export default function EscaladorDashboard() {
           <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '48px', textAlign: 'center' }}>
             <IconoMuro style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
             <h3 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#A09A8C', marginBottom: '8px' }}>No estás inscrito en ningún grupo</h3>
-            <p style={{ color: '#666', fontSize: '0.85rem' }}>Contacta al equipo para inscribirte en el próximo ciclo.</p>
+            <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: '20px' }}>Inscríbete en el próximo ciclo directamente desde la plataforma.</p>
+            <button
+              onClick={() => navigate('/app/inscribirme')}
+              style={{
+                padding: '11px 24px', borderRadius: '8px', background: '#D4AF37',
+                color: '#121212', border: 'none', fontFamily: 'Antonio, sans-serif',
+                fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+              }}
+            >
+              Ver cohortes disponibles →
+            </button>
           </div>
         )}
 

@@ -53,6 +53,7 @@ class ApiService {
   // Cohortes
   getCohortes(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/cohortes${q}`); }
   getCohorte(id) { return this.request(`/cohortes/${id}`); }
+  getCohortesDisponibles() { return this.request('/cohortes/disponibles'); }
 
   // Escaladores
   getEscaladores(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/escaladores${q}`); }
@@ -93,6 +94,7 @@ class ApiService {
   // Inscripciones
   getInscripciones(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/inscripciones${q}`); }
   crearInscripcion(data) { return this.request('/inscripciones', { method: 'POST', body: JSON.stringify(data) }); }
+  autoInscribirse(cohorteId) { return this.request('/inscripciones/autoservicio', { method: 'POST', body: JSON.stringify({ cohorteId }) }); }
   cambiarEstadoInscripcion(id, estado) { return this.request(`/inscripciones/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
 
   // Pagos

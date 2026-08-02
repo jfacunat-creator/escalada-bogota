@@ -7,7 +7,8 @@ import { LogOut, Menu, X } from 'lucide-react';
 const nav = {
   escalador: [
     { to: '/app', icon: IconoPresa, label: 'Inicio' },
-    { to: '/app/mi-grupo', icon: IconoCohorte, label: 'Mi Grupo' },
+    { to: '/app/inscribirme', icon: IconoCohorte, label: 'Inscribirme' },
+    { to: '/app/mi-grupo', icon: IconoMuro, label: 'Mi Grupo' },
     { to: '/app/contenido', icon: IconoPlanEntreno, label: 'Contenido' },
     { to: '/app/mi-progreso', icon: IconoRoca, label: 'Mi Progreso' },
   ],

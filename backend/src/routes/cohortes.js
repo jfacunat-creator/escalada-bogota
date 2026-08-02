@@ -6,6 +6,16 @@ const { authenticate, authorize } = require("../middleware/auth");
 const router = express.Router();
 router.use(authenticate);
 
+// ─── Precios mensuales de referencia por nivel × modalidad ────────────────────
+// Fuente única de verdad. El frontend los recibe en /disponibles.
+// Cuando los precios se manejen desde BD (tabla tarifas), solo se toca este lookup.
+const PRECIO_MENSUAL = {
+  iniciacion: { autonomo: 120_000, acompanado: 350_000 },
+  intermedio: { autonomo: 150_000, acompanado: 450_000 },
+  avanzado:   { autonomo: 180_000, acompanado: 600_000 },
+};
+
+// ─── GET /cohortes ────────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
     const { cicloId, estado } = req.query;
@@ -27,6 +37,7 @@ router.get("/", async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
+// ─── POST /cohortes ───────────────────────────────────────
 router.post("/", authorize("admin"), [
   body("programaId").isUUID(), body("cicloId").isUUID(), body("entrenadorId").isUUID(),
   body("muroId").isUUID(), body("modalidad").isIn(["autonomo","acompanado"]),
@@ -36,12 +47,11 @@ router.post("/", authorize("admin"), [
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const d = req.body;
-    // Check entrenador capacity
     const grupos = await db("SELECT COUNT(*) as n FROM cohorte WHERE entrenador_id=$1 AND estado IN ('abierta','en_curso')", [d.entrenadorId]);
     const ent = await db("SELECT max_grupos FROM entrenador WHERE id=$1", [d.entrenadorId]);
     if (parseInt(grupos.rows[0].n) >= ent.rows[0].max_grupos)
       return res.status(400).json({ error: "Entrenador al límite de grupos" });
-    // Check menor ratio
+
     const prog = await db("SELECT poblacion FROM programa WHERE id=$1", [d.programaId]);
     if (prog.rows[0].poblacion === 'menor' && d.cupoMaximo > 6)
       return res.status(400).json({ error: "Ratio para menores: máximo 6 (Ley 1098)" });
@@ -51,7 +61,6 @@ router.post("/", authorize("admin"), [
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [d.programaId, d.cicloId, d.entrenadorId, d.muroId, d.modalidad, d.horario, d.cupoMaximo]
     );
-    // Return with joins
     const full = await db(
       `SELECT c.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo, m.nombre as muro_nombre
        FROM cohorte c JOIN programa p ON c.programa_id=p.id JOIN ciclo ci ON c.ciclo_id=ci.id JOIN muro_aliado m ON c.muro_id=m.id
@@ -63,6 +72,61 @@ router.post("/", authorize("admin"), [
   }
 });
 
+// ─── GET /cohortes/disponibles ────────────────────────────
+// Catálogo de cohortes abiertas para adultos.
+// Devuelve precio_mensual calculado en backend (fuente única).
+// Marca ya_inscrito si el escalador autenticado tiene inscripción activa.
+router.get("/disponibles", async (req, res) => {
+  try {
+    const result = await db(`
+      SELECT
+        c.id, c.modalidad, c.horario, c.cupo_maximo, c.inscritos_actual, c.estado,
+        p.id   AS programa_id,   p.nombre AS programa_nombre,
+        p.nivel, p.descripcion  AS programa_descripcion,
+        p.incluye_fisio,         p.incluye_nutricion,
+        ci.id  AS ciclo_id,      ci.codigo AS ciclo_codigo,
+        ci.fecha_inicio,         ci.fecha_fin, ci.semana_empalme,
+        m.id   AS muro_id,       m.nombre  AS muro_nombre,
+        m.direccion AS muro_direccion,
+        e.id   AS entrenador_id, e.nombre  AS entrenador_nombre,
+        e.licencia_ley181
+      FROM cohorte c
+      JOIN programa    p  ON c.programa_id  = p.id
+      JOIN ciclo       ci ON c.ciclo_id     = ci.id
+      JOIN muro_aliado m  ON c.muro_id      = m.id
+      JOIN entrenador  e  ON c.entrenador_id = e.id
+      WHERE c.estado = 'abierta'
+        AND p.poblacion = 'adulto'
+        AND p.activo    = true
+      ORDER BY p.nivel, c.modalidad, c.horario
+    `);
+
+    let inscritaIds = [];
+    if (req.user.rol === "escalador" && req.user.escalador) {
+      const ins = await db(
+        `SELECT cohorte_id FROM inscripcion
+         WHERE escalador_id = $1 AND estado = 'activa'`,
+        [req.user.escalador.id]
+      );
+      inscritaIds = ins.rows.map((r) => r.cohorte_id);
+    }
+
+    const cohortes = result.rows.map((c) => ({
+      ...c,
+      ya_inscrito: inscritaIds.includes(c.id),
+      cupos_disponibles: c.cupo_maximo - c.inscritos_actual,
+      precio_mensual: PRECIO_MENSUAL[c.nivel]?.[c.modalidad] ?? null,
+      precio_ciclo: (PRECIO_MENSUAL[c.nivel]?.[c.modalidad] ?? 0) * 3,
+    }));
+
+    res.json(cohortes);
+  } catch (err) {
+    console.error("Error GET /cohortes/disponibles:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── GET /cohortes/:id ────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
     const coh = await db(

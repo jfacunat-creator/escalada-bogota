@@ -21,6 +21,7 @@ import EscaladoresAdminPage from './pages/EscaladoresAdminPage';
 import EntrenadoresAdminPage from './pages/EntrenadoresAdminPage';
 import ProgramasAdminPage from './pages/ProgramasAdminPage';
 import PagosPage from './pages/PagosPage';
+import InscripcionPage from './pages/InscripcionPage';
 import { Loader2 } from 'lucide-react';
 
 const Spinner = () => (
@@ -88,6 +89,7 @@ export default function App() {
           {/* APP (protegido) */}
           <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route index element={<DashboardRouter />} />
+            <Route path="inscribirme"   element={<InscripcionPage />} />
             <Route path="mi-grupo"      element={<MiGrupoPage />} />
             <Route path="contenido"     element={<ContenidoPage />} />
             <Route path="mi-progreso"   element={<MiProgresoPage />} />
