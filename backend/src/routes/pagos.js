@@ -13,19 +13,23 @@ router.get("/", async (req, res) => {
     let sql = `
       SELECT pa.*, i.precio_ciclo, i.estado as insc_estado,
              e.nombre, e.apellido,
-             p.nombre as programa, ci.codigo as ciclo, co.modalidad
+             p.nombre as programa, ci.codigo as ciclo, co.modalidad, co.horario, ent.nombre as entrenador_nombre, p.nivel
       FROM pago pa
       JOIN inscripcion i ON pa.inscripcion_id = i.id
       JOIN escalador e ON i.escalador_id = e.id
       JOIN cohorte co ON i.cohorte_id = co.id
       JOIN programa p ON co.programa_id = p.id
       JOIN ciclo ci ON co.ciclo_id = ci.id
+      JOIN entrenador ent ON co.entrenador_id = ent.id
       WHERE 1=1
     `;
     const params = [];
     if (inscripcionId) { params.push(inscripcionId); sql += ` AND pa.inscripcion_id = $${params.length}`; }
     if (estado) { params.push(estado); sql += ` AND pa.estado = $${params.length}`; }
     if (escaladorId) { params.push(escaladorId); sql += ` AND i.escalador_id = $${params.length}`; }
+    if (req.query.nivel) { params.push(req.query.nivel); sql += ` AND p.nivel = $${params.length}`; }
+    if (req.query.modalidad) { params.push(req.query.modalidad); sql += ` AND co.modalidad = $${params.length}`; }
+    if (req.query.entrenadorId) { params.push(req.query.entrenadorId); sql += ` AND co.entrenador_id = $${params.length}`; }
     if (req.user.rol === "escalador") { params.push(req.user.escalador.id); sql += ` AND i.escalador_id = $${params.length}`; }
     sql += " ORDER BY pa.created_at DESC";
 

@@ -20,8 +20,13 @@ router.get("/", async (req, res) => {
   try {
     const { cicloId, estado } = req.query;
     let sql = `SELECT c.*, p.nombre as programa_nombre, p.nivel, p.poblacion,
-                      ci.codigo as ciclo_codigo, m.nombre as muro_nombre,
-                      e.nombre as entrenador_nombre
+                      ci.codigo as ciclo_codigo, ci.fecha_inicio, ci.fecha_fin,
+                      m.nombre as muro_nombre,
+                      e.nombre as entrenador_nombre,
+                      COALESCE((SELECT SUM(pa.monto) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.cohorte_id = c.id AND pa.estado = 'pagado'), 0) AS ingresos_grupo,
+                      COALESCE((SELECT COUNT(*) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.cohorte_id = c.id AND pa.estado = 'pendiente'), 0) AS pagos_pendientes_grupo,
+                      COALESCE((SELECT COUNT(*) FROM sesion s WHERE s.cohorte_id = c.id), 0) AS total_sesiones,
+                      COALESCE((SELECT ROUND(AVG(CASE WHEN a.asistio THEN 1 ELSE 0 END) * 100) FROM asistencia a JOIN sesion s ON a.sesion_id = s.id WHERE s.cohorte_id = c.id), 0) AS asistencia_pct
                FROM cohorte c
                JOIN programa p ON c.programa_id = p.id
                JOIN ciclo ci ON c.ciclo_id = ci.id

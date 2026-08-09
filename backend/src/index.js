@@ -35,6 +35,7 @@ app.use("/api/inscripciones", require("./routes/inscripciones"));
 app.use("/api/pagos", require("./routes/pagos"));
 app.use("/api/rrhh", require("./routes/rrhh"));
 app.use("/api/dashboard", require("./routes/dashboard"));
+app.use("/api/contabilidad", require("./routes/contabilidad"));
 
 // Wompi: webhook (público) + generación de links (autenticado, montado sobre /api/pagos)
 const webhooks = require("./routes/webhooks");

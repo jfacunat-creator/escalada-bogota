@@ -11,7 +11,12 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
     const { estado, rangoEtario, buscar, cohorteId } = req.query;
     let sql = `
       SELECT e.*, u.email, u.activo as usuario_activo,
-             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado='activa') as grupos_activos
+             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado='activa') as grupos_activos,
+             (SELECT COUNT(*) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.escalador_id = e.id AND pa.estado = 'pendiente') as pagos_pendientes,
+             (SELECT p.nombre FROM inscripcion i JOIN cohorte co ON i.cohorte_id = co.id JOIN programa p ON co.programa_id = p.id WHERE i.escalador_id = e.id AND i.estado = 'activa' LIMIT 1) as programa_activo,
+             (SELECT co.horario FROM inscripcion i JOIN cohorte co ON i.cohorte_id = co.id WHERE i.escalador_id = e.id AND i.estado = 'activa' LIMIT 1) as horario_activo,
+             (SELECT ent.nombre FROM inscripcion i JOIN cohorte co ON i.cohorte_id = co.id JOIN entrenador ent ON co.entrenador_id = ent.id WHERE i.escalador_id = e.id AND i.estado = 'activa' LIMIT 1) as entrenador_activo,
+             (SELECT COALESCE(SUM(pa.monto),0) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.escalador_id = e.id AND pa.estado = 'pagado') as total_pagado
       FROM escalador e JOIN usuario u ON e.usuario_id = u.id WHERE 1=1`;
     const params = [];
     if (estado) { params.push(estado); sql += ` AND e.estado = $${params.length}`; }
