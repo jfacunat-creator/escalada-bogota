@@ -33,7 +33,7 @@ export default function NormatividadPage() {
       <PageHeader label="Marco Legal" title="Tus derechos, nuestras obligaciones" subtitle="Operamos bajo la normatividad colombiana vigente. La transparencia es parte del producto." />
       <Section>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="norm-grid">
-          <style>{\`@media(max-width:640px){.norm-grid{grid-template-columns:1fr!important}}\`}</style>
+          <style>{`@media(max-width:640px){.norm-grid{grid-template-columns:1fr!important}}`}</style>
           {items.map(item => (
             <div key={item.titulo} style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '22px' }}>
               <div style={{ fontFamily: 'Poppins', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: item.color, marginBottom: '4px' }}>{item.ley}</div>
