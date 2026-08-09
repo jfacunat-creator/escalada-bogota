@@ -205,7 +205,7 @@ async function main() {
     while (numSesion < 12) {
       const dow = fecha.getDay();
       if (dias.includes(dow)) {
-        const tipo = numSesion === 0 ? "test_entrada" : numSesion === 11 ? "test_salida" : numSesion === 5 ? "juego_cierre" : "regular";
+        const tipo = numSesion === 0 ? "test" : numSesion === 11 ? "test" : numSesion === 5 ? "juego_cierre" : "regular";
         const dateStr = fecha.toISOString().split('T')[0];
         const sesion = await prisma.sesion.create({
           data: {
@@ -248,13 +248,13 @@ async function main() {
 
   if (!existingEvals) {
     const evalEntrada = await prisma.evaluacion.create({
-      data: { escaladorId: sofia.id, cohorteId: cohIni.id, tipo: "entrada", fecha: new Date("2026-07-08"), estado: "completada", notas: "Evaluación de entrada T3." },
+      data: { escaladorId: sofia.id, cohorteId: cohIni.id, tipo: "entrada", fecha: new Date("2026-07-08"), estado: "realizada", notas: "Evaluación de entrada T3." },
     });
     const evalMid = await prisma.evaluacion.create({
-      data: { escaladorId: sofia.id, cohorteId: cohIni.id, tipo: "salida", fecha: new Date("2026-07-29"), estado: "completada", notas: "Mid-ciclo — semana 4." },
+      data: { escaladorId: sofia.id, cohorteId: cohIni.id, tipo: "salida", fecha: new Date("2026-07-29"), estado: "realizada", notas: "Mid-ciclo — semana 4." },
     });
     const evalSalida = await prisma.evaluacion.create({
-      data: { escaladorId: sofia.id, cohorteId: cohIni.id, tipo: "salida", fecha: new Date("2026-08-05"), estado: "completada", notas: "Evaluación final T3." },
+      data: { escaladorId: sofia.id, cohorteId: cohIni.id, tipo: "salida", fecha: new Date("2026-08-05"), estado: "realizada", notas: "Evaluación final T3." },
     });
 
     const metricas = [
