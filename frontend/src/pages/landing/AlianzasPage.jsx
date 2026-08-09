@@ -32,7 +32,7 @@ export default function AlianzasPage() {
           <SectionLabel>¿Eres un aliado potencial?</SectionLabel>
           <h3 style={{ ...T.h2, marginBottom: '12px', fontSize: '1.6rem' }}>Construyamos algo juntos</h3>
           <p style={{ ...T.body, maxWidth: '480px', margin: '0 auto 24px' }}>Si eres un muro, especialista en salud o servicio complementario para escaladores en Bogotá, conversemos.</p>
-          <a href="https://wa.me/573004567890" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', background: C.accent, color: '#121212', borderRadius: '8px', textDecoration: 'none', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.9rem' }}>Escribenos por WhatsApp</a>
+          <a href="https://wa.me/573002123034" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', background: C.accent, color: '#121212', borderRadius: '8px', textDecoration: 'none', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.9rem' }}>Escribenos por WhatsApp</a>
         </div>
       </Section>
     </>

@@ -7,6 +7,7 @@ import ServiciosPage from './pages/landing/ServiciosPage';
 import EquipoPage from './pages/landing/EquipoPage';
 import AlianzasPage from './pages/landing/AlianzasPage';
 import ContactoPage from './pages/landing/ContactoPage';
+import NormatividadPage from './pages/landing/NormatividadPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import EscaladorDashboard from './pages/EscaladorDashboard';
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="/servicios" element={<ServiciosPage />} />
             <Route path="/equipo" element={<EquipoPage />} />
             <Route path="/alianzas" element={<AlianzasPage />} />
+            <Route path="/normatividad" element={<NormatividadPage />} />
             <Route path="/contacto" element={<ContactoPage />} />
           </Route>
 

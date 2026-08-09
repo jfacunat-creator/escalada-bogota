@@ -10,6 +10,7 @@ const navLinks = [
   { to: '/servicios', label: 'Servicios' },
   { to: '/equipo', label: 'Equipo' },
   { to: '/alianzas', label: 'Alianzas' },
+  { to: '/normatividad', label: 'Legal' },
   { to: '/contacto', label: 'Contacto' },
 ];
 

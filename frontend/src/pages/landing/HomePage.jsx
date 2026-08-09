@@ -18,11 +18,10 @@ function Hero() {
             No vendemos acceso al muro. Vendemos el proceso: entrenamiento periodizado por niveles, con tests objetivos y respaldo interdisciplinario.
           </p>
           <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-            <BtnPrimary to="/servicios">Ver programas y planes</BtnPrimary>
-            <BtnOutline to="/contacto">Agenda tu test gratuito</BtnOutline>
+            <BtnPrimary to="/registro">Inscribirme</BtnPrimary>
           </div>
           <div style={{ display: 'flex', gap: '32px', marginTop: '56px', flexWrap: 'wrap' }}>
-            {[['4', 'Ciclos al año'], ['13', 'Semanas por ciclo'], ['9', 'Programas'], ['2', 'Muros aliados']].map(([n, l]) => (
+            {[['4', 'Ciclos al año'], ['3', 'Niveles'], ['2', 'Entrenadores'], ['2', 'Modalidades']].map(([n, l]) => (
               <div key={l}>
                 <div style={{ fontFamily: 'Antonio', fontSize: '2.2rem', color: C.accent, lineHeight: 1 }}>{n}</div>
                 <div style={{ ...T.small, marginTop: '4px' }}>{l}</div>
@@ -92,8 +91,8 @@ function CTASection() {
           Iniciación, Intermedio, Avanzado y programas para menores. Plan Autónomo o Plan Acompañado. Encuentra el que es para ti.
         </p>
         <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <BtnPrimary to="/servicios">Ver programas y planes</BtnPrimary>
-          <BtnOutline to="/contacto" style={{ borderColor: 'rgba(255,255,255,0.2)', color: C.text }}>Hablar con el equipo</BtnOutline>
+          <BtnPrimary to="/registro">Inscribirme</BtnPrimary>
+          <BtnOutline to="/contacto" style={{ borderColor: 'rgba(255,255,255,0.2)', color: C.text }}>Contactar</BtnOutline>
         </div>
       </Section>
     </div>

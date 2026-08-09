@@ -1,4 +1,4 @@
-import { MessageCircle, Mail, MapPin } from 'lucide-react';
+import { MessageCircle, Mail } from 'lucide-react';
 import { C, T, Section, SectionLabel, Divider, PageHeader, BtnPrimary } from './shared';
 
 const InstagramIcon = ({ size = 20 }) => (
@@ -8,26 +8,26 @@ const InstagramIcon = ({ size = 20 }) => (
 );
 
 const contactos = [
-  { Icon: MessageCircle, label: 'WhatsApp', value: '+57 300 456 7890', href: 'https://wa.me/573004567890', color: '#22c55e' },
+  { Icon: MessageCircle, label: 'WhatsApp', value: '+57 300 212 3034', href: 'https://wa.me/573002123034', color: '#22c55e' },
   { Icon: Mail, label: 'Email', value: 'hola@escaladabogota.com', href: 'mailto:hola@escaladabogota.com', color: '#D4AF37' },
   { Icon: InstagramIcon, label: 'Instagram', value: '@escaladabogota', href: 'https://instagram.com/escaladabogota', color: '#c084fc' },
-  { Icon: MapPin, label: 'Muros', value: 'BetaClimb · Weya Centro de Escalada', href: null, color: '#60a5fa' },
+
 ];
 
 export default function ContactoPage() {
   return (
     <>
-      <PageHeader label="Contacto" title="Hablemos" subtitle="Agenda tu test de entrada gratuito. Te mostramos con datos qué te frena y cuánto podés mejorar en 2 ciclos." />
+      <PageHeader label="Contacto" title="Hablemos" subtitle="¿Listo para entrenar con estructura y datos? Contáctanos por los canales disponibles o inscríbete directamente." />
       <Section>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }} className="ct-grid">
           <style>{`@media(max-width:768px){.ct-grid{grid-template-columns:1fr!important}}`}</style>
           <div>
-            <h2 style={{ ...T.h2, marginBottom: '12px' }}>Test de entrada<br /><span style={{ color: C.accent }}>gratuito</span></h2>
+            <h2 style={{ ...T.h2, marginBottom: '12px' }}>¿Listo para<br /><span style={{ color: C.accent }}>empezar?</span></h2>
             <Divider />
-            <p style={T.body}>El test incluye la batería Hörst + circuito estándar. Al finalizar te entregamos un informe de una página con semáforo por áreas y el grado estimado que podés alcanzar en 2 ciclos.</p>
-            <p style={{ ...T.body, marginTop: '12px', marginBottom: '28px' }}>Sin compromiso. Sin pago previo. Solo datos objetivos sobre tu escalada.</p>
-            <BtnPrimary href="https://wa.me/573004567890?text=Hola,%20quiero%20agendar%20mi%20test%20de%20entrada%20gratuito">
-              Agendar por WhatsApp
+            <p style={T.body}>Contáctanos por WhatsApp o inscríbete directamente en la plataforma. Te asignamos grupo según tu nivel y disponibilidad.</p>
+            <p style={{ ...T.body, marginTop: '12px', marginBottom: '28px' }}>Cada ciclo abre y cierra con test de evaluación — la curva de progreso es parte del servicio.</p>
+            <BtnPrimary to="/registro">
+              Inscribirme
             </BtnPrimary>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>

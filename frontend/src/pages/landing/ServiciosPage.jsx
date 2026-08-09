@@ -10,7 +10,7 @@ const niveles = [
   {
     nivel: 'Intermedio', rango: 'Estancado V2–V4', color: '#D4AF37',
     dolor: '"Llevo meses sin subir de grado. Entreno fuerte pero no avanzo."',
-    pitch: 'Tu problema no es fuerza, es estructura. Test de entrada gratuito: te mostramos con datos qué te frena. Progresión por tamaño de presa, sin hipotecar los dedos.',
+    pitch: 'Tu problema no es fuerza, es estructura. Progresión por tamaño de presa, sin hipotecar los dedos. En 2 ciclos pasás de V3 a V5.',
     incluye: ['Test Hörst + circuito estándar de entrada', 'Progresión por tamaño de presa', 'Liga interna de puntos por grupo', 'Check-Point Fest al cierre'],
   },
   {
@@ -116,14 +116,14 @@ function PlanesSection() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
                 {p.incluye.map(i => <CheckItem key={i} color={p.color}>{i}</CheckItem>)}
               </div>
-              <BtnPrimary to="/registro" style={{ width: '100%', justifyContent: 'center', background: p.destacado ? p.color : 'transparent', color: p.destacado ? '#121212' : '#F0EDE8', border: p.destacado ? 'none' : '1px solid #2e2e2e' }}>
-                Inscribirme en este plan
-              </BtnPrimary>
+              <div style={{ width: '100%', textAlign: 'center', padding: '10px', borderRadius: '8px', border: '1px solid #2e2e2e', fontFamily: 'Poppins', fontSize: '0.82rem', color: '#A09A8C' }}>
+                {p.destacado ? 'Presencial · Recomendado' : 'Digital · Flexible'}
+              </div>
             </div>
           ))}
         </div>
         <p style={{ textAlign: 'center', marginTop: '24px', fontFamily: 'Poppins', fontSize: '0.85rem', color: '#666' }}>
-          ¿Dudas? Agenda tu <a href="https://wa.me/573004567890" target="_blank" rel="noopener noreferrer" style={{ color: '#D4AF37', fontWeight: 600 }}>test de entrada gratuito</a> — te mostramos con datos qué te frena.
+          ¿Dudas? <a href="https://wa.me/573002123034" target="_blank" rel="noopener noreferrer" style={{ color: '#D4AF37', fontWeight: 600 }}>Escríbenos por WhatsApp</a> — la modalidad se elige durante la inscripción.
         </p>
       </Section>
     </div>
