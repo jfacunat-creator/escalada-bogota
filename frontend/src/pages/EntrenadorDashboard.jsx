@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2 } from 'lucide-react';
-import { IconoCohorte, IconoEscalador, IconoPresa, IconoCronometro, IconoMuro } from '../components/Icons';
+import { IconoEscalador, IconoPresa, IconoCronometro, IconoMuro } from '../components/Icons';
 
 function StatCard({ icon: Icon, label, value, color = '#D4AF37' }) {
   return (
@@ -45,8 +45,9 @@ export default function EntrenadorDashboard() {
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-        <StatCard icon={IconoCohorte} label="Grupos activos" value={stats.grupos_activos || 0} color="#D4AF37" />
+        <StatCard icon={IconoMuro} label="Grupos activos" value={stats.grupos_activos || 0} color="#D4AF37" />
         <StatCard icon={IconoEscalador} label="Escaladores activos" value={stats.escaladores_activos || 0} color="#9E721D" />
+        <StatCard icon={IconoPresa} label="Escaladores activos" value={stats.escaladores_activos || 0} color="#22c55e" />
         <StatCard icon={IconoCronometro} label="Grupos histórico" value={stats.total_grupos_historico || 0} color="#A09A8C" />
         <StatCard icon={IconoPresa} label="Máx. grupos" value={data?.max_grupos || 6} color="#A09A8C" />
       </div>

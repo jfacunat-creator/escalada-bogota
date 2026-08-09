@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f1117; color: #e2e8f0; padding: 20px; }
+
+h1 { font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; text-align: center; }
+.version { font-size: 10px; color: #334155; text-align: center; margin-bottom: 16px; }
+
+.legend { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-bottom: 16px; }
+.leg { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #94a3b8; }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+.spine { background: #080e18; border: 1px solid #1e293b; border-radius: 10px; padding: 14px; margin-bottom: 14px; overflow-x: auto; }
+.spine-h { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+.module { border-radius: 10px; padding: 12px; border: 1px solid; }
+.module h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.mod-com  { background: #0b1910; border-color: #22c55e44; }
+.mod-com h2 { color: #22c55e; }
+.mod-op   { background: #0e0a1f; border-color: #a78bfa44; }
+.mod-op h2 { color: #a78bfa; }
+.mod-rrhh { background: #1a0d08; border-color: #f9731644; }
+.mod-rrhh h2 { color: #f97316; }
+.mod-fin  { background: #0e1908; border-color: #facc1544; }
+.mod-fin h2 { color: #facc15; }
+.mod-ac   { background: #070e1a; border-color: #38bdf844; }
+.mod-ac h2 { color: #38bdf8; }
+.mod-tech { background: #12081c; border-color: #e879f944; }
+.mod-tech h2 { color: #e879f9; }
+.mod-cont { background: #180808; border-color: #ef444455; }
+.mod-cont h2 { color: #ef4444; }
+
+.entity { background: #ffffff07; border-radius: 6px; padding: 7px 9px; margin-bottom: 6px; border: 1px solid #ffffff08; }
+.entity.web  { border-color: #22c55e22; background: #22c55e05; }
+.entity.enew { border-color: #ef444422; background: #ef444405; }
+.entity.dim  { opacity: 0.4; border-color: #1e293b; }
+.entity.warn { background: #f9731608; border-color: #f9731633; }
+
+.ename  { font-size: 12px; font-weight: 600; color: #f1f5f9; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.efields { font-size: 10px; color: #64748b; line-height: 1.85; }
+.pk  { color: #facc15; font-weight: 700; }
+.fkf { color: #94a3b8; }
+
+.b { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+.b-web  { background: #22c55e14; color: #22c55e; }
+.b-new  { background: #ef444414; color: #ef4444; }
+.b-ui   { font-size: 10px; color: #7c5cbf; font-weight: 700; }
+
+.xr { display: inline-flex; align-items: center; font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 700; gap: 2px; }
+.xr-auth { background: #e879f914; color: #e879f9; }
+.xr-com  { background: #22c55e14; color: #22c55e; }
+.xr-op   { background: #a78bfa14; color: #a78bfa; }
+.xr-rrhh { background: #f9731614; color: #f97316; }
+.xr-fin  { background: #facc1514; color: #facc15; }
+.xr-ac   { background: #38bdf814; color: #38bdf8; }
+.xr-cont { background: #ef444414; color: #ef4444; }
+
+.fullrow { grid-column: 1/-1; background: #07101a; border: 1px solid #1e293b; border-radius: 10px; padding: 14px; }
+.fullrow h2 { font-size: 11px; color: #475569; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+
+.flow { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.fstep { background: #1e293b; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #e2e8f0; border: 1px solid #334155; min-width: 100px; }
+.fstep strong { display: block; font-size: 9px; color: #475569; margin-bottom: 3px; text-transform: uppercase; }
+.fstep.active { border-color: #22c55e55; background: #0a1910; color: #86efac; }
+.fstep.active strong { color: #22c55e77; }
+.farr { color: #334155; font-size: 20px; line-height: 42px; }
+
+.note { font-size: 10px; color: #475569; margin-top: 10px; line-height: 1.85; }
+.note b { color: #64748b; }
+.note code { background: #0c1a12; color: #86efac; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
+
+.chg { display: flex; gap: 8px; margin-bottom: 5px; font-size: 11px; color: #94a3b8; align-items: flex-start; }
+.ctag { font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+.ctag.add    { background: #22c55e14; color: #22c55e; }
+.ctag.fix    { background: #38bdf814; color: #38bdf8; }
+.ctag.rm     { background: #ef444414; color: #ef4444; }
+.ctag.rename { background: #facc1514; color: #facc15; }
+
+.root-cause { margin-top: 12px; padding: 10px 14px; background: #0b1910; border-radius: 6px; border: 1px solid #22c55e22; font-size: 10px; color: #86efac; line-height: 1.8; }
+.root-cause strong { color: #22c55e; }
+.root-cause code { background: #0c1a12; color: #86efac; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
+</style>
+</head>
+<body>
+
+<h1>EscaladaBogotá · Arquitectura ERP del Sistema de Información</h1>
+<p class="version">v2.0 · Observaciones_2.xlsx aplicadas · Alineado con schema Prisma real · 2026-08-07</p>
+
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#22c55e"></div>Comercial</div>
+  <div class="leg"><div class="leg-dot" style="background:#a78bfa"></div>Operativo</div>
+  <div class="leg"><div class="leg-dot" style="background:#f97316"></div>RRHH</div>
+  <div class="leg"><div class="leg-dot" style="background:#facc15"></div>Financiero</div>
+  <div class="leg"><div class="leg-dot" style="background:#38bdf8"></div>Académico</div>
+  <div class="leg"><div class="leg-dot" style="background:#e879f9"></div>Auth/Tech</div>
+  <div class="leg"><div class="leg-dot" style="background:#ef4444"></div>Contabilidad ★ NUEVO</div>
+  <div class="leg" style="gap:5px;"><div class="leg-dot" style="background:#22c55e;outline:2px solid #86efac;outline-offset:1px"></div>Tabla web pública</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     COLUMNA VERTEBRAL RELACIONAL — SVG ERD
+════════════════════════════════════════════════════════════ -->
+<div class="spine">
+  <div class="spine-h">🔗 Columna Vertebral Relacional · FK cross-module explícitas · Los módulos NO son islas</div>
+  <svg viewBox="0 0 875 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;min-width:700px;">
+    <defs>
+      <marker id="ah-g"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0.5 L6,3.5 L0,6.5 Z" fill="#22c55e" opacity="0.9"/></marker>
+      <marker id="ah-p"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0.5 L6,3.5 L0,6.5 Z" fill="#a78bfa" opacity="0.9"/></marker>
+      <marker id="ah-o"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0.5 L6,3.5 L0,6.5 Z" fill="#f97316" opacity="0.9"/></marker>
+      <marker id="ah-y"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0.5 L6,3.5 L0,6.5 Z" fill="#facc15" opacity="0.9"/></marker>
+      <marker id="ah-b"  markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0.5 L6,3.5 L0,6.5 Z" fill="#38bdf8" opacity="0.9"/></marker>
+    </defs>
+
+    <!-- Lane headers -->
+    <text x="75"  y="13" text-anchor="middle" fill="#e879f9" font-size="9" font-family="Segoe UI" opacity="0.6">AUTH</text>
+    <text x="230" y="13" text-anchor="middle" fill="#22c55e" font-size="9" font-family="Segoe UI" opacity="0.6">COM / RRHH</text>
+    <text x="400" y="13" text-anchor="middle" fill="#facc15" font-size="9" font-family="Segoe UI" opacity="0.6">COM / FIN</text>
+    <text x="587" y="13" text-anchor="middle" fill="#a78bfa" font-size="9" font-family="Segoe UI" opacity="0.8">★ OPERATIVO HUB ★</text>
+    <text x="777" y="13" text-anchor="middle" fill="#a78bfa" font-size="9" font-family="Segoe UI" opacity="0.6">OPERATIVO</text>
+
+    <!-- Lane separators -->
+    <line x1="155" y1="18" x2="155" y2="378" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,6"/>
+    <line x1="325" y1="18" x2="325" y2="378" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,6"/>
+    <line x1="498" y1="18" x2="498" y2="378" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,6"/>
+    <line x1="682" y1="18" x2="682" y2="378" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,6"/>
+
+    <!-- ══ ENTIDADES ══ -->
+
+    <!-- usuario (Auth) x=10 y=158 w=130 h=40 → cx=75 cy=178 -->
+    <rect x="10" y="158" width="130" height="40" rx="6" fill="#12081c" stroke="#e879f9" stroke-width="1.5"/>
+    <text x="75" y="173" text-anchor="middle" fill="#e879f9" font-size="12" font-weight="700" font-family="Segoe UI">usuario</text>
+    <text x="75" y="188" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">email · rol · activo</text>
+
+    <!-- escalador (Com) x=165 y=92 w=130 h=40 → cx=230 cy=112 -->
+    <rect x="165" y="92" width="130" height="40" rx="6" fill="#0b1910" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="230" y="107" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="700" font-family="Segoe UI">escalador</text>
+    <text x="230" y="122" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">usuario_id · estado · etario</text>
+
+    <!-- responsable (Com) x=165 y=162 w=130 h=38 → cx=230 cy=181 -->
+    <rect x="165" y="162" width="130" height="38" rx="6" fill="#0b1910" stroke="#22c55e55" stroke-width="1"/>
+    <text x="230" y="177" text-anchor="middle" fill="#86efac" font-size="11" font-family="Segoe UI">responsable</text>
+    <text x="230" y="191" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">escalador_id · cédula · paren.</text>
+
+    <!-- entrenador (RRHH) x=165 y=242 w=130 h=40 → cx=230 cy=262 -->
+    <rect x="165" y="242" width="130" height="40" rx="6" fill="#1a0d08" stroke="#f97316" stroke-width="1.5"/>
+    <text x="230" y="258" text-anchor="middle" fill="#f97316" font-size="12" font-weight="700" font-family="Segoe UI">entrenador</text>
+    <text x="230" y="272" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">usuario_id · ley181 · max_grupos</text>
+
+    <!-- pago (Fin) x=335 y=26 w=120 h=40 → cx=395 cy=46 -->
+    <rect x="335" y="26" width="120" height="40" rx="6" fill="#0e1908" stroke="#facc15" stroke-width="1.5"/>
+    <text x="395" y="41" text-anchor="middle" fill="#facc15" font-size="12" font-weight="700" font-family="Segoe UI">pago</text>
+    <text x="395" y="56" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">inscripcion_id · monto · estado</text>
+
+    <!-- inscripcion (Com) x=335 y=92 w=130 h=40 → cx=400 cy=112 -->
+    <rect x="335" y="92" width="130" height="40" rx="6" fill="#0b1910" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="400" y="107" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="700" font-family="Segoe UI">inscripcion</text>
+    <text x="400" y="122" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">escalador_id · cohorte_id</text>
+
+    <!-- cohorte HUB (Op) x=510 y=132 w=155 h=64 → cx=587 cy=164 -->
+    <rect x="510" y="132" width="155" height="64" rx="8" fill="#0e0a1f" stroke="#a78bfa" stroke-width="2"/>
+    <rect x="510" y="132" width="155" height="18" rx="6" fill="#a78bfa1a"/>
+    <text x="587" y="145" text-anchor="middle" fill="#a78bfa" font-size="9" font-weight="700" font-family="Segoe UI" letter-spacing="1">★  HUB CENTRAL  ★</text>
+    <text x="587" y="163" text-anchor="middle" fill="#c4b5fd" font-size="12" font-weight="700" font-family="Segoe UI">cohorte</text>
+    <text x="587" y="177" text-anchor="middle" fill="#7c5cbf" font-size="9" font-family="Segoe UI">= "grupo" en UI</text>
+    <text x="587" y="189" text-anchor="middle" fill="#4b3d72" font-size="9" font-family="Segoe UI">prog · ciclo · muro · entrenador ↗</text>
+
+    <!-- programa (Op) x=700 y=52 w=155 h=38 → cx=777 cy=71 -->
+    <rect x="700" y="52" width="155" height="38" rx="6" fill="#0e0a1f" stroke="#a78bfa44" stroke-width="1"/>
+    <text x="777" y="67" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600" font-family="Segoe UI">programa</text>
+    <text x="777" y="81" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">nivel · duracion · activo</text>
+
+    <!-- ciclo (Op) x=700 y=135 w=155 h=38 → cx=777 cy=154 -->
+    <rect x="700" y="135" width="155" height="38" rx="6" fill="#0e0a1f" stroke="#a78bfa44" stroke-width="1"/>
+    <text x="777" y="150" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600" font-family="Segoe UI">ciclo</text>
+    <text x="777" y="164" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">anio · trimestre · fechas</text>
+
+    <!-- muro_aliado (Op) x=700 y=218 w=155 h=38 → cx=777 cy=237 -->
+    <rect x="700" y="218" width="155" height="38" rx="6" fill="#0e0a1f" stroke="#a78bfa44" stroke-width="1"/>
+    <text x="777" y="233" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600" font-family="Segoe UI">muro_aliado</text>
+    <text x="777" y="247" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">≈ sede · convenio_activo</text>
+
+    <!-- sesion (Op) x=510 y=272 w=130 h=38 → cx=575 cy=291 -->
+    <rect x="510" y="272" width="130" height="38" rx="6" fill="#0e0a1f" stroke="#a78bfa44" stroke-width="1"/>
+    <text x="575" y="287" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600" font-family="Segoe UI">sesion</text>
+    <text x="575" y="301" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">cohorte_id · fecha · tipo</text>
+
+    <!-- evaluacion (Ac) x=335 y=272 w=130 h=38 → cx=400 cy=291 -->
+    <rect x="335" y="272" width="130" height="38" rx="6" fill="#070e1a" stroke="#38bdf844" stroke-width="1"/>
+    <text x="400" y="287" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="600" font-family="Segoe UI">evaluacion</text>
+    <text x="400" y="301" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">escalador↗ · cohorte↗</text>
+
+    <!-- asistencia (Ac) x=165 y=328 w=130 h=38 → cx=230 cy=347 -->
+    <rect x="165" y="328" width="130" height="38" rx="6" fill="#070e1a" stroke="#38bdf844" stroke-width="1"/>
+    <text x="230" y="343" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="600" font-family="Segoe UI">asistencia</text>
+    <text x="230" y="357" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI">sesion↗ · escalador↗ · asistio</text>
+
+    <!-- ══ FLECHAS ══
+         Nomenclatura: arrow FROM (entidad con FK) TO (entidad referenciada)
+         Dashed = cross-module (CRÍTICO), sólida+dim = mismo módulo
+    -->
+
+    <!-- A1: escalador → usuario  [COM → AUTH] dashed green -->
+    <path d="M 165,112 C 145,112 140,142 140,158" stroke="#22c55e" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#ah-g)"/>
+    <text x="128" y="138" text-anchor="end" fill="#22c55e" font-size="8" opacity="0.8">usuario_id</text>
+
+    <!-- A2: entrenador → usuario  [RRHH → AUTH] dashed orange -->
+    <path d="M 165,262 C 145,262 140,228 140,198" stroke="#f97316" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#ah-o)"/>
+    <text x="128" y="232" text-anchor="end" fill="#f97316" font-size="8" opacity="0.8">usuario_id</text>
+
+    <!-- A3: inscripcion → escalador  [COM → COM] solid dim -->
+    <line x1="335" y1="112" x2="295" y2="112" stroke="#22c55e" stroke-width="1" fill="none" opacity="0.4" marker-end="url(#ah-g)"/>
+    <text x="315" y="107" text-anchor="middle" fill="#22c55e" font-size="8" opacity="0.4">escalador_id</text>
+
+    <!-- A4: inscripcion → cohorte  [COM → OP] dashed green CRÍTICO -->
+    <path d="M 465,112 C 492,112 510,140 510,162" stroke="#22c55e" stroke-width="2" fill="none" stroke-dasharray="5,3" marker-end="url(#ah-g)"/>
+    <text x="497" y="126" text-anchor="end" fill="#22c55e" font-size="8" opacity="0.9">cohorte_id</text>
+
+    <!-- A5: pago → inscripcion  [FIN → COM] dashed yellow -->
+    <path d="M 395,66 L 400,92" stroke="#facc15" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#ah-y)"/>
+    <text x="418" y="80" text-anchor="start" fill="#facc15" font-size="8" opacity="0.9">inscripcion_id</text>
+
+    <!-- A6: cohorte → entrenador  [OP → RRHH] dashed purple CRÍTICO — va por debajo -->
+    <path d="M 587,196 C 587,348 295,348 295,282" stroke="#a78bfa" stroke-width="2" fill="none" stroke-dasharray="5,3" marker-end="url(#ah-p)"/>
+    <text x="440" y="360" text-anchor="middle" fill="#a78bfa" font-size="8" opacity="0.9">entrenador_id</text>
+
+    <!-- A7: cohorte → programa  [OP → OP] solid dim -->
+    <path d="M 665,148 C 685,128 695,88 700,71" stroke="#a78bfa" stroke-width="1" fill="none" opacity="0.4" marker-end="url(#ah-p)"/>
+    <text x="690" y="112" text-anchor="end" fill="#a78bfa" font-size="8" opacity="0.4">programa_id</text>
+
+    <!-- A8: cohorte → ciclo  [OP → OP] solid dim -->
+    <line x1="665" y1="158" x2="700" y2="154" stroke="#a78bfa" stroke-width="1" fill="none" opacity="0.4" marker-end="url(#ah-p)"/>
+
+    <!-- A9: cohorte → muro_aliado  [OP → OP] solid dim -->
+    <path d="M 665,184 C 685,200 695,228 700,237" stroke="#a78bfa" stroke-width="1" fill="none" opacity="0.4" marker-end="url(#ah-p)"/>
+    <text x="693" y="220" text-anchor="end" fill="#a78bfa" font-size="8" opacity="0.4">muro_id</text>
+
+    <!-- A10: sesion → cohorte  [OP → OP] solid dim -->
+    <path d="M 575,272 C 575,238 587,218 587,196" stroke="#a78bfa" stroke-width="1" fill="none" opacity="0.5" marker-end="url(#ah-p)"/>
+    <text x="558" y="240" text-anchor="end" fill="#a78bfa" font-size="8" opacity="0.4">cohorte_id</text>
+
+    <!-- A11: evaluacion → cohorte  [AC → OP] dashed blue -->
+    <path d="M 465,291 C 490,291 510,255 510,196" stroke="#38bdf8" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#ah-b)"/>
+    <text x="502" y="252" text-anchor="end" fill="#38bdf8" font-size="8" opacity="0.8">cohorte_id</text>
+
+    <!-- A12: evaluacion → escalador  [AC → COM] dashed blue -->
+    <path d="M 335,291 C 295,291 230,225 230,132" stroke="#38bdf8" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#ah-b)"/>
+    <text x="255" y="222" text-anchor="end" fill="#38bdf8" font-size="8" opacity="0.8">escalador_id</text>
+
+    <!-- A13: asistencia → sesion  [AC → OP] dashed blue -->
+    <path d="M 295,347 C 410,347 510,340 575,310" stroke="#38bdf8" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#ah-b)"/>
+    <text x="430" y="358" text-anchor="middle" fill="#38bdf8" font-size="8" opacity="0.8">sesion_id</text>
+
+    <!-- A14: asistencia → escalador  [AC → COM] dashed blue -->
+    <path d="M 230,328 V 132" stroke="#38bdf8" stroke-width="1" fill="none" stroke-dasharray="4,4" opacity="0.7" marker-end="url(#ah-b)"/>
+    <text x="245" y="268" text-anchor="start" fill="#38bdf8" font-size="8" opacity="0.7">escalador_id</text>
+
+    <!-- ══ LEYENDA INFERIOR ══ -->
+    <line x1="10" y1="382" x2="42" y2="382" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="46" y="386" fill="#64748b" font-size="9" font-family="Segoe UI">FK cross-módulo (crítico)</text>
+    <line x1="200" y1="382" x2="232" y2="382" stroke="#94a3b8" stroke-width="1" opacity="0.35"/>
+    <text x="236" y="386" fill="#475569" font-size="9" font-family="Segoe UI">FK mismo módulo</text>
+    <text x="400" y="386" fill="#a78bfa" font-size="9" font-family="Segoe UI" font-weight="600">cohorte = "grupo" en toda la UI</text>
+    <text x="640" y="386" fill="#f97316" font-size="9" font-family="Segoe UI">muro_aliado = antes "sede"</text>
+  </svg>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MÓDULOS
+════════════════════════════════════════════════════════════ -->
+<div class="grid">
+
+  <!-- ── COMERCIAL ── -->
+  <div class="module mod-com">
+    <h2>🛒 Comercial &amp; Ventas</h2>
+
+    <div class="entity web">
+      <div class="ename">escalador <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · nombre · apellido<br>
+        fecha_nacimiento · rango_etario · peso_kg<br>
+        telefono · contacto_emergencia · estado · foto_url<br>
+        <span class="fkf">usuario_id</span> <span class="xr xr-auth">↗ Auth</span>
+      </div>
+    </div>
+
+    <div class="entity">
+      <div class="ename">responsable</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · nombre_completo · cedula<br>
+        telefono · parentesco · email<br>
+        <span class="fkf">escalador_id</span> <span class="xr xr-com">↗ Com</span><br>
+        <em style="color:#334155;font-size:9px">→ obligatorio para escaladores menores de edad</em>
+      </div>
+    </div>
+
+    <div class="entity web">
+      <div class="ename">inscripcion <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · fecha_inscripcion · estado<br>
+        precio_ciclo · descuento_aplicado<br>
+        <span class="fkf">escalador_id</span> <span class="xr xr-com">↗ Com</span><br>
+        <span class="fkf">cohorte_id</span> <span class="xr xr-op">↗ Operativo</span><br>
+        <em style="color:#334155;font-size:9px">Unique[escalador_id, cohorte_id]</em>
+      </div>
+    </div>
+
+    <div class="entity dim">
+      <div class="ename" style="color:#475569;">leads · referidos</div>
+      <div class="efields" style="color:#334155;">No implementados en schema actual</div>
+    </div>
+  </div>
+
+  <!-- ── OPERATIVO ── -->
+  <div class="module mod-op">
+    <h2>⚙️ Operativo</h2>
+
+    <div class="entity web">
+      <div class="ename">programa <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · nombre · nivel · poblacion<br>
+        rango_etario_menor · duracion_semanas<br>
+        descripcion · activo<br>
+        incluye_fisio · incluye_nutricion
+      </div>
+    </div>
+
+    <div class="entity web">
+      <div class="ename">ciclo <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · codigo · anio · trimestre<br>
+        fecha_inicio · fecha_fin · semana_empalme<br>
+        <em style="color:#334155;font-size:9px">Unique[anio, trimestre]</em>
+      </div>
+    </div>
+
+    <div class="entity web">
+      <div class="ename">cohorte <span class="b b-web">WEB</span> <span class="b-ui">= "grupo" UI</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · modalidad · horario (string)<br>
+        cupo_maximo · inscritos_actual · estado<br>
+        <span class="fkf">programa_id</span> <span class="xr xr-op">↗ Op</span><br>
+        <span class="fkf">ciclo_id</span> <span class="xr xr-op">↗ Op</span><br>
+        <span class="fkf">entrenador_id</span> <span class="xr xr-rrhh">↗ RRHH</span><br>
+        <span class="fkf">muro_id</span> <span class="xr xr-op">↗ Op</span>
+      </div>
+    </div>
+
+    <div class="entity web">
+      <div class="ename">muro_aliado <span class="b b-web">WEB</span> <span class="b-ui">≈ sede</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · nombre · direccion<br>
+        zonas_disponibles · convenio_activo<br>
+        contacto · lat · lng
+      </div>
+    </div>
+
+    <div class="entity">
+      <div class="ename">sesion</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · fecha · hora_inicio · hora_fin<br>
+        numero_sesion · tipo · notas_entrenador<br>
+        <span class="fkf">cohorte_id</span> <span class="xr xr-op">↗ Op</span><br>
+        <em style="color:#334155;font-size:9px">tipos: regular · test · juego_cierre · checkpoint</em>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RRHH ── -->
+  <div class="module mod-rrhh">
+    <h2>👤 RRHH</h2>
+
+    <div class="entity web">
+      <div class="ename">entrenador <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · nombre · telefono<br>
+        licencia_ley181 · max_grupos · fecha_ingreso<br>
+        <span class="fkf">usuario_id</span> <span class="xr xr-auth">↗ Auth</span>
+      </div>
+    </div>
+
+    <div class="entity dim">
+      <div class="ename" style="color:#475569;">contratos · parafiscales · ausencias</div>
+      <div class="efields" style="color:#334155;">
+        No en schema actual<br>
+        Vincular a módulo Contabilidad cuando se implemente
+      </div>
+    </div>
+
+    <div class="entity warn">
+      <div class="ename" style="color:#fdba74;font-size:11px;">★ Backoffice RRHH — pendiente</div>
+      <div class="efields">
+        Vista admin entrenadores debe<br>
+        coincidir con entrenadores activos reales<br>
+        <em style="color:#475569;font-size:9px">Obs: "NO ESTÁ DESARROLLADO"</em>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FINANCIERO ── -->
+  <div class="module mod-fin">
+    <h2>💰 Financiero</h2>
+
+    <div class="entity web">
+      <div class="ename">pago <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · monto · fecha_pago<br>
+        fecha_vencimiento · metodo · estado<br>
+        referencia · comprobante_url<br>
+        <span class="fkf">inscripcion_id</span> <span class="xr xr-com">↗ Comercial</span><br>
+        <em style="color:#334155;font-size:9px">No existe tabla "mensualidades" — pago ES la cuota<br>
+        Agregar cohorte en vista admin (obs. aplicada)</em>
+      </div>
+    </div>
+
+    <div class="entity" style="background:#facc1507;border-color:#facc1522;">
+      <div class="ename" style="color:#fde68a;font-size:11px;">Vista: Flujo de Caja</div>
+      <div class="efields">
+        Filtro tiempo: mensual / anual / rango<br>
+        Filtros: nivel · modalidad · entrenador<br>
+        JOIN pago + inscripcion + cohorte + escalador<br>
+        Alimentado también por <span class="xr xr-cont">↗ pyg_entrada</span><br>
+        <em style="color:#334155;font-size:9px">Obs: "filtro de tiempo" · sin "Tasa de Recaudo"</em>
+      </div>
+    </div>
+
+    <div class="entity" style="background:#facc1507;border-color:#facc1522;">
+      <div class="ename" style="color:#fde68a;font-size:11px;">Vista: Balance General</div>
+      <div class="efields">
+        Con fecha de corte específica<br>
+        Fuente: <span class="xr xr-cont">↗ pyg_entrada</span> (Contabilidad)<br>
+        <em style="color:#334155;font-size:9px">Obs: "reestructurar en dos · con PyG"</em>
+      </div>
+    </div>
+
+    <div class="entity dim">
+      <div class="ename" style="color:#475569;">impuestos · proveedores · egresos</div>
+      <div class="efields" style="color:#334155;">Migrar a módulo Contabilidad (pyg_entrada)</div>
+    </div>
+  </div>
+
+  <!-- ── ACADÉMICO ── -->
+  <div class="module mod-ac">
+    <h2>📊 Académico &amp; Progreso</h2>
+
+    <div class="entity">
+      <div class="ename">evaluacion</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · tipo · fecha · estado · notas<br>
+        <span class="fkf">escalador_id</span> <span class="xr xr-com">↗ Com</span><br>
+        <span class="fkf">cohorte_id</span> <span class="xr xr-op">↗ Op</span><br>
+        <em style="color:#334155;font-size:9px">tipos: entrada / salida</em>
+      </div>
+    </div>
+
+    <div class="entity">
+      <div class="ename">resultado_test</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · metrica · valor · unidad<br>
+        semaforo (verde/amarillo/rojo) · percentil<br>
+        <span class="fkf">evaluacion_id</span> <span class="xr xr-ac">↗ Acad</span><br>
+        <em style="color:#334155;font-size:9px">métricas: T2,T4,T5,T6 — fuerza max/crítica</em>
+      </div>
+    </div>
+
+    <div class="entity">
+      <div class="ename">asistencia</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · asistio · observaciones<br>
+        <span class="fkf">sesion_id</span> <span class="xr xr-op">↗ Op</span><br>
+        <span class="fkf">escalador_id</span> <span class="xr xr-com">↗ Com</span>
+      </div>
+    </div>
+
+    <div class="entity">
+      <div class="ename">remision</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · fecha · motivo · estado · notas_aliado<br>
+        <span class="fkf">escalador_id</span> <span class="xr xr-com">↗ Com</span><br>
+        <span class="fkf">aliado_id</span> <span class="xr xr-ac">↗ Acad</span><br>
+        <span class="fkf">evaluacion_id</span> <span class="xr xr-ac">↗ Acad</span>
+      </div>
+    </div>
+
+    <div class="entity">
+      <div class="ename">aliado_salud</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · nombre · tipo · contacto · activo<br>
+        <em style="color:#334155;font-size:9px">tipo: fisioterapia / nutricion</em>
+      </div>
+    </div>
+
+    <div class="entity">
+      <div class="ename">puntos_liga</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · puntos · motivo<br>
+        <span class="fkf">escalador_id</span> <span class="xr xr-com">↗ Com</span><br>
+        <span class="fkf">cohorte_id</span> <span class="xr xr-op">↗ Op</span>
+      </div>
+    </div>
+
+    <div class="entity web">
+      <div class="ename">contenido_ciclo <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · tipo · titulo · archivo_url<br>
+        orden · visible · duracion_seg<br>
+        <span class="fkf">ciclo_id</span> <span class="xr xr-op">↗ Op</span><br>
+        <span class="fkf">programa_id</span> <span class="xr xr-op">↗ Op</span>
+      </div>
+    </div>
+
+    <div class="entity">
+      <div class="ename">progreso_contenido</div>
+      <div class="efields">
+        <span class="pk">PK</span> id · visto · progreso_pct · ultimo_acceso<br>
+        <span class="fkf">escalador_id</span> <span class="xr xr-com">↗ Com</span><br>
+        <span class="fkf">contenido_id</span> <span class="xr xr-ac">↗ Acad</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AUTH / TECH ── -->
+  <div class="module mod-tech">
+    <h2>🔐 Auth &amp; Tech</h2>
+
+    <div class="entity web">
+      <div class="ename">usuario <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · email · password_hash<br>
+        rol (escalador / entrenador / admin)<br>
+        activo · created_at · updated_at<br>
+        <em style="color:#334155;font-size:9px">Raíz de auth — FK inversa hacia escalador/entrenador</em>
+      </div>
+    </div>
+
+    <div class="entity web">
+      <div class="ename">consentimiento <span class="b b-web">WEB</span></div>
+      <div class="efields">
+        <span class="pk">PK</span> id · tipo · fecha_firma<br>
+        documento_url · vigente · notas<br>
+        <span class="fkf">escalador_id</span> <span class="xr xr-com">↗ Com</span><br>
+        <span class="fkf">responsable_id</span> <span class="xr xr-com">↗ Com</span><br>
+        <em style="color:#334155;font-size:9px">tipos: informado · menores · datos_personales<br>
+        Normatividad: Ley 1581/2012 · SFC</em>
+      </div>
+    </div>
+
+    <div class="entity dim">
+      <div class="ename" style="color:#475569;">notificaciones</div>
+      <div class="efields" style="color:#334155;">No en schema · pendiente (email / push / WA)</div>
+    </div>
+
+    <div class="entity" style="background:#e879f908;border-color:#e879f922;">
+      <div class="ename" style="color:#e879f9;font-size:11px;">★ Sistema de Alertas — pendiente</div>
+      <div class="efields">
+        Capacidad grupo vs cupo_maximo<br>
+        Pagos estado=vencido<br>
+        Consentimientos sin vigente=true<br>
+        <em style="color:#475569;font-size:9px">Obs: "Cerebro detrás de todos los datos"</em>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CONTABILIDAD (NUEVO — full width) ── -->
+  <div class="module mod-cont" style="grid-column:1/-1;">
+    <h2>📒 Contabilidad · Módulo P&amp;G <span class="b b-new">NUEVO</span>
+      <span style="font-size:10px;color:#475569;font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px;">
+        Obs: "Crear módulo de contabilidad que sea la base de datos de PyG que alimente el balance financiero"
+      </span>
+    </h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+
+      <div class="entity enew">
+        <div class="ename">pyg_categoria <span class="b b-new">NEW</span></div>
+        <div class="efields">
+          <span class="pk">PK</span> id · nombre<br>
+          tipo (ingreso / egreso) · descripcion · activo<br>
+          <em style="color:#334155;font-size:9px">Ej: "Mensualidades recibidas", "Nómina entrenadores",<br>
+          "Arriendo muro", "Equipamiento"</em>
+        </div>
+      </div>
+
+      <div class="entity enew">
+        <div class="ename">pyg_entrada <span class="b b-new">NEW</span></div>
+        <div class="efields">
+          <span class="pk">PK</span> id · concepto · monto · fecha<br>
+          periodo_mes · periodo_anio<br>
+          tipo (ingreso / egreso) · comprobante_url · notas<br>
+          <span class="fkf">categoria_id</span> <span class="xr xr-cont">↗ Cont</span><br>
+          <em style="color:#334155;font-size:9px">Fuente de verdad del P&amp;G y balance general<br>
+          Filtrable por mes / año / categoría / tipo</em>
+        </div>
+      </div>
+
+      <div style="padding:2px;">
+        <div class="entity" style="background:#ef444408;border-color:#ef444422;margin-bottom:8px;">
+          <div class="ename" style="color:#fca5a5;font-size:11px;">Flujo de información</div>
+          <div class="efields" style="line-height:2;">
+            Pagos recibidos → pyg_entrada (ingreso)<br>
+            Nómina entrenadores → pyg_entrada (egreso)<br>
+            Gastos muro / arriendo → pyg_entrada (egreso)<br>
+            <strong style="color:#ef4444">↓ pyg_entrada alimenta:</strong><br>
+            Vista Flujo de Caja (filtros tiempo/nivel/entrenador)<br>
+            Vista Balance General (con fecha de corte)
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── FLUJO WEB (full width) ── -->
+  <div class="fullrow">
+    <h2>🖥️ Flujo Inscripción Web · Tablas por paso · Schema real</h2>
+    <div class="flow">
+      <div class="fstep active"><strong>1 · Login</strong>usuario → JWT<br>check activo=true</div>
+      <div class="farr">→</div>
+      <div class="fstep active"><strong>2 · Perfil</strong>escalador<br>responsable (si menor)</div>
+      <div class="farr">→</div>
+      <div class="fstep active"><strong>3 · ¿Inscrito?</strong>inscripcion activa<br>→ cohorte en_curso</div>
+      <div class="farr">→</div>
+      <div class="fstep active"><strong>4 · Catálogo grupos</strong>cohorte + ciclo + programa<br>+ muro_aliado + entrenador<br>+ horario</div>
+      <div class="farr">→</div>
+      <div class="fstep active"><strong>5 · Inscripción</strong>inscripcion INSERT<br>pago CREATE (pendiente)</div>
+      <div class="farr">→</div>
+      <div class="fstep active"><strong>6 · Consentimiento</strong>consentimiento INSERT<br>tipo según edad</div>
+      <div class="farr">→</div>
+      <div class="fstep active"><strong>7 · Confirmar pago</strong>pago UPDATE<br>referencia + comprobante</div>
+    </div>
+    <p class="note">
+      <b>12 tablas WEB mínimas:</b> usuario · escalador · responsable · inscripcion · cohorte · ciclo · programa · muro_aliado · entrenador · pago · consentimiento · contenido_ciclo.<br>
+      <b>Eliminado del flujo:</b> paso "mensualidades" — no existe como tabla; inscripcion cubre el período, pago cubre la transacción.<br>
+      <b>Eliminado del flujo:</b> "Test Gratuito" — no se presta como servicio (obs. aplicada).<br>
+      <b>⚠ Distinción crítica UI:</b> <code>escalador.estado = 'activo'</code> significa que existe en la base de datos, NO que tiene una inscripción vigente. Son campos independientes. La UI debe mostrar ambos estados claramente — esto explica el "22 escaladores, 16 inscripciones" que parece inconsistente pero no lo es.
+    </p>
+  </div>
+
+  <!-- ── CHANGELOG (full width) ── -->
+  <div class="fullrow" style="border-color:#1e3a5f;">
+    <h2>📋 Observaciones_2.xlsx · Cambios aplicados al modelo de datos</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <p style="font-size:10px;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Modelo de datos y schema</p>
+        <div class="chg"><span class="ctag rm">QUITAR</span>"Test Gratuito" — eliminado de servicios y de cualquier flujo</div>
+        <div class="chg"><span class="ctag rm">QUITAR</span>"mensualidades" — no existe en schema; reemplazado por pago vinculado a inscripcion</div>
+        <div class="chg"><span class="ctag rm">QUITAR</span>"Muros" como sección pública — muro_aliado es gestión interna</div>
+        <div class="chg"><span class="ctag rm">QUITAR</span>"Tasa de Recaudo" — no es KPI válido para este modelo de negocio</div>
+        <div class="chg"><span class="ctag rm">QUITAR</span>"Ocupación de grupos" de sección financiera — es métrica operativa</div>
+        <div class="chg"><span class="ctag rm">QUITAR</span>"Ingresos esperados / pendientes de cobro" — renombrar o eliminar</div>
+        <div class="chg"><span class="ctag rename">RENAME</span>"cohorte" → "grupo" en toda la interfaz de usuario</div>
+        <div class="chg"><span class="ctag rename">RENAME</span>"sedes" → "muro_aliado" (concepto real del negocio)</div>
+        <div class="chg"><span class="ctag rename">RENAME</span>"horarios_grupo" (tabla) → campo horario string dentro de cohorte</div>
+        <div class="chg"><span class="ctag rename">RENAME</span>"usuarios_auth" → "usuario" (nombre real en schema Prisma)</div>
+        <div class="chg"><span class="ctag rename">RENAME</span>"Costo RRHH" → "Gastos" (semántica correcta)</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>Módulo CONTABILIDAD: pyg_categoria + pyg_entrada (PyG)</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>Tabla responsable (representantes de escaladores menores)</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>Tabla aliado_salud (fisioterapeutas y nutricionistas)</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>Tablas puntos_liga y progreso_contenido al diagrama</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>Normatividad en consentimientos: Ley 1581/2012 tratamiento datos</div>
+      </div>
+      <div>
+        <p style="font-size:10px;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">UI / Backoffice — pendiente implementar</p>
+        <div class="chg"><span class="ctag fix">FIX</span>Admin financiero: separar en flujo de caja (filtros tiempo) y balance general (fecha corte)</div>
+        <div class="chg"><span class="ctag fix">FIX</span>Grupos admin: dashboard con inscritos, asistencia, ingresos; filtros nivel / programa / fecha</div>
+        <div class="chg"><span class="ctag fix">FIX</span>Escaladores admin: tabla filtrable por nivel, género, entrenador, modalidad</div>
+        <div class="chg"><span class="ctag fix">FIX</span>Pagos admin: agregar columna grupo (cohorte) en tabla</div>
+        <div class="chg"><span class="ctag fix">FIX</span>Programas admin: agregar detalle sesión-por-sesión (vía contenido_ciclo)</div>
+        <div class="chg"><span class="ctag fix">FIX</span>Escalador UI "Mi grupo": mostrar programa completo, sesiones, asistencia y pagos</div>
+        <div class="chg"><span class="ctag fix">FIX</span>Escalador UI "Inscripción": mostrar grupos disponibles con cupo_maximo > inscritos_actual</div>
+        <div class="chg"><span class="ctag fix">FIX</span>Escalador dashboard: aclarar "activo" (existe en DB) vs "inscrito" (inscripcion activa)</div>
+        <div class="chg"><span class="ctag fix">FIX</span>Mi Progreso: mínimo 3 evaluaciones para comparar; métricas consistentes entre test</div>
+        <div class="chg"><span class="ctag fix">FIX</span>SEED: crear datos demo consistentes — escaladores CON inscripciones, grupos CON sesiones y pagos</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>Sistema de alertas admin (capacidad, pagos vencidos, consentimientos pendientes)</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>WhatsApp +57 3002123034 en alianzas y contacto</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>Sección Normatividad en Servicios (Habeas Data, consentimiento informado)</div>
+        <div class="chg"><span class="ctag add">AGREGAR</span>Botón volver a página principal en vista Login/Inscripción</div>
+        <div class="chg"><span class="ctag rm">QUITAR</span>Botón "Ver Programas y Planes" del inicio — ruta única por navbar</div>
+        <div class="chg"><span class="ctag rm">QUITAR</span>Estadística "13 semanas por ciclo" del inicio</div>
+      </div>
+    </div>
+
+    <div class="root-cause">
+      <strong>DIAGNÓSTICO RAÍZ DEL PROBLEMA RELACIONAL:</strong>
+      El schema Prisma <em>sí tiene</em> FK correctamente definidas entre todos los módulos. El problema es que el seed y el frontend usan datos no sincronizados que no respetan la cadena completa
+      <code>usuario → escalador → inscripcion → cohorte ← [programa · ciclo · muro · entrenador]</code>.
+      Resultado visible: un escalador aparece "activo" sin inscripción real, grupos sin sesiones, pagos sin inscripción vinculada.
+      <strong>La solución no es cambiar el schema — es un seed coherente</strong> que llene las tablas en orden respetando FK, y un frontend que consulte los datos reales en lugar de usar mock data estático.
+      Una inscripcion sin pago nunca debería llegar al frontend: usar transacción Prisma <code>prisma.$transaction([inscripcion.create, pago.create])</code> garantiza atomicidad.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

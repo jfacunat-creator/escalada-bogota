@@ -1,6 +1,6 @@
 /**
  * InscripcionPage.jsx
- * Catálogo de cohortes disponibles y auto-inscripción del escalador.
+ * Catálogo de grupos disponibles y auto-inscripción del escalador.
  * Consume:
  *   GET  /api/cohortes/disponibles   → catálogo con precio_mensual calculado en backend
  *   GET  /api/inscripciones?estado=activa
@@ -405,7 +405,7 @@ export default function InscripcionPage() {
       setCohortes(cohortesData);
       setInscActiva(inscData?.[0] || null);
     } catch {
-      setError('No se pudieron cargar las cohortes disponibles. Intenta de nuevo.');
+      setError('No se pudieron cargar las grupos disponibles. Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -535,7 +535,7 @@ export default function InscripcionPage() {
 
       {cohortesFiltradas.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280', fontSize: '0.9rem' }}>
-          No hay cohortes disponibles con ese filtro.
+          No hay grupos disponibles con ese filtro.
         </div>
       ) : (
         <div style={{

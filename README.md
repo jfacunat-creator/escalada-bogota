@@ -1,128 +1,111 @@
-# Escalada Bogotá — Plataforma de Entrenamiento por Cohortes
+# EscaladaBogotá — Paquete de actualización v2
 
-## Estructura del proyecto
+## Observaciones_2.xlsx: 52/52 resueltas
+
+### Instrucciones de integración
+
+**1. Reemplazar archivos**
+
+Copiar el contenido de este ZIP sobre el proyecto existente.
+La estructura de carpetas coincide con el proyecto original:
 
 ```
-escalada-bogota/
-├── backend/
-│   ├── prisma/
-│   │   ├── schema.prisma    ← Modelo de datos completo (20 tablas)
-│   │   └── seed.js          ← Datos iniciales (muros, programas, usuarios demo)
-│   ├── src/
-│   │   ├── config/
-│   │   │   └── database.js  ← Cliente Prisma
-│   │   ├── middleware/
-│   │   │   └── auth.js      ← JWT + control de roles
-│   │   ├── routes/
-│   │   │   ├── auth.js      ← Login, registro, refresh, /me
-│   │   │   ├── escaladores.js
-│   │   │   ├── entrenadores.js
-│   │   │   ├── cohortes.js
-│   │   │   └── catalogos.js ← Programas, ciclos, muros (público)
-│   │   ├── utils/
-│   │   │   └── jwt.js
-│   │   └── index.js         ← Servidor Express
-│   ├── .env.example
-│   └── package.json
-└── README.md
+backend/
+  src/routes/
+    auth.js           ← FIX: /auth/me con inscripciones completas
+    dashboard.js      ← FIX: queries corregidas + 5 filtros demográficos
+    cohortes.js       ← ADD: ingresos, asistencia%, sesiones por grupo
+    escaladores.js    ← ADD: programa activo, pagos pendientes, entrenador
+    pagos.js          ← ADD: filtros nivel/modalidad/entrenador
+    contabilidad.js   ← NEW: módulo P&G completo
+  prisma/
+    seed.js           ← FIX: datos demo con cadena relacional completa
+
+frontend/
+  src/pages/
+    LandingPage.jsx        ← Normatividad, WhatsApp, test gratuito eliminado
+    LoginPage.jsx          ← Botón ← Volver al inicio
+    EscaladorDashboard.jsx ← Aviso activo-sin-grupo, accesos rápidos
+    InscripcionPage.jsx    ← "Grupo" en vez de "Cohorte"
+    MiGrupoPage.jsx        ← Tabs: Sesiones + Pagos + Contenido
+    MiProgresoPage.jsx     ← Métricas Hörst T2/T4/T5/T6/T8/T9
+    AdminDashboard.jsx     ← 5 filtros, alertas, distribución demográfica
+    GruposAdminPage.jsx    ← Stats inline por grupo
+    EscaladoresAdminPage.jsx ← Drill-down con detalle individual
+    EntrenadoresAdminPage.jsx ← Dashboard completo con carga
+    ProgramasAdminPage.jsx ← Currículo + timeline
+    PagosPage.jsx          ← Filtros nivel/modalidad
+    RRHHPage.jsx           ← Simulador costos + normativa colombiana
+    ContabilidadPage.jsx   ← P&G con degradación graceful
+    EntrenadorDashboard.jsx ← Stats corregidos
+    MisGruposPage.jsx      ← Dashboard grupos del entrenador
 ```
 
-## Requisitos previos
+**2. Registrar ruta de contabilidad en index.js**
 
-- **Node.js** 18+ (recomendado 20 LTS)
-- **PostgreSQL** 14+ (local o servicio como Railway/Supabase)
-- **npm** o **yarn**
+Añadir esta línea en `backend/src/index.js` junto a las demás rutas:
 
-## Instalación local
+```javascript
+app.use("/api/contabilidad", require("./routes/contabilidad"));
+```
 
-### 1. Clonar e instalar dependencias
+**3. Ejecutar seed**
 
 ```bash
 cd backend
-npm install
+npx prisma db push    # sincronizar schema
+node prisma/seed.js   # cargar datos demo
 ```
 
-### 2. Configurar variables de entorno
+**4. Activar módulo de contabilidad (opcional)**
 
-```bash
-cp .env.example .env
-# Editar .env con tu conexión a PostgreSQL y un JWT_SECRET seguro
+El módulo P&G se degrada sin error si las tablas no existen.
+Para activarlo, ejecutar el SQL que aparece en la página de
+Contabilidad del admin, o directamente en PostgreSQL:
+
+```sql
+CREATE TABLE IF NOT EXISTS pyg_categoria (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nombre VARCHAR(100) NOT NULL UNIQUE,
+  tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('ingreso','egreso')),
+  descripcion TEXT,
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS pyg_entrada (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  categoria_id UUID NOT NULL REFERENCES pyg_categoria(id),
+  concepto VARCHAR(200) NOT NULL,
+  monto DECIMAL(14,2) NOT NULL,
+  fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+  periodo_mes INT NOT NULL CHECK (periodo_mes BETWEEN 1 AND 12),
+  periodo_anio INT NOT NULL,
+  tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('ingreso','egreso')),
+  comprobante_url TEXT,
+  notas TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO pyg_categoria (nombre, tipo, descripcion) VALUES
+  ('Mensualidades recibidas', 'ingreso', 'Pagos de ciclo de escaladores'),
+  ('Nómina entrenadores',     'egreso',  'Salarios + prestaciones'),
+  ('Arriendo muro',           'egreso',  'Canon mensual muros aliados'),
+  ('Equipamiento',            'egreso',  'Cuerdas, arneses, presas'),
+  ('Servicios aliados',       'egreso',  'Fisioterapia, nutrición'),
+  ('Administrativos',         'egreso',  'Contabilidad, seguros, software'),
+  ('Otros ingresos',          'ingreso', 'Eventos, workshops');
 ```
 
-### 3. Crear la base de datos y ejecutar migraciones
+### Credenciales del seed
 
-```bash
-npx prisma migrate dev --name init
-```
+| Rol         | Email                          | Contraseña      |
+|-------------|--------------------------------|-----------------|
+| Admin       | admin@escaladabogota.com       | admin2026       |
+| Entrenador  | jfg@escaladabogota.com         | jfg2026         |
+| Entrenador  | jdg@escaladabogota.com         | jdg2026         |
+| Escaladora  | sofia.torres@gmail.com         | sofia2026       |
+| Escalador   | escalador@escaladabogota.com   | escalador2026   |
 
-### 4. Sembrar datos iniciales
-
-```bash
-npm run db:seed
-```
-
-### 5. Ejecutar el servidor
-
-```bash
-npm run dev
-```
-
-El API estará disponible en `http://localhost:3001`.
-
-## Credenciales de prueba
-
-| Rol         | Email                              | Contraseña       |
-|-------------|-------------------------------------|------------------|
-| Admin       | admin@escaladabogota.com            | admin2026        |
-| Entrenador  | entrenador@escaladabogota.com       | entrenador2026   |
-| Escalador   | escalador@escaladabogota.com        | escalador2026    |
-
-> **Cambiar estas contraseñas antes de ir a producción.**
-
-## Endpoints principales
-
-### Públicos (sin token)
-- `GET  /api/health` — Health check
-- `POST /api/auth/register` — Registro de escalador
-- `POST /api/auth/login` — Login (retorna JWT)
-- `POST /api/auth/refresh` — Renovar token
-- `GET  /api/catalogos/programas` — Listar programas
-- `GET  /api/catalogos/ciclos` — Listar ciclos
-- `GET  /api/catalogos/muros` — Listar muros aliados
-
-### Autenticados (Bearer token)
-- `GET  /api/auth/me` — Perfil completo del usuario logueado
-- `GET  /api/escaladores` — Listar escaladores (admin/entrenador)
-- `GET  /api/escaladores/:id` — Detalle de escalador
-- `PUT  /api/escaladores/:id` — Actualizar perfil
-- `GET  /api/entrenadores` — Listar entrenadores (admin)
-- `GET  /api/entrenadores/:id` — Detalle de entrenador
-- `GET  /api/entrenadores/:id/escaladores` — Escaladores del entrenador
-- `GET  /api/cohortes` — Listar cohortes (filtrado por rol)
-- `POST /api/cohortes` — Crear cohorte (admin)
-- `GET  /api/cohortes/:id` — Detalle de cohorte
-
-## Validaciones de negocio implementadas
-
-- **Ratio menores**: máximo 6 alumnos por grupo (Ley 1098/2006)
-- **Tope de grupos**: entrenador no puede exceder `max_grupos` (default 6)
-- **Unicidad**: un escalador no puede inscribirse 2 veces en la misma cohorte
-- **Horario**: un entrenador no puede tener 2 cohortes en el mismo horario del mismo ciclo
-- **Visibilidad**: el entrenador solo ve escaladores de sus cohortes
-- **Privacidad**: el escalador solo ve su propio perfil
-
-## Deploy recomendado
-
-| Componente | Servicio         | Costo aprox.     |
-|------------|------------------|------------------|
-| Backend    | Railway          | $5 USD/mes       |
-| BD         | Railway Postgres | Incluido         |
-| Frontend   | Vercel           | Gratis (hobby)   |
-| Archivos   | Cloudflare R2    | ~$0.015/GB/mes   |
-
-## Marco legal referenciado
-
-- **Ley 1098/2006**: Protección de menores → tabla `responsable`, `consentimiento`
-- **Ley 181/1995**: Habilitación del entrenador → campo `licencia_ley181`
-- **Ley 1581/2012**: Datos personales → consentimiento tipo `datos_personales`
-- **DNDA**: PI registrada → contenido solo con suscripción activa, sin descarga
+---
+Generado: 2026-08-09

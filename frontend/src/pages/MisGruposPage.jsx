@@ -1,80 +1,154 @@
+/**
+ * MisGruposPage.jsx — Vista del entrenador: dashboard de sus grupos activos.
+ * Muestra inscritos, asistencia, fechas y permite acceder al detalle.
+ */
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Loader2, Search, ChevronRight } from 'lucide-react';
-import { IconoCohorte, IconoCronometro, IconoMuro, IconoEscalador } from '../components/Icons';
+import { Loader2 } from 'lucide-react';
+import { IconoEscalador, IconoMuro, IconoCronometro, IconoPresa } from '../components/Icons';
 
-const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
+const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 
-const horarioLabel = {
-  lun_mie_18_20: 'Lun y Mié · 18:00–20:00', lun_mie_20_22: 'Lun y Mié · 20:00–22:00',
-  mar_jue_18_20: 'Mar y Jue · 18:00–20:00', mar_jue_20_22: 'Mar y Jue · 20:00–22:00',
-  sab_dom_9_11: 'Sáb y Dom · 9:00–11:00',
-};
+const NIVEL_COLOR = { iniciacion: '#22c55e', intermedio: '#D4AF37', avanzado: '#ef4444' };
 
 export default function MisGruposPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
+  const [entData, setEntData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [buscar, setBuscar] = useState('');
 
   useEffect(() => {
-    if (user?.entrenador?.id)
-      api.getEntrenador(user.entrenador.id).then(setData).catch(console.error).finally(() => setLoading(false));
-    else setLoading(false);
+    if (user?.entrenador?.id) {
+      api.getEntrenador(user.entrenador.id)
+        .then(setEntData)
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    } else { setLoading(false); }
   }, [user?.entrenador?.id]);
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: C.accent }} /></div>;
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
+      <Loader2 className="animate-spin" style={{ width: '28px', height: '28px', color: C.accent }} />
+    </div>
+  );
 
-  const grupos = (data?.grupos || []).filter(g => !buscar || g.programa_nombre?.toLowerCase().includes(buscar.toLowerCase()) || g.muro_nombre?.toLowerCase().includes(buscar.toLowerCase()));
+  const grupos = entData?.grupos || [];
+  const stats = entData?.stats || {};
 
   return (
     <div>
+      {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Mis Grupos</h1>
-        <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>{data?.grupos?.length || 0} grupos activos · Haz click para ver escaladores, sesiones y asistencia</p>
+        <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>
+          {grupos.length} grupo{grupos.length !== 1 ? 's' : ''} activo{grupos.length !== 1 ? 's' : ''} · {stats.escaladores_activos || 0} escaladores en total
+        </p>
       </div>
 
-      <div style={{ position: 'relative', marginBottom: '16px' }}>
-        <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '15px', height: '15px', color: C.text2 }} />
-        <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar grupo..."
-          style={{ width: '100%', maxWidth: '360px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px 12px 10px 36px', color: C.text, fontFamily: 'Poppins', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }} />
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+        {[
+          [grupos.length, 'Grupos activos', C.accent, IconoMuro],
+          [stats.escaladores_activos || 0, 'Escaladores', '#22c55e', IconoEscalador],
+          [stats.total_grupos_historico || 0, 'Histórico total', C.text2, IconoCronometro],
+        ].map(([v, l, color, Icon]) => (
+          <div key={l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ padding: '8px', borderRadius: '8px', background: color + '18', color, flexShrink: 0 }}>
+              <Icon style={{ width: '18px', height: '18px' }} />
+            </div>
+            <div>
+              <div style={{ fontFamily: 'Antonio', fontSize: '1.5rem', color: C.text, lineHeight: 1 }}>{v}</div>
+              <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins', marginTop: '2px' }}>{l}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {grupos.length === 0 ? (
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '60px', textAlign: 'center' }}>
-          <IconoCohorte style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
-          <p style={{ color: C.text2, fontFamily: 'Poppins' }}>{buscar ? 'Sin resultados' : 'No tienes grupos asignados.'}</p>
+          <IconoMuro style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 16px' }} />
+          <p style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.9rem' }}>Sin grupos asignados en este ciclo.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {grupos.map(g => (
-            <button key={g.id} onClick={() => navigate(`/app/mis-grupos/${g.id}`)}
-              style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 20px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s, background 0.15s', width: '100%' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = `${C.accent}40`; e.currentTarget.style.background = '#242424'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
-              <div style={{ padding: '12px', background: 'rgba(212,175,55,0.1)', borderRadius: '10px', flexShrink: 0 }}>
-                <IconoCohorte style={{ width: '22px', height: '22px', color: C.accent }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.05rem', color: C.text, marginBottom: '4px' }}>{g.programa_nombre}</div>
-                <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><IconoCronometro style={{ width: '12px', height: '12px' }} />{horarioLabel[g.horario] || g.horario}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><IconoMuro style={{ width: '12px', height: '12px' }} />{g.muro_nombre}</span>
-                  <span>{g.ciclo_codigo}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {grupos.map(g => {
+            const pct = g.cupo_maximo > 0 ? Math.round((parseInt(g.inscritos) / g.cupo_maximo) * 100) : 0;
+            const nivelColor = NIVEL_COLOR[g.nivel] || C.accent;
+
+            return (
+              <div key={g.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', overflow: 'hidden' }}>
+                {/* Header de grupo */}
+                <div style={{ background: '#1a1a1a', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: nivelColor, flexShrink: 0 }} />
+                      <span style={{ fontFamily: 'Antonio', fontSize: '1.1rem', color: C.text }}>{g.programa_nombre}</span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins' }}>
+                      {g.ciclo_codigo} · {g.horario} · {g.muro_nombre}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <span style={{
+                      padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 600, fontFamily: 'Poppins',
+                      background: g.estado === 'en_curso' ? 'rgba(245,158,11,0.1)' : 'rgba(34,197,94,0.1)',
+                      color: g.estado === 'en_curso' ? '#f59e0b' : '#22c55e',
+                    }}>{g.estado === 'en_curso' ? 'En curso' : 'Abierto'}</span>
+                    <button onClick={() => navigate(`/app/grupos/${g.id}`)}
+                      style={{ padding: '6px 14px', borderRadius: '6px', background: '#4A2F0F', border: 'none', color: C.accent, fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
+                      Gestionar →
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stats del grupo */}
+                <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px,1fr))', gap: '14px' }}>
+                  {/* Ocupación */}
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontFamily: 'Antonio', fontSize: '1.4rem', color: C.accent }}>{g.inscritos}/{g.cupo_maximo}</div>
+                    <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins', marginBottom: '4px' }}>Inscritos</div>
+                    <div style={{ height: '4px', background: '#252525', borderRadius: '2px' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: pct >= 80 ? '#f59e0b' : '#22c55e', borderRadius: '2px' }} />
+                    </div>
+                  </div>
+
+                  {/* Fechas */}
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.8rem', color: C.text, fontFamily: 'Poppins', fontWeight: 500 }}>
+                      {g.fecha_inicio ? new Date(g.fecha_inicio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>Inicio</div>
+                    <div style={{ fontSize: '0.8rem', color: C.text, fontFamily: 'Poppins', fontWeight: 500, marginTop: '4px' }}>
+                      {g.fecha_fin ? new Date(g.fecha_fin).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>Fin</div>
+                  </div>
+
+                  {/* Modalidad */}
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: C.text, fontFamily: 'Poppins', fontWeight: 500, textTransform: 'capitalize' }}>
+                      {g.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins' }}>Modalidad</div>
+                  </div>
+
+                  {/* Accesos rápidos */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <button onClick={() => navigate(`/app/asistencia/${g.id}`)}
+                      style={{ padding: '4px 10px', borderRadius: '5px', background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, fontFamily: 'Poppins', fontSize: '0.75rem', cursor: 'pointer', textAlign: 'left' }}>
+                      📋 Pasar lista
+                    </button>
+                    <button onClick={() => navigate(`/app/evaluaciones?grupo=${g.id}`)}
+                      style={{ padding: '4px 10px', borderRadius: '5px', background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, fontFamily: 'Poppins', fontSize: '0.75rem', cursor: 'pointer', textAlign: 'left' }}>
+                      📊 Evaluaciones
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: 'Antonio', fontSize: '1.2rem', color: C.accent }}>{g.inscritos || 0}/{g.cupo_maximo}</div>
-                  <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins' }}>inscritos</div>
-                </div>
-                <ChevronRight size={18} color={C.text2} />
-              </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

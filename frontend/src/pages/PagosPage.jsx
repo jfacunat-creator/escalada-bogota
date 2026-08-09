@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2 } from 'lucide-react';
-import { IconoCohorte, IconoMagnesia, IconoPresa } from '../components/Icons';
+import { IconoMagnesia, IconoPresa } from '../components/Icons';
 
 function formatCOP(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v); }
 
@@ -16,13 +16,21 @@ export default function PagosPage() {
   const [showPago, setShowPago] = useState(null);
   const [pagoForm, setPagoForm] = useState({ monto: '', metodo: 'transferencia', referencia: '' });
   const [saving, setSaving] = useState(false);
+  const [filtroNivel, setFiltroNivel] = useState('');
+  const [filtroModalidad, setFiltroModalidad] = useState('');
 
-  useEffect(() => { loadData(); }, [tab]);
+  useEffect(() => { loadData(); }, [tab, filtroNivel, filtroModalidad]);
   const loadData = async () => {
     setLoading(true);
     try {
       if (tab === 'inscripciones') { setInscripciones(await api.getInscripciones()); }
-      else { const [p, r] = await Promise.all([api.getPagos(), api.getResumenPagos().catch(() => null)]); setPagos(p); setResumen(r); }
+      else {
+        const params = {};
+        if (filtroNivel) params.nivel = filtroNivel;
+        if (filtroModalidad) params.modalidad = filtroModalidad;
+        const [p, r] = await Promise.all([api.getPagos(params), api.getResumenPagos().catch(() => null)]);
+        setPagos(p); setResumen(r);
+      }
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
@@ -46,7 +54,7 @@ export default function PagosPage() {
 
       {resumen && tab === 'pagos' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '24px' }}>
-          {[[resumen.activas, 'Activas', '#D4AF37'], [formatCOP(resumen.ingresos_esperados), 'Esperado', '#A09A8C'], [formatCOP(resumen.ingresos_recibidos), 'Recaudado', '#22c55e'], [resumen.pagos_pendientes, 'Pendientes', '#f59e0b'], [resumen.tasa_recaudo + '%', 'Recaudo', resumen.tasa_recaudo >= 70 ? '#22c55e' : '#f59e0b']].map(([v, l, c]) => (
+          {[[resumen.activas, 'Inscripciones', '#D4AF37'], [formatCOP(resumen.ingresos_recibidos), 'Recaudado', '#22c55e'], [resumen.pagos_pendientes, 'Pendientes', '#f59e0b']].map(([v, l, c]) => (
             <div key={l} style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
               <div style={{ fontFamily: 'Antonio', fontSize: '1.3rem', color: c }}>{v}</div>
               <div style={{ fontSize: '0.72rem', color: '#A09A8C', marginTop: '2px' }}>{l}</div>
@@ -54,6 +62,24 @@ export default function PagosPage() {
           ))}
         </div>
       )}
+
+      {/* Filtros demográficos */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <select value={filtroNivel} onChange={e => { setFiltroNivel(e.target.value); }} className="input-dark" style={{ width: 'auto', minWidth: '130px' }}>
+          <option value="">Todos los niveles</option>
+          <option value="iniciacion">Iniciación</option>
+          <option value="intermedio">Intermedio</option>
+          <option value="avanzado">Avanzado</option>
+        </select>
+        <select value={filtroModalidad} onChange={e => { setFiltroModalidad(e.target.value); }} className="input-dark" style={{ width: 'auto', minWidth: '140px' }}>
+          <option value="">Ambas modalidades</option>
+          <option value="autonomo">Autónomo</option>
+          <option value="acompanado">Acompañado</option>
+        </select>
+        {(filtroNivel || filtroModalidad) && (
+          <button onClick={() => { setFiltroNivel(''); setFiltroModalidad(''); }} style={{ background: 'none', border: '1px solid #2e2e2e', color: '#ef4444', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>✕ Limpiar</button>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: '#1c1c1c', borderRadius: '8px', padding: '4px', width: 'fit-content', border: '1px solid #2e2e2e' }}>
         {[['inscripciones', 'Inscripciones'], ['pagos', 'Pagos']].map(([k, l]) => (
@@ -69,7 +95,7 @@ export default function PagosPage() {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
                 <thead><tr style={{ borderBottom: '1px solid #2e2e2e', background: '#242424' }}>
-                  {['Escalador', 'Programa', 'Ciclo', 'Precio', 'Pagado', 'Estado', 'Acciones'].map(h => (
+                  {['Escalador', 'Grupo / Ciclo', 'Modalidad', 'Precio', 'Pagado', 'Estado', 'Acciones'].map(h => (
                     <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '0.72rem', color: '#A09A8C', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
                   ))}
                 </tr></thead>

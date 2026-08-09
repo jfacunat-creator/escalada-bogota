@@ -74,6 +74,13 @@ export default function LoginPage() {
             <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: '#F0EDE8', letterSpacing: '0.06em' }}>ESCALADA BOGOTÁ</span>
           </div>
 
+          <div style={{ marginBottom: '20px' }}>
+            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#A09A8C', fontFamily: 'Poppins', fontSize: '0.82rem', textDecoration: 'none', padding: '6px 0' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#D4AF37'}
+              onMouseLeave={e => e.currentTarget.style.color = '#A09A8C'}>
+              ← Volver al inicio
+            </Link>
+          </div>
           <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8', marginBottom: '4px' }}>Bienvenido</h2>
           <p style={{ color: '#A09A8C', fontSize: '0.875rem', marginBottom: '28px' }}>Accede a tu plan de entrenamiento</p>
 

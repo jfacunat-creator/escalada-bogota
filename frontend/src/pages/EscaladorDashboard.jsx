@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2 } from 'lucide-react';
-import { IconoPresa, IconoRoca, IconoCohorte, IconoCronometro, IconoMuro, IconoEscalador } from '../components/Icons';
+import { IconoPresa, IconoRoca, IconoCronometro, IconoMuro, IconoEscalador } from '../components/Icons';
 
 function Stat({ icon: Icon, label, value, color = '#D4AF37' }) {
   return (
@@ -21,14 +21,12 @@ export default function EscaladorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
-  const [programas, setProgramas] = useState([]);
   const [loading, setLoading] = useState(true);
   const esc = user?.escalador;
 
   useEffect(() => {
     Promise.all([
       api.getMe().then(setProfile).catch(() => {}),
-      api.getProgramas().then(setProgramas).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -46,12 +44,18 @@ export default function EscaladorDashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '28px' }}>
-        <Stat icon={IconoPresa} label="Estado" value={estadoLabel[esc?.estado] || 'Activo'} color={esc?.estado === 'activo' ? '#22c55e' : '#f59e0b'} />
+        <Stat icon={IconoPresa} label="Estado plataforma" value={estadoLabel[esc?.estado] || 'Activo'} color={esc?.estado === 'activo' ? '#22c55e' : '#f59e0b'} />
         <Stat icon={IconoRoca} label="Nivel" value={esc?.rangoEtario === 'adulto' ? 'Adulto' : esc?.rangoEtario?.replace('menor_', 'Menor ')} />
-        <Stat icon={IconoCohorte} label="Grupo activo" value={activa ? 'Sí' : 'No inscrito'} color={activa ? '#D4AF37' : '#A09A8C'} />
+        <Stat icon={IconoMuro} label="Grupo activo" value={activa ? activa.cohorte?.programa?.nombre?.split(' ')[0] || 'Sí' : 'Sin grupo'} color={activa ? '#22c55e' : '#A09A8C'} />
         <Stat icon={IconoCronometro} label="Ciclo" value={activa?.cohorte?.ciclo?.codigo || '—'} />
+        <Stat icon={IconoRoca} label="Miembro desde" value={esc?.createdAt ? new Date(esc.createdAt).toLocaleDateString('es-CO', { month: 'short', year: 'numeric' }) : '—'} color='#A09A8C' />
       </div>
 
+      {esc?.estado === 'activo' && !activa && (
+        <div style={{ background: '#1a1200', border: '1px solid #D4AF3730', borderRadius: '8px', padding: '10px 16px', marginBottom: '16px', fontSize: '0.82rem', color: '#D4AF37', fontFamily: 'Poppins' }}>
+          ℹ️ Tu cuenta está activa en la plataforma pero <strong>aún no tienes grupo inscrito</strong> para el ciclo vigente.
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }} className="esc-grid">
         <style>{`@media(max-width:768px){.esc-grid{grid-template-columns:1fr!important}}`}</style>
 
@@ -81,7 +85,7 @@ export default function EscaladorDashboard() {
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
               }}
             >
-              Ver cohortes disponibles →
+              Ver grupos disponibles →
             </button>
           </div>
         )}
@@ -98,12 +102,16 @@ export default function EscaladorDashboard() {
           </div>
 
           <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '18px' }}>
-            <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '12px' }}>Programas disponibles</div>
-            {programas.filter(p => p.poblacion === 'adulto').map(p => (
-              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #242424', fontSize: '0.85rem' }}>
-                <span style={{ color: '#F0EDE8' }}>{p.nombre}</span>
-                <span style={{ color: '#A09A8C', fontSize: '0.78rem' }}>{p.duracion_semanas || 13} sem</span>
-              </div>
+            <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '12px' }}>Accesos rápidos</div>
+            {[
+              { label: 'Mi grupo', path: '/app/mi-grupo' },
+              { label: 'Mis pagos', path: '/app/mis-pagos' },
+              { label: 'Mi progreso', path: '/app/mi-progreso' },
+              { label: 'Inscripción', path: '/app/inscribirme' },
+            ].map(({ label, path }) => (
+              <button key={path} onClick={() => navigate(path)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #242424', background: 'none', border: 'none', borderBottom: '1px solid #242424', cursor: 'pointer', fontSize: '0.85rem', color: '#D4AF37', fontFamily: 'Poppins' }}>
+                {label} →
+              </button>
             ))}
           </div>
         </div>

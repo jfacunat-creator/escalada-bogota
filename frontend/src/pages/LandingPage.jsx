@@ -85,7 +85,7 @@ function Navbar() {
 
   const links = [
     ['#inicio', 'Inicio'], ['#servicios', 'Servicios'], ['#programas', 'Programas'],
-    ['#equipo', 'Equipo'], ['#alianzas', 'Alianzas'], ['#contacto', 'Contacto'],
+    ['#equipo', 'Equipo'], ['#alianzas', 'Alianzas'], ['#normatividad', 'Legal'], ['#contacto', 'Contacto'],
   ];
 
   const scrollTo = (id) => {
@@ -167,12 +167,11 @@ function Hero() {
           </p>
           <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
             <BtnPrimary to="/registro">Comenzar ahora</BtnPrimary>
-            <BtnOutline href="#servicios">Ver planes</BtnOutline>
           </div>
 
           {/* Stats */}
           <div style={{ display: 'flex', gap: '32px', marginTop: '56px', flexWrap: 'wrap' }}>
-            {[['4', 'Ciclos al año'], ['13', 'Semanas por ciclo'], ['9', 'Programas'], ['2', 'Muros aliados']].map(([n, l]) => (
+            {[['4', 'Ciclos al año'], ['3', 'Niveles'], ['2', 'Entrenadores'], ['2', 'Modalidades']].map(([n, l]) => (
               <div key={l}>
                 <div style={{ fontFamily: 'Antonio', fontSize: '2.2rem', color: C.accent, lineHeight: 1 }}>{n}</div>
                 <div style={{ ...T.small, marginTop: '4px' }}>{l}</div>
@@ -310,17 +309,75 @@ function Servicios() {
                 </div>
               ))}
             </div>
-            <BtnPrimary to="/registro" style={{ width: '100%', justifyContent: 'center', background: p.destacado ? C.accent : 'transparent', color: p.destacado ? '#121212' : C.text, border: p.destacado ? 'none' : `1px solid ${C.border}` }}>
-              Inscribirme
-            </BtnPrimary>
+            <div style={{ width: '100%', borderRadius: '8px', border: `1px solid ${C.border}`, padding: '10px', textAlign: 'center', fontSize: '0.82rem', color: C.text2, fontFamily: 'Poppins' }}>
+              {p.tag}
+            </div>
           </div>
         ))}
       </div>
-      <div style={{ textAlign: 'center', marginTop: '24px', ...T.small }}>
-        ¿Dudas? Agenda tu test de entrada gratuito — te mostramos con datos qué te frena.{' '}
-        <a href="https://wa.me/573004567890" style={{ color: C.accent, fontWeight: 600 }}>Escribenos por WhatsApp</a>
+      <div style={{ textAlign: 'center', marginTop: '32px' }}>
+        <BtnPrimary to="/registro" style={{ padding: '14px 48px', fontSize: '1rem' }}>
+          Inscribirme
+        </BtnPrimary>
+        <div style={{ ...T.small, marginTop: '10px', color: C.text3 }}>
+          Elegís la modalidad durante el proceso de inscripción.{' '}
+          <a href="https://wa.me/573002123034" target="_blank" rel="noopener noreferrer" style={{ color: C.accent }}>¿Dudas? WhatsApp</a>
+        </div>
       </div>
     </Section>
+  );
+}
+
+
+// ── NORMATIVIDAD ──────────────────────────────────────────
+function Normatividad() {
+  const items = [
+    {
+      titulo: 'Tratamiento de Datos Personales',
+      ley: 'Ley 1581/2012 · Decreto 1377/2013',
+      desc: 'Tus datos se recopilan con consentimiento expreso, se almacenan de forma segura y no se comparten con terceros sin autorización. Tienes derecho a conocer, actualizar, rectificar y suprimir tu información en cualquier momento.',
+      color: '#38bdf8',
+    },
+    {
+      titulo: 'Habilitación de Entrenadores',
+      ley: 'Ley 181/1995 · Art. 35',
+      desc: 'Todos nuestros entrenadores están habilitados según la Ley del Deporte colombiana. Contamos con licencia para prestar servicios de entrenamiento deportivo de escalada a nivel amateur y competidor.',
+      color: '#22c55e',
+    },
+    {
+      titulo: 'Protección al Consumidor',
+      ley: 'Ley 1480/2011 (Estatuto del Consumidor)',
+      desc: 'Tienes derecho a recibir el servicio en las condiciones ofrecidas, a información clara sobre precios y condiciones, y a radicar reclamaciones. Toda la información de planes y precios es pública y verificable.',
+      color: C.accent,
+    },
+    {
+      titulo: 'Protocolo de Menores',
+      ley: 'Ley 1098/2006 (Código de Infancia)',
+      desc: 'Para escaladores menores de edad se requiere consentimiento informado firmado por el representante legal, y se aplica un protocolo estricto de protección. Ratios diferenciados y supervisión reforzada.',
+      color: '#c084fc',
+    },
+  ];
+
+  return (
+    <div style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
+      <Section id="normatividad">
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <SectionLabel>Marco Legal</SectionLabel>
+          <h2 style={{ ...T.h2, marginBottom: '12px' }}>Tus derechos,<br /><span style={{ color: C.accent }}>nuestras obligaciones</span></h2>
+          <p style={{ ...T.body, maxWidth: '520px', margin: '0 auto' }}>Operamos bajo la normatividad colombiana vigente. La transparencia es parte del producto.</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }} className="norm-grid">
+          <style>{`@media(max-width:640px){.norm-grid{grid-template-columns:1fr!important}}`}</style>
+          {items.map(item => (
+            <div key={item.titulo} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '22px' }}>
+              <div style={{ ...T.label, color: item.color, marginBottom: '4px' }}>{item.ley}</div>
+              <h4 style={{ ...T.h4, marginBottom: '10px' }}>{item.titulo}</h4>
+              <p style={{ ...T.body, fontSize: '0.83rem', lineHeight: 1.7 }}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </div>
   );
 }
 
@@ -357,7 +414,7 @@ function Programas() {
       rango: 'Estancado V2–V4',
       color: C.accent,
       dolor: 'Meses sin subir de grado; entrena fuerte pero sin método',
-      pitch: 'Tu problema no es fuerza, es estructura. Test de entrada gratuito: te mostramos con datos qué te frena. Progresión por tamaño de presa, sin lastre: subís de grado sin hipotecar los dedos.',
+      pitch: 'Tu problema no es fuerza, es estructura. Progresión por tamaño de presa, sin lastre: subís de grado sin hipotecar los dedos.',
       incluye: ['Test Hörst + circuito estándar de entrada', 'Progresión por tamaño de presa', 'Liga interna de puntos por grupo', 'Check-Point Fest al cierre'],
     },
     {
@@ -566,6 +623,16 @@ function Alianzas() {
           </div>
         ))}
       </div>
+      <div style={{ textAlign: 'center', marginTop: '32px' }}>
+        <a href="https://wa.me/573002123034" target="_blank" rel="noopener noreferrer" style={{
+          display: 'inline-flex', alignItems: 'center', gap: '10px',
+          padding: '12px 28px', borderRadius: '8px', background: '#25D366',
+          color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.9rem',
+          textDecoration: 'none',
+        }}>
+          <MessageCircle size={18} /> Contactar por WhatsApp
+        </a>
+      </div>
     </Section>
   );
 }
@@ -581,15 +648,14 @@ function Contacto() {
             <SectionLabel>Contacto</SectionLabel>
             <h2 style={{ ...T.h2, marginBottom: '12px' }}>¿Listo para escalar<br /><span style={{ color: C.accent }}>con estructura?</span></h2>
             <Divider />
-            <p style={{ ...T.body, marginBottom: '28px' }}>Agenda tu test de entrada gratuito. Te mostramos con datos (batería Hörst + circuito estándar) qué te frena y cuánto podés mejorar en 2 ciclos.</p>
-            <BtnPrimary to="/registro">Comenzar ahora</BtnPrimary>
+            <p style={{ ...T.body, marginBottom: '28px' }}>¿Listo para entrenar con estructura y datos? Contáctanos por los canales disponibles o inscríbete directamente en la plataforma.</p>
+            <BtnPrimary to="/registro">Inscribirme</BtnPrimary>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {[
-              { Icon: MessageCircle, label: 'WhatsApp', value: '+57 300 456 7890', href: 'https://wa.me/573004567890', color: '#22c55e' },
+              { Icon: MessageCircle, label: 'WhatsApp', value: '+57 300 212 3034', href: 'https://wa.me/573002123034', color: '#22c55e' },
               { Icon: Mail, label: 'Email', value: 'hola@escaladabogota.com', href: 'mailto:hola@escaladabogota.com', color: C.accent },
               { Icon: InstagramIcon, label: 'Instagram', value: '@escaladabogota', href: 'https://instagram.com/escaladabogota', color: '#c084fc' },
-              { Icon: MapPin, label: 'Bogotá', value: 'BetaClimb · Weya Centro de Escalada', href: null, color: '#60a5fa' },
             ].map(c => (
               <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'rgba(18,18,18,0.3)', borderRadius: '10px', border: `1px solid rgba(255,255,255,0.07)` }}>
                 <div style={{ padding: '8px', background: `${c.color}15`, borderRadius: '8px' }}><c.Icon size={18} style={{ color: c.color }} /></div>
@@ -641,6 +707,7 @@ export default function LandingPage() {
       <Hero />
       <Problema />
       <Servicios />
+      <Normatividad />
       <BreakVisual />
       <Programas />
       <Experiencia />

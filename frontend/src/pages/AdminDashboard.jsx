@@ -1,26 +1,27 @@
 /**
- * AdminDashboard.jsx
- * Dashboard financiero y operativo consolidado.
- * Consume GET /api/dashboard (KPIs) + GET /api/catalogos/* (catálogos)
+ * AdminDashboard.jsx v3
+ * Filtros: ciclo, nivel, modalidad, entrenador, rango etario
+ * Secciones: Financiero (flujo de caja) · Operación (dinámico) · Alertas
  */
-
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { Loader2, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
-import { IconoPlanEntreno, IconoCronometro, IconoMuro, IconoRoca, IconoCohorte, IconoEscalador, IconoCuerda, IconoPresa } from '../components/Icons';
+import { Loader2, TrendingUp, TrendingDown, AlertCircle, RefreshCw } from 'lucide-react';
+import { IconoPlanEntreno, IconoCronometro, IconoMuro, IconoRoca, IconoEscalador, IconoCuerda, IconoPresa } from '../components/Icons';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', accent2: '#9E721D', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const NIVEL_LABEL = { iniciacion: 'Iniciación', intermedio: 'Intermedio', avanzado: 'Avanzado' };
+const NIVEL_COLOR = { iniciacion: '#22c55e', intermedio: C.accent, avanzado: '#ef4444' };
 
-function formatCOP(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0); }
+function fmt(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0); }
 
-// ─── Componentes ────────────────────────────────────────────────────────────
-function StatCard({ icon: Icon, label, value, sub, color = C.accent }) {
+function StatCard({ icon: Icon, label, value, sub, color = C.accent, onClick }) {
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-      <div style={{ padding: '10px', borderRadius: '10px', background: color + '18', color, flexShrink: 0 }}>
-        <Icon style={{ width: '20px', height: '20px' }} />
-      </div>
+    <div onClick={onClick} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '18px', display: 'flex', alignItems: 'center', gap: '14px', cursor: onClick ? 'pointer' : 'default', transition: 'border-color 0.15s' }}
+      onMouseEnter={e => onClick && (e.currentTarget.style.borderColor = color + '60')}
+      onMouseLeave={e => onClick && (e.currentTarget.style.borderColor = C.border)}>
+      <div style={{ padding: '10px', borderRadius: '10px', background: color + '18', color, flexShrink: 0 }}><Icon style={{ width: '20px', height: '20px' }} /></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.5rem', color: C.text, lineHeight: 1 }}>{value}</div>
         <div style={{ fontSize: '0.78rem', color: C.text2, marginTop: '2px', fontFamily: 'Poppins' }}>{label}</div>
@@ -31,31 +32,25 @@ function StatCard({ icon: Icon, label, value, sub, color = C.accent }) {
 }
 
 function SectionTitle({ children, color = C.accent }) {
-  return (
-    <div style={{ fontSize: '0.72rem', color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '12px', marginTop: '28px', fontFamily: 'Poppins' }}>
-      {children}
-    </div>
-  );
+  return <div style={{ fontSize: '0.72rem', color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '12px', marginTop: '28px', fontFamily: 'Poppins' }}>{children}</div>;
 }
 
-function BarChart({ data, label, valueKey = 'total', labelKey = 'periodo', color = C.accent }) {
-  if (!data || data.length === 0) return <div style={{ color: C.text3, fontSize: '0.85rem', fontFamily: 'Poppins', padding: '20px', textAlign: 'center' }}>Sin datos suficientes</div>;
+function BarChart({ data, valueKey = 'total', labelKey = 'periodo', color = C.accent }) {
+  if (!data?.length) return <div style={{ color: C.text3, fontSize: '0.85rem', fontFamily: 'Poppins', padding: '20px', textAlign: 'center' }}>Sin datos</div>;
   const max = Math.max(...data.map(d => parseFloat(d[valueKey]) || 0));
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {data.map((d, i) => {
         const val = parseFloat(d[valueKey]) || 0;
         const pct = max > 0 ? (val / max) * 100 : 0;
-        const periodo = d[labelKey];
-        const mesLabel = periodo?.includes('-') ? MESES[parseInt(periodo.split('-')[1]) - 1] + ' ' + periodo.split('-')[0].slice(2) : periodo;
+        const p = d[labelKey];
+        const label = p?.includes('-') ? MESES[parseInt(p.split('-')[1]) - 1] + ' ' + p.split('-')[0].slice(2) : p;
         return (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '50px', fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins', textAlign: 'right', flexShrink: 0 }}>{mesLabel}</div>
+            <div style={{ width: '50px', fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins', textAlign: 'right', flexShrink: 0 }}>{label}</div>
             <div style={{ flex: 1, height: '24px', background: '#252525', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
-              <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '4px', transition: 'width 0.5s ease', minWidth: pct > 0 ? '2px' : 0 }} />
-              <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.72rem', fontWeight: 600, color: C.text, fontFamily: 'Poppins' }}>
-                {formatCOP(val)}
-              </span>
+              <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '4px', transition: 'width 0.5s', minWidth: pct > 0 ? '2px' : 0 }} />
+              <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.72rem', fontWeight: 600, color: C.text, fontFamily: 'Poppins' }}>{fmt(val)}</span>
             </div>
           </div>
         );
@@ -64,150 +59,241 @@ function BarChart({ data, label, valueKey = 'total', labelKey = 'periodo', color
   );
 }
 
-function NivelRow({ nivel, inscripciones, recaudado }) {
-  const nivelLabel = { iniciacion: 'Iniciación', intermedio: 'Intermedio', avanzado: 'Avanzado' };
-  const nivelColor = { iniciacion: '#22c55e', intermedio: C.accent, avanzado: '#ef4444' };
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: nivelColor[nivel] || C.accent, flexShrink: 0 }} />
-        <span style={{ fontSize: '0.88rem', color: C.text, fontWeight: 600, fontFamily: 'Poppins' }}>{nivelLabel[nivel] || nivel}</span>
-      </div>
-      <div style={{ textAlign: 'right' }}>
-        <div style={{ fontSize: '0.88rem', color: C.accent, fontWeight: 700, fontFamily: 'Antonio, sans-serif' }}>{formatCOP(recaudado)}</div>
-        <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins' }}>{inscripciones} inscrito{inscripciones !== 1 ? 's' : ''}</div>
-      </div>
-    </div>
-  );
-}
-
 function ProgressRing({ pct, label, color, size = 90 }) {
-  const stroke = 6;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (Math.min(pct, 100) / 100) * circumference;
-
+  const stroke = 6, radius = (size - stroke) / 2, circ = 2 * Math.PI * radius, offset = circ - (Math.min(pct, 100) / 100) * circ;
   return (
     <div style={{ textAlign: 'center' }}>
       <svg width={size} height={size} style={{ display: 'block', margin: '0 auto' }}>
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#252525" strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
-          style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 0.8s ease' }} />
-        <text x="50%" y="50%" textAnchor="middle" dy="0.35em" style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.3rem', fill: color }}>{pct}%</text>
+        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="#252525" strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke={color} strokeWidth={stroke} strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 0.8s ease' }} />
+        <text x="50%" y="50%" textAnchor="middle" dy="0.35em" style={{ fontFamily: 'Antonio', fontSize: '1.3rem', fill: color }}>{pct}%</text>
       </svg>
       <div style={{ fontSize: '0.72rem', color: C.text2, marginTop: '6px', fontFamily: 'Poppins' }}>{label}</div>
     </div>
   );
 }
 
-// ─── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────
+function NivelRow({ nivel, modalidad, inscripciones, recaudado }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: NIVEL_COLOR[nivel] || C.accent, flexShrink: 0 }} />
+        <span style={{ fontSize: '0.85rem', color: C.text, fontWeight: 600, fontFamily: 'Poppins' }}>{NIVEL_LABEL[nivel] || nivel}</span>
+        {modalidad && <span style={{ fontSize: '0.7rem', color: C.text3, fontFamily: 'Poppins', textTransform: 'capitalize' }}>({modalidad === 'acompanado' ? 'Acomp.' : 'Autón.'})</span>}
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: '0.85rem', color: C.accent, fontWeight: 700, fontFamily: 'Antonio' }}>{fmt(recaudado)}</div>
+        <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>{inscripciones} inscrito{inscripciones != 1 ? 's' : ''}</div>
+      </div>
+    </div>
+  );
+}
+
+function FilterBar({ filtro, setFiltro, ciclos, entrenadores }) {
+  return (
+    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Ciclo */}
+      <select value={filtro.cicloId} onChange={e => setFiltro(f => ({ ...f, cicloId: e.target.value }))}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text2, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
+        <option value="">Todos los ciclos</option>
+        {ciclos.map(c => <option key={c.id} value={c.id}>{c.codigo}</option>)}
+      </select>
+      {/* Nivel */}
+      <select value={filtro.nivel || ''} onChange={e => setFiltro(f => ({ ...f, nivel: e.target.value }))}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text2, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
+        <option value="">Todos los niveles</option>
+        <option value="iniciacion">Iniciación</option>
+        <option value="intermedio">Intermedio</option>
+        <option value="avanzado">Avanzado</option>
+      </select>
+      {/* Modalidad */}
+      <select value={filtro.modalidad || ''} onChange={e => setFiltro(f => ({ ...f, modalidad: e.target.value }))}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text2, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
+        <option value="">Ambas modalidades</option>
+        <option value="autonomo">Autónomo</option>
+        <option value="acompanado">Acompañado</option>
+      </select>
+      {/* Entrenador */}
+      <select value={filtro.entrenadorId || ''} onChange={e => setFiltro(f => ({ ...f, entrenadorId: e.target.value }))}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text2, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
+        <option value="">Todos los entrenadores</option>
+        {entrenadores.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+      </select>
+      {/* Rango etario */}
+      <select value={filtro.rangoEtario || ''} onChange={e => setFiltro(f => ({ ...f, rangoEtario: e.target.value }))}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text2, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
+        <option value="">Todos los rangos</option>
+        <option value="adulto">Adultos</option>
+        <option value="menor_6_9">Menores 6–9</option>
+        <option value="menor_10_12">Menores 10–12</option>
+        <option value="menor_13_15">Menores 13–15</option>
+      </select>
+      {/* Limpiar */}
+      {Object.values(filtro).some(v => v) && (
+        <button onClick={() => setFiltro({ cicloId: '', nivel: '', modalidad: '', entrenadorId: '', rangoEtario: '' })}
+          style={{ background: 'none', border: `1px solid ${C.border}`, color: '#ef4444', padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.78rem', cursor: 'pointer' }}>
+          ✕ Limpiar
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filtro, setFiltro] = useState({ cicloId: '', nivel: '', modalidad: '', entrenadorId: '', rangoEtario: '' });
 
-  useEffect(() => {
-    api.request('/dashboard')
-      .then(setData)
-      .catch(err => {
-        console.error(err);
-        setError('No se pudo cargar el dashboard.');
-      })
+  const fetchData = () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (filtro.cicloId) params.set('cicloId', filtro.cicloId);
+    if (filtro.nivel) params.set('nivel', filtro.nivel);
+    if (filtro.modalidad) params.set('modalidad', filtro.modalidad);
+    if (filtro.entrenadorId) params.set('entrenadorId', filtro.entrenadorId);
+    if (filtro.rangoEtario) params.set('rangoEtario', filtro.rangoEtario);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    api.request(`/dashboard${qs}`)
+      .then(d => { setData(d); setError(null); })
+      .catch(err => { console.error(err); setError('No se pudo cargar el dashboard.'); })
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: C.accent }} /></div>;
+  useEffect(() => { fetchData(); }, [filtro.cicloId, filtro.nivel, filtro.modalidad, filtro.entrenadorId, filtro.rangoEtario]);
 
-  if (error || !data) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <AlertCircle size={40} style={{ color: '#ef4444', margin: '0 auto 12px' }} />
-        <p style={{ color: C.text2, fontFamily: 'Poppins' }}>{error || 'Error cargando datos.'}</p>
-      </div>
-    );
-  }
+  if (loading && !data) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: C.accent }} /></div>;
+  if (error && !data) return (
+    <div style={{ textAlign: 'center', padding: '60px' }}>
+      <AlertCircle size={40} style={{ color: '#ef4444', margin: '0 auto 12px' }} />
+      <p style={{ color: C.text2, fontFamily: 'Poppins' }}>{error}</p>
+    </div>
+  );
+  if (!data) return null;
 
-  const margenPositivo = data.margen_mensual >= 0;
+  const ciclos = data._ciclos || [];
+  const entrenadores = data._entrenadores || [];
 
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Panel de Administración</h1>
-        <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>Vista financiera y operativa del negocio</p>
-      </div>
-
-      {/* ── FINANCIERO ──────────────────────────────────────── */}
-      <SectionTitle>Financiero</SectionTitle>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '4px' }}>
-        <StatCard icon={IconoRoca} label="Ingresos recibidos" value={formatCOP(data.ingresos_recibidos)} color="#22c55e" />
-        <StatCard icon={IconoPresa} label="Ingresos esperados" value={formatCOP(data.ingresos_esperados)} color={C.accent} />
-        <StatCard icon={IconoCronometro} label="Pendiente de cobro" value={formatCOP(data.monto_pendiente)} sub={`${data.pagos_pendientes} pago(s)`} color="#f59e0b" />
-        <StatCard icon={IconoCuerda} label="Costo RRHH mensual" value={formatCOP(data.costo_rrhh_mensual)} sub={`${data.contratos_activos} contrato(s) × 1.54`} color="#9E721D" />
-        <StatCard
-          icon={margenPositivo ? TrendingUp : TrendingDown}
-          label="Margen estimado"
-          value={formatCOP(data.margen_mensual)}
-          sub="Ingresos recibidos − costo RRHH"
-          color={margenPositivo ? '#22c55e' : '#ef4444'}
-        />
-      </div>
-
-      {/* ── INDICADORES CIRCULARES ──────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '20px', marginBottom: '4px' }}>
-        {/* Recaudo + Ocupación */}
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
-          <ProgressRing pct={data.tasa_recaudo} label="Tasa de recaudo" color={data.tasa_recaudo >= 70 ? '#22c55e' : '#f59e0b'} />
-          <ProgressRing pct={data.ocupacion_pct} label="Ocupación grupos" color={data.ocupacion_pct >= 80 ? '#22c55e' : data.ocupacion_pct >= 50 ? C.accent : '#ef4444'} />
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+        <div>
+          <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Panel de Administración</h1>
+          <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>Vista financiera y operativa</p>
         </div>
+        <button onClick={fetchData} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: C.surface, border: `1px solid ${C.border}`, color: C.accent, padding: '8px 14px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.82rem', cursor: 'pointer' }}>
+          <RefreshCw size={14} style={{ opacity: loading ? 1 : 0.5 }} className={loading ? 'animate-spin' : ''} /> Actualizar
+        </button>
+      </div>
 
+      {/* Filtros */}
+      <div style={{ marginBottom: '20px' }}>
+        <FilterBar filtro={filtro} setFiltro={setFiltro} ciclos={ciclos} entrenadores={entrenadores} />
+      </div>
+
+      {/* ── FINANCIERO ────────────────────── */}
+      <SectionTitle>Flujo de Caja</SectionTitle>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '4px' }}>
+        <StatCard icon={IconoRoca} label="Ingresos recibidos" value={fmt(data.ingresos_recibidos)} color="#22c55e" />
+        <StatCard icon={IconoCuerda} label="Gastos estimados" value={fmt(data.gastos_entrenadores_estimado)} sub={`${data.n_entrenadores} entrenador(es)`} color="#9E721D" />
+        <StatCard icon={data.margen_estimado >= 0 ? TrendingUp : TrendingDown} label="Margen estimado" value={fmt(data.margen_estimado)} sub="Ingresos − gastos" color={data.margen_estimado >= 0 ? '#22c55e' : '#ef4444'} />
+        <StatCard icon={IconoCronometro} label="Pagos pendientes" value={data.pagos_pendientes} sub={fmt(data.ingresos_vencidos) + " vencido"} color="#f59e0b" />
+      </div>
+
+      {/* Distribución + gráfico */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '20px' }}>
         {/* Ingresos por nivel */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px' }}>
-          <div style={{ fontSize: '0.72rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px', fontFamily: 'Poppins' }}>
-            Ingresos por nivel
-          </div>
+          <div style={{ fontSize: '0.72rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px', fontFamily: 'Poppins' }}>Ingresos por nivel</div>
           {data.ingresos_por_nivel?.length > 0
-            ? data.ingresos_por_nivel.map(n => <NivelRow key={n.nivel} {...n} />)
+            ? data.ingresos_por_nivel.map((n, i) => <NivelRow key={i} {...n} />)
             : <div style={{ color: C.text3, fontSize: '0.85rem', fontFamily: 'Poppins' }}>Sin datos</div>}
+        </div>
+        {/* Ingresos por entrenador */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px' }}>
+          <div style={{ fontSize: '0.72rem', color: '#60a5fa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px', fontFamily: 'Poppins' }}>Por entrenador</div>
+          {data.ingresos_por_entrenador?.length > 0
+            ? data.ingresos_por_entrenador.map((e, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+                <span style={{ fontSize: '0.85rem', color: C.text, fontFamily: 'Poppins' }}>{e.entrenador}</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.82rem', color: '#22c55e', fontFamily: 'Antonio' }}>{fmt(e.recaudado)}</div>
+                  <div style={{ fontSize: '0.68rem', color: C.text3, fontFamily: 'Poppins' }}>{e.inscripciones} insc.</div>
+                </div>
+              </div>
+            )) : <div style={{ color: C.text3, fontSize: '0.85rem', fontFamily: 'Poppins' }}>Sin datos</div>}
         </div>
       </div>
 
-      {/* ── INGRESOS POR MES ────────────────────────────────── */}
+      {/* Ingresos por mes */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', marginTop: '20px' }}>
-        <div style={{ fontSize: '0.72rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '14px', fontFamily: 'Poppins' }}>
-          Ingresos últimos 6 meses
-        </div>
+        <div style={{ fontSize: '0.72rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '14px', fontFamily: 'Poppins' }}>Ingresos últimos 6 meses</div>
         <BarChart data={data.ingresos_por_mes} color="#22c55e" />
       </div>
 
-      {/* ── OPERACIÓN ───────────────────────────────────────── */}
+      {/* ── OPERACIÓN ────────────────────── */}
       <SectionTitle color={C.accent2}>Operación</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
-        <StatCard icon={IconoEscalador} label="Escaladores activos" value={data.escaladores_activos} sub={`${data.escaladores_total} registrados`} color="#22c55e" />
-        <StatCard icon={IconoCohorte} label="Inscripciones activas" value={data.inscripciones_activas} color={C.accent} />
-        <StatCard icon={IconoMuro} label="Cohortes abiertas" value={data.cohortes_abiertas} sub={`${data.cohortes_en_curso} en curso`} color="#60a5fa" />
+        <StatCard icon={IconoEscalador} label="Escaladores activos" value={data.escaladores_activos} sub={`${data.escaladores_total} registrados · ${data.adultos} adultos · ${data.menores} menores`} color="#22c55e" onClick={() => navigate('/admin/escaladores')} />
+        <StatCard icon={IconoPresa} label="Inscripciones activas" value={data.inscripciones_activas} sub={`${data.inscripciones_total} total`} color={C.accent} />
+        <StatCard icon={IconoMuro} label="Grupos abiertos" value={data.grupos_abiertos} sub={`${data.grupos_en_curso} en curso`} color="#60a5fa" onClick={() => navigate('/admin/grupos')} />
         <StatCard icon={IconoPlanEntreno} label="Capacidad" value={`${data.total_inscritos}/${data.capacidad_total}`} sub={`${data.ocupacion_pct}% ocupación`} color={data.ocupacion_pct >= 70 ? '#22c55e' : '#f59e0b'} />
-        <StatCard icon={IconoCronometro} label="Renovación" value={data.escaladores_renovados} sub="escaladores con 2+ ciclos" color="#a78bfa" />
+        <StatCard icon={IconoCronometro} label="Renovación" value={data.escaladores_renovados} sub="2+ ciclos" color="#a78bfa" />
       </div>
 
-      {/* ── ALERTAS ─────────────────────────────────────────── */}
-      {(data.pagos_vencidos > 0 || data.parafiscales_pendientes > 0) && (
+      {/* Distribución */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '20px' }}>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+          <ProgressRing pct={data.ocupacion_pct} label="Ocupación" color={data.ocupacion_pct >= 80 ? '#22c55e' : data.ocupacion_pct >= 50 ? C.accent : '#ef4444'} />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Antonio', fontSize: '1.8rem', color: C.accent }}>{data.total_inscritos}</div>
+            <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins' }}>inscritos</div>
+            <div style={{ fontFamily: 'Antonio', fontSize: '1.2rem', color: C.text3, marginTop: '8px' }}>{data.capacidad_total}</div>
+            <div style={{ fontSize: '0.72rem', color: C.text3, fontFamily: 'Poppins' }}>cupos</div>
+          </div>
+        </div>
+        {/* Distribución por rango etario */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px' }}>
+          <div style={{ fontSize: '0.72rem', color: '#c084fc', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px', fontFamily: 'Poppins' }}>Distribución demográfica</div>
+          {data.distribucion_etario?.map((d, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${C.border}`, fontSize: '0.85rem', fontFamily: 'Poppins' }}>
+              <span style={{ color: C.text, textTransform: 'capitalize' }}>{d.rango_etario?.replace('menor_', 'Menor ').replace('_', '–') || 'Adulto'}</span>
+              <span style={{ color: C.accent, fontFamily: 'Antonio', fontSize: '1rem' }}>{d.n}</span>
+            </div>
+          ))}
+        </div>
+        {/* Carga por entrenador */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px' }}>
+          <div style={{ fontSize: '0.72rem', color: '#f97316', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px', fontFamily: 'Poppins' }}>Carga por entrenador</div>
+          {data.distribucion_entrenador?.map((d, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${C.border}`, fontSize: '0.85rem', fontFamily: 'Poppins' }}>
+              <span style={{ color: C.text }}>{d.nombre}</span>
+              <span style={{ color: C.text2 }}>{d.grupos} grupo{d.grupos != 1 ? 's' : ''} · {d.escaladores} esc.</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── ALERTAS ────────────────────── */}
+      {(data.alertas?.pagos_vencidos > 0 || data.alertas?.grupos_casi_llenos > 0) && (
         <>
           <SectionTitle color="#ef4444">Alertas</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {data.pagos_vencidos > 0 && (
+            {data.alertas?.pagos_vencidos > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '14px 18px' }}>
                 <AlertCircle size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
                 <div style={{ fontFamily: 'Poppins', fontSize: '0.88rem', color: C.text }}>
-                  <strong style={{ color: '#ef4444' }}>{data.pagos_vencidos}</strong> pago(s) vencido(s) por {formatCOP(data.monto_vencido)}
+                  <strong style={{ color: '#ef4444' }}>{data.alertas.pagos_vencidos}</strong> pago(s) vencido(s) por {fmt(data.alertas.monto_vencido)}
                 </div>
               </div>
             )}
-            {data.parafiscales_pendientes > 0 && (
+            {data.alertas?.grupos_casi_llenos > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '10px', padding: '14px 18px' }}>
                 <AlertCircle size={18} style={{ color: '#f59e0b', flexShrink: 0 }} />
                 <div style={{ fontFamily: 'Poppins', fontSize: '0.88rem', color: C.text }}>
-                  Parafiscales pendientes por {formatCOP(data.parafiscales_pendientes)}
+                  <strong style={{ color: '#f59e0b' }}>{data.alertas.grupos_casi_llenos}</strong> grupo(s) al 85%+ de capacidad
                 </div>
               </div>
             )}

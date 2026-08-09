@@ -15,7 +15,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus, ChevronRight, X, AlertCircle } from 'lucide-react';
 import api from '../services/api';
-import { IconoCohorte, IconoCronometro, IconoMuro, IconoEscalador, IconoCuerda } from '../components/Icons';
+import { IconoCronometro, IconoMuro, IconoEscalador, IconoCuerda } from '../components/Icons';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', accent2: '#9E721D', sidebar: '#4A2F0F', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 
@@ -127,6 +127,22 @@ function CohorteRow({ cohorte, onEstado, onDetalle }) {
         </div>
       </div>
 
+      {/* Stats inline */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
+        {[
+          [cohorte.total_sesiones || '0', 'Sesiones', '#A09A8C'],
+          [(cohorte.asistencia_pct || 0) + '%', 'Asistencia', parseInt(cohorte.asistencia_pct || 0) >= 80 ? '#22c55e' : '#f59e0b'],
+          [new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(cohorte.ingresos_grupo || 0), 'Ingresos', '#22c55e'],
+          [parseInt(cohorte.pagos_pendientes_grupo) > 0 ? cohorte.pagos_pendientes_grupo : '✓', 'Pagos', parseInt(cohorte.pagos_pendientes_grupo) > 0 ? '#ef4444' : '#22c55e'],
+          [cohorte.fecha_inicio ? new Date(cohorte.fecha_inicio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—', 'Inicio', '#60a5fa'],
+        ].map(([v, l, c]) => (
+          <div key={l} style={{ background: '#242424', borderRadius: '5px', padding: '5px 4px', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Antonio', fontSize: '0.9rem', color: c, lineHeight: 1.2 }}>{v}</div>
+            <div style={{ fontSize: '0.6rem', color: '#555', fontFamily: 'Poppins' }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Actions */}
       <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: `1px solid ${C.border}` }}>
         <button onClick={() => onDetalle(cohorte.id)} style={{
@@ -227,7 +243,7 @@ function ModalCrearCohorte({ open, onClose, onCreada, programas, ciclos, entrena
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
-            <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.3rem', color: C.text }}>Crear nueva cohorte</div>
+            <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.3rem', color: C.text }}>Crear nuevo grupo</div>
             <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins' }}>Asigna programa, ciclo, entrenador y horario</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.text2, padding: '4px' }}>
@@ -400,7 +416,7 @@ export default function GruposAdminPage() {
         </div>
       ) : cohortes.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px' }}>
-          <IconoCohorte style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
+          <IconoMuro style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
           <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: C.text2, marginBottom: '8px' }}>
             Sin cohortes{filtroEstado || filtroCiclo ? ' con esos filtros' : ''}
           </div>
