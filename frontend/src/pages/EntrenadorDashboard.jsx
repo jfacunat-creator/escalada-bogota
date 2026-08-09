@@ -59,7 +59,7 @@ export default function EntrenadorDashboard() {
 
       {grupos.length === 0 ? (
         <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '48px', textAlign: 'center' }}>
-          <IconoCohorte style={{ width: '40px', height: '40px', color: '#2e2e2e', margin: '0 auto 12px' }} />
+          <IconoMuro style={{ width: '40px', height: '40px', color: '#2e2e2e', margin: '0 auto 12px' }} />
           <p style={{ color: '#A09A8C' }}>No tienes grupos asignados en este ciclo.</p>
         </div>
       ) : (

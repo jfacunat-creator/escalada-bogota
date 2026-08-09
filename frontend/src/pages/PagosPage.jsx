@@ -90,7 +90,7 @@ export default function PagosPage() {
       {tab === 'inscripciones' && (
         <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
           {inscripciones.length === 0 ? (
-            <div style={{ padding: '48px', textAlign: 'center' }}><IconoCohorte style={{ width: '40px', height: '40px', color: '#2e2e2e', margin: '0 auto 8px' }} /><p style={{ color: '#A09A8C' }}>Sin inscripciones.</p></div>
+            <div style={{ padding: '48px', textAlign: 'center' }}><IconoPresa style={{ width: '40px', height: '40px', color: '#2e2e2e', margin: '0 auto 8px' }} /><p style={{ color: '#A09A8C' }}>Sin inscripciones.</p></div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
