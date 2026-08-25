@@ -12,6 +12,7 @@ const nav = {
     { to: '/app/mis-pagos', icon: IconoRoca, label: 'Mis Pagos' },
     { to: '/app/contenido', icon: IconoPlanEntreno, label: 'Contenido' },
     { to: '/app/mi-progreso', icon: IconoRoca, label: 'Mi Progreso' },
+    { to: '/app/plan-t1', icon: IconoPlanEntreno, label: 'Plan T1' },
   ],
   entrenador: [
     { to: '/app', icon: IconoPresa, label: 'Inicio' },

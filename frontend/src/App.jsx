@@ -25,6 +25,7 @@ import PagosPage from './pages/PagosPage';
 import InscripcionPage from './pages/InscripcionPage';
 import GruposAdminPage from './pages/GruposAdminPage';
 import MisPagosPage from './pages/MisPagosPage';
+import T1TrackerPage from './pages/T1TrackerPage';
 import RRHHPage from './pages/RRHHPage';
 import { Loader2 } from 'lucide-react';
 
@@ -97,6 +98,7 @@ export default function App() {
             <Route path="inscribirme"   element={<InscripcionPage />} />
             <Route path="mi-grupo"      element={<MiGrupoPage />} />
             <Route path="contenido"     element={<ContenidoPage />} />
+            <Route path="plan-t1"    element={<T1TrackerPage />} />
             <Route path="mi-progreso"   element={<MiProgresoPage />} />
             <Route path="mis-pagos"     element={<MisPagosPage />} />
             <Route path="mis-grupos"    element={<MisGruposPage />} />
