@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { IconoMuro, IconoPresa, IconoEscalador, IconoCohorte, IconoPlanEntreo, IconoCronometro, IconoCuerda, IconoRoca } from '../components/Icons';
+import { IconoMuro, IconoPresa, IconoEscalador, IconoCohorte, IconoPlanEntreno, IconoCronometro, IconoCuerda, IconoRoca } from '../components/Icons';
 import { LogOut, Menu, X } from 'lucide-react';
 
 const nav = {
@@ -10,9 +10,9 @@ const nav = {
     { to: '/app/inscribirme',  icon: IconoCohorte,    label: 'Inscribirme' },
     { to: '/app/mi-grupo',     icon: IconoMuro,       label: 'Mi Grupo'    },
     { to: '/app/mis-pagos',    icon: IconoRoca,       label: 'Mis Pagos'   },
-    { to: '/app/contenido',    icon: IconoPlanEntreo, label: 'Contenido'   },
-    { to: '/app/mi-plan',      icon: IconoPlanEntreo, label: 'Mi Plan'     },  // ← NUEVO
-    { to: '/app/mi-progreso',  icon: IconoRoca,       label: 'Mi Progreso' },
+    { to: '/app/contenido',    icon: IconoPlanEntreno, label: 'Contenido'   },
+    { to: '/app/mi-plan',      icon: IconoPlanEntreno, label: 'Mi Plan'     },  // ← NUEVO
+    { to: '/app/mi-progreso',  icon: IconoRoca,        label: 'Mi Progreso' },
   ],
   entrenador: [
     { to: '/app',                  icon: IconoPresa,     label: 'Inicio'      },
@@ -24,7 +24,7 @@ const nav = {
     { to: '/app/grupos',       icon: IconoCohorte,    label: 'Grupos'       },
     { to: '/app/escaladores',  icon: IconoEscalador,  label: 'Escaladores'  },
     { to: '/app/entrenadores', icon: IconoCuerda,     label: 'Entrenadores' },
-    { to: '/app/programas',    icon: IconoPlanEntreo, label: 'Programas'    },
+    { to: '/app/programas',    icon: IconoPlanEntreno, label: 'Programas'    },
     { to: '/app/pagos',        icon: IconoRoca,       label: 'Pagos'        },
     { to: '/app/rrhh',         icon: IconoCronometro, label: 'RRHH'         },
   ],
