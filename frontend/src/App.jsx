@@ -25,8 +25,8 @@ import PagosPage from './pages/PagosPage';
 import InscripcionPage from './pages/InscripcionPage';
 import GruposAdminPage from './pages/GruposAdminPage';
 import MisPagosPage from './pages/MisPagosPage';
-import T1TrackerPage from './pages/T1TrackerPage';
 import RRHHPage from './pages/RRHHPage';
+import PlanTrackerPage from './pages/PlanTrackerPage';  // ← NUEVO
 import { Loader2 } from 'lucide-react';
 
 const Spinner = () => (
@@ -95,22 +95,22 @@ export default function App() {
           {/* APP (protegido) */}
           <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route index element={<DashboardRouter />} />
-            <Route path="inscribirme"   element={<InscripcionPage />} />
-            <Route path="mi-grupo"      element={<MiGrupoPage />} />
-            <Route path="contenido"     element={<ContenidoPage />} />
-            <Route path="plan-t1"    element={<T1TrackerPage />} />
-            <Route path="mi-progreso"   element={<MiProgresoPage />} />
-            <Route path="mis-pagos"     element={<MisPagosPage />} />
-            <Route path="mis-grupos"    element={<MisGruposPage />} />
+            <Route path="inscribirme"    element={<InscripcionPage />} />
+            <Route path="mi-grupo"       element={<MiGrupoPage />} />
+            <Route path="contenido"      element={<ContenidoPage />} />
+            <Route path="mi-progreso"    element={<MiProgresoPage />} />
+            <Route path="mis-pagos"      element={<MisPagosPage />} />
+            <Route path="mis-grupos"     element={<MisGruposPage />} />
             <Route path="mis-grupos/:id" element={<GrupoDetallePage />} />
             <Route path="mis-escaladores" element={<EscaladoresAdminPage />} />
-            <Route path="grupos"        element={<GruposAdminPage />} />
-            <Route path="grupos/:id"    element={<GrupoDetallePage />} />
-            <Route path="escaladores"   element={<EscaladoresAdminPage />} />
-            <Route path="entrenadores"  element={<EntrenadoresAdminPage />} />
-            <Route path="programas"     element={<ProgramasAdminPage />} />
-            <Route path="pagos"         element={<PagosPage />} />
-            <Route path="rrhh"          element={<RRHHPage />} />
+            <Route path="grupos"         element={<GruposAdminPage />} />
+            <Route path="grupos/:id"     element={<GrupoDetallePage />} />
+            <Route path="escaladores"    element={<EscaladoresAdminPage />} />
+            <Route path="entrenadores"   element={<EntrenadoresAdminPage />} />
+            <Route path="programas"      element={<ProgramasAdminPage />} />
+            <Route path="pagos"          element={<PagosPage />} />
+            <Route path="rrhh"           element={<RRHHPage />} />
+            <Route path="mi-plan"        element={<PlanTrackerPage />} />  {/* ← NUEVO */}
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

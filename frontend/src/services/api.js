@@ -34,7 +34,7 @@ class ApiService {
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';
       }
-      throw { status: res.status, ...data };
+      throw { status: res.status, data, ...data };
     }
     return data;
   }
@@ -43,6 +43,9 @@ class ApiService {
   login(email, password) { return this.request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); }
   register(data) { return this.request('/auth/register', { method: 'POST', body: JSON.stringify(data) }); }
   getMe() { return this.request('/auth/me'); }
+
+  // Plan de entrenamiento
+  getMyPlan() { return this.request('/plan/my'); }  // ← NUEVO
 
   // Catálogos
   getProgramas(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/programas${q}`); }

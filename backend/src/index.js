@@ -24,18 +24,19 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", service: "Escalada Bogotá API", version: "1.3.0", timestamp: new Date().toISOString() });
 });
 
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/catalogos", require("./routes/catalogos"));
-app.use("/api/cohortes", require("./routes/cohortes"));
-app.use("/api/sesiones", require("./routes/sesiones"));
-app.use("/api/asistencia", require("./routes/asistencia"));
-app.use("/api/contenido", require("./routes/contenido"));
-app.use("/api/evaluaciones", require("./routes/evaluaciones"));
+app.use("/api/auth",          require("./routes/auth"));
+app.use("/api/catalogos",     require("./routes/catalogos"));
+app.use("/api/cohortes",      require("./routes/cohortes"));
+app.use("/api/sesiones",      require("./routes/sesiones"));
+app.use("/api/asistencia",    require("./routes/asistencia"));
+app.use("/api/contenido",     require("./routes/contenido"));
+app.use("/api/evaluaciones",  require("./routes/evaluaciones"));
 app.use("/api/inscripciones", require("./routes/inscripciones"));
-app.use("/api/pagos", require("./routes/pagos"));
-app.use("/api/rrhh", require("./routes/rrhh"));
-app.use("/api/dashboard", require("./routes/dashboard"));
-app.use("/api/contabilidad", require("./routes/contabilidad"));
+app.use("/api/pagos",         require("./routes/pagos"));
+app.use("/api/rrhh",          require("./routes/rrhh"));
+app.use("/api/dashboard",     require("./routes/dashboard"));
+app.use("/api/contabilidad",  require("./routes/contabilidad"));
+app.use("/api/plan",          require("./routes/plan"));          // ← NUEVO
 
 // Wompi: webhook (público) + generación de links (autenticado, montado sobre /api/pagos)
 const webhooks = require("./routes/webhooks");
