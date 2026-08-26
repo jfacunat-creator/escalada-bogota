@@ -8,7 +8,7 @@
 const express = require("express");
 const router = express.Router();
 const { query: db } = require("../config/database");
-const authenticate = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
 
 /**
  * GET /api/plan/my
