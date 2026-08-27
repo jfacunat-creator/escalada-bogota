@@ -1,13 +1,7 @@
 /**
  * frontend/src/pages/PlanTrackerPage.jsx
- *
- * Tracker universal — funciona para los 12 planes (T1-T4 × Iniciación/Intermedio/Avanzado).
- * El plan se determina automáticamente desde la inscripción activa del escalador.
- *
- * INTEGRACIÓN:
- *   App.jsx      → <Route path="mi-plan" element={<PlanTrackerPage />} />
- *   AppLayout    → { to: '/app/mi-plan', label: 'Mi Plan' } en nav escalador
- *   api.js       → agregar: getMyPlan: () => request('/plan/my')
+ * Tracker universal T1–T4 × Iniciación/Intermedio/Avanzado
+ * con módulo de Movilidad integrado (Sesión A / Sesión B × 3 niveles)
  */
 
 import { useState, useEffect } from "react";
@@ -15,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 
-// ─── PALETA ──────────────────────────────────────────────────────────────────
+// ─── PALETA ──────────────────────────────────────────────
 const C = {
   card:    "#1c1c1c",
   cardAlt: "#232323",
@@ -39,21 +33,89 @@ const C = {
   muted:   "#555",
 };
 
-// Color por nivel
-const NIVEL_COLOR = {
-  iniciacion: C.teal,
-  intermedio: C.accent,
-  avanzado:   C.orange,
+const NIVEL_COLOR = { iniciacion: C.teal, intermedio: C.accent, avanzado: C.orange };
+const TIPO_COLOR  = { baja: C.teal, media: C.gold, alta: C.red };
+
+// ─── MOVILIDAD DATA ──────────────────────────────────────
+const MOV_NIVEL = { iniciacion: 1, intermedio: 2, avanzado: 3 };
+const MOV_META  = {
+  1: { label: "Nivel 1 · Iniciación",  bg: "#0A2E24", border: "#1D9E75", text: "#5DCAA5", accent: "#1D9E75" },
+  2: { label: "Nivel 2 · Desarrollo",  bg: "#2E2200", border: "#EF9F27", text: "#EF9F27", accent: "#EF9F27" },
+  3: { label: "Nivel 3 · Rendimiento", bg: "#2E1000", border: "#D85A30", text: "#D85A30", accent: "#D85A30" },
 };
 
-// Iconos semáforo de sesión
-const TIPO_COLOR = {
-  baja:  C.teal,
-  media: C.gold,
-  alta:  C.red,
+const MOV_SESSIONS = {
+  A: {
+    label: "Sesión A · Pre-sesión", sub: "10–12 min · Antes del muro o Tindeq",
+    tip: "⏱️ Realizar ANTES del bloque principal. Complementa o sustituye la Fase 2 del calentamiento.",
+    exercises: [
+      { id: "wgs", name: "World's Greatest Stretch", sub: "Movilidad global + rotación torácica",
+        contra: "Dolor lumbar agudo, FAI bilateral. Relativo: hiperlordosis marcada.",
+        levels: {
+          1: { mod: "Solo descenso de codo sin rotación torácica. Pie sobre bloque si falta rango.", series: "2 × 4 por lado", tempo: "3 s bajada / sin pausa", rest: "30 s entre series" },
+          2: { mod: "Protocolo estándar: descenso de codo + apertura torácica completa hacia el techo.", series: "2 × 5 por lado", tempo: "2 s bajada + 2 s apertura", rest: "30 s entre series" },
+          3: { mod: "Pausa isométrica 2 s en máxima apertura. Peso 1–2 kg en mano superior.", series: "3 × 6 por lado", tempo: "2 s + 2 s pausa + 2 s", rest: "30 s entre series" },
+        }},
+      { id: "frog", name: "Frog Pose", sub: "Apertura activa de cadera y aductores",
+        contra: "FAI femoroacetabular, labrum acetabular dañado. Relativo: lesión aguda de aductores, más de 6 meses inactivo.",
+        levels: {
+          1: { mod: "Mariposa pasiva en suelo. Sin cuadrupedia ni basculación activa. Rango por tolerancia.", series: "2 × 8 oscilaciones", tempo: "2 s de tensión", rest: "30 s entre series" },
+          2: { mod: "Cuadrupedia con antebrazos. Empuje activo de cadera hacia talones. Basculación pélvica.", series: "2 × 10 oscilaciones", tempo: "3 s tensión atrás", rest: "30 s entre series" },
+          3: { mod: "Banda de resistencia en muslos + basculación anterior activa. Mayor demanda de aductores.", series: "3 × 10 oscilaciones", tempo: "4 s tensión / 2 s vuelta", rest: "30 s entre series" },
+        }},
+      { id: "disloc", name: "Dislocaciones de Hombro", sub: "Movilidad glenohumeral y escapular",
+        contra: "Inestabilidad glenohumeral, rotura de manguito rotador, lesión de Bankart. Relativo: hiperlaxitud sin control motor.",
+        levels: {
+          1: { mod: "Solo retracciones y círculos escapulares. Sin banda ni pica. Movimiento lento y consciente.", series: "2 × 10", tempo: "Continuo lento", rest: "30 s" },
+          2: { mod: "Pica o banda elástica con agarre muy amplio (pronación). Arco completo: muslos → glúteos.", series: "2 × 12", tempo: "3 s ida + 3 s vuelta", rest: "30 s" },
+          3: { mod: "Agarre progresivamente más cerrado cada serie. Pausa 2 s tocando glúteos por detrás.", series: "3 × 10", tempo: "3 s + 2 s pausa + 3 s", rest: "30 s" },
+        }},
+      { id: "rotex", name: "Rotaciones Externas de Hombro", sub: "Infraespinoso + estabilidad escapular",
+        contra: "Rotura completa de manguito rotador. Relativo: post-quirúrgico de hombro menos de 3 meses.",
+        levels: {
+          1: { mod: "Banda muy ligera o sin banda. Rango parcial. Codos a 90° pegados al torso como guía.", series: "2 × 10", tempo: "2 s apertura + 2 s regreso", rest: "45 s" },
+          2: { mod: "Banda estándar, rango completo. Toalla entre codo y costado para evitar compensaciones.", series: "2 × 12–15", tempo: "2 s + 1 s pausa + 2 s excéntrico", rest: "45 s" },
+          3: { mod: "Posición 90/90: codo en abducción 90°. Mayor demanda de infraespinoso y redondo menor.", series: "3 × 12", tempo: "2 s + 2 s pausa + 3 s excéntrico", rest: "45 s" },
+        }},
+    ],
+  },
+  B: {
+    label: "Sesión B · Post-sesión", sub: "15–18 min · Tras entrenamiento o días de descanso",
+    tip: "🧊 Realizar al FINALIZAR el entrenamiento funcional, en Sesión 3 (bloque suave) o en días de descanso activo.",
+    exercises: [
+      { id: "jeff", name: "Jefferson Curl", sub: "Flexibilidad activa cadena posterior",
+        contra: "ABSOLUTA: hernia discal activa, osteoporosis severa, cirugía espinal reciente. Relativo: hiperlordosis marcada, dolor lumbar crónico.",
+        levels: {
+          1: { mod: "Cat-Cow en cuadrupedia (10 reps) + flexión de pie en suelo. Sin cajón ni peso.", series: "3 × 8", tempo: "3 s por dirección", rest: "60 s entre series" },
+          2: { mod: "Suelo plano sin cajón. Peso 2–4 kg. Enrollar vértebra a vértebra desde el cuello.", series: "3 × 6", tempo: "4 s bajada + 4 s subida", rest: "60–90 s entre series" },
+          3: { mod: "Sobre cajón o disco de peso. 5–8 kg. Descender por debajo del nivel de los pies.", series: "3 × 6", tempo: "5 s bajada + 2 s fondo + 5 s subida", rest: "60–90 s entre series" },
+        }},
+      { id: "cossack", name: "Cossack Squat", sub: "Movilidad activa de aductores y cadera",
+        contra: "Lesión ligamentaria de rodilla aguda, condromalacia severa. Relativo: varo/valgo marcado, FAI unilateral.",
+        levels: {
+          1: { mod: "Asistido: manos en marco de puerta o TRX. Rango parcial, máximo 45° de flexión de rodilla.", series: "2 × 6 por lado", tempo: "3 s descenso + 2 s pausa + 2 s subida", rest: "45 s entre lados" },
+          2: { mod: "Sin asistencia. Manos en suelo si falta rango. Talón de pierna extendida apoyado en suelo.", series: "3 × 8 por lado", tempo: "3 s + 2 s pausa + 2 s subida", rest: "45 s entre lados" },
+          3: { mod: "Sin apoyo + kettlebell 5–10 kg en goblet al pecho.", series: "3 × 8 por lado", tempo: "3 s + 3 s pausa + 2 s subida", rest: "45 s entre lados" },
+        }},
+      { id: "pect", name: "Liberación Pectoral Menor", sub: "Miofascial + estiramiento pasivo en puerta",
+        contra: "Ninguna absoluta. Relativo: fractura reciente de clavícula o cirugía de hombro reciente.",
+        levels: {
+          1: { mod: "Solo estiramiento pasivo en marco de puerta. Codo a 90° apoyado en el marco. Sin pelota.", series: "2 por lado", tempo: "60 s por lado", rest: "30 s al cambiar brazo" },
+          2: { mod: "Pelota de tenis o lacrosse bajo la clavícula + estiramiento pasivo en marco de puerta.", series: "2 por lado", tempo: "90 s liberación + 45 s estiramiento", rest: "30 s al cambiar brazo" },
+          3: { mod: "Pelota de lacrosse (alta densidad) + estiramiento activo: brazo en diagonal con 1 kg.", series: "2 por lado", tempo: "90 s liberación + 60 s activo", rest: "30 s al cambiar brazo" },
+        }},
+      { id: "muneca", name: "Flexores de Antebrazo y Muñeca", sub: "Inhibición miofascial + extensión activa",
+        contra: "Síndrome del túnel carpiano agudo. Relativo: epicondilitis activa (reducir presión de pelota).",
+        levels: {
+          1: { mod: "Solo estiramiento de muñeca en cuadrupedia: dedos apuntando a rodillas, cadera hacia atrás.", series: "2 por brazo", tempo: "60 s continuo", rest: "30 s" },
+          2: { mod: "Pelota en flexores del antebrazo (3–5 cm bajo el codo) + cuadrupedia con cadera atrás.", series: "2 por brazo", tempo: "60 s liberación + 60 s cuadrupedia", rest: "30 s" },
+          3: { mod: "Pelota + cuadrupedia + extensión activa con banda: curl inverso 3 × 15 reps.", series: "2 por brazo + activo", tempo: "60 s + 60 s + 3 × 15", rest: "30 s" },
+        }},
+    ],
+  },
 };
 
-// ─── SUB-COMPONENTES ─────────────────────────────────────────────────────────
+// ─── HELPERS ─────────────────────────────────────────────
 function PseBar({ target }) {
   const max = String(target).includes("–")
     ? parseFloat(String(target).split("–")[1])
@@ -107,7 +169,111 @@ function Block({ b }) {
   );
 }
 
-// ─── PLAN TAB ─────────────────────────────────────────────────────────────────
+// ─── MOVILIDAD COMPONENTS ────────────────────────────────
+function MovBlock({ ex, level, lv }) {
+  const [open, setOpen] = useState(false);
+  const d = ex.levels[level];
+  return (
+    <div style={{ background: C.cardAlt, border: `1px solid ${C.border}`,
+      borderRadius: 10, overflow: "hidden", marginBottom: 8 }}>
+      <div style={{ padding: "11px 13px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span style={{ flex: 1, color: C.text, fontSize: 13, fontWeight: 700, fontFamily: "Poppins" }}>
+            {ex.name}
+          </span>
+          <button onClick={() => setOpen(o => !o)}
+            style={{ background: open ? `${C.red}22` : "none",
+              border: `1px solid ${open ? C.red + "66" : C.border}`,
+              borderRadius: 5, padding: "2px 8px", cursor: "pointer",
+              color: open ? C.red : C.muted, fontSize: 10, fontWeight: 700, fontFamily: "Poppins" }}>
+            CI
+          </button>
+        </div>
+        <div style={{ color: C.sub, fontSize: 11, marginBottom: 8, fontFamily: "Poppins" }}>{ex.sub}</div>
+        {open && (
+          <div style={{ background: `${C.red}15`, border: `1px solid ${C.red}33`,
+            borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
+            <div style={{ color: C.red, fontSize: 12, lineHeight: 1.5, fontFamily: "Poppins" }}>
+              {ex.contra}
+            </div>
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 10 }}>
+          <div style={{ width: 3, borderRadius: 2, background: lv.border,
+            alignSelf: "stretch", flexShrink: 0 }} />
+          <span style={{ color: C.text, fontSize: 12, lineHeight: 1.55, fontFamily: "Poppins" }}>
+            {d.mod}
+          </span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+          {[["Series/Reps", d.series], ["Tempo", d.tempo], ["Descanso", d.rest]].map(([k, v]) => (
+            <div key={k} style={{ background: C.card, borderRadius: 7, padding: "6px 8px" }}>
+              <div style={{ color: C.muted, fontSize: 9, fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2, fontFamily: "Poppins" }}>
+                {k}
+              </div>
+              <div style={{ color: C.text, fontSize: 11, fontWeight: 600, fontFamily: "Poppins" }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MovilidadTab({ nivel }) {
+  const [movSess, setMovSess] = useState("A");
+  const levelNum = MOV_NIVEL[nivel] || 2;
+  const lv = MOV_META[levelNum];
+  const sess = MOV_SESSIONS[movSess];
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <span style={{ display: "inline-flex", padding: "3px 12px", borderRadius: 99,
+          background: lv.bg, border: `1px solid ${lv.border}` }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: lv.text, fontFamily: "Poppins" }}>
+            {lv.label}
+          </span>
+        </span>
+        <span style={{ color: C.muted, fontSize: 11, fontFamily: "Poppins" }}>Según nivel del plan</span>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {Object.entries(MOV_SESSIONS).map(([key, val]) => (
+          <button key={key} onClick={() => setMovSess(key)}
+            style={{ flex: 1, padding: "10px 12px", borderRadius: 10,
+              border: movSess === key ? `1.5px solid ${C.accent}` : `1px solid ${C.border}`,
+              background: movSess === key ? C.accentA : C.card,
+              color: movSess === key ? C.accent : C.sub,
+              cursor: "pointer", textAlign: "left", fontWeight: movSess === key ? 700 : 400 }}>
+            <div style={{ fontSize: 13, fontFamily: "Poppins" }}>{val.label}</div>
+            <div style={{ fontSize: 11, opacity: 0.7, fontWeight: 400, marginTop: 2, fontFamily: "Poppins" }}>
+              {val.sub}
+            </div>
+          </button>
+        ))}
+      </div>
+      <div style={{ background: C.goldA, border: `1px solid ${C.gold}44`, borderRadius: 9,
+        padding: "10px 12px", marginBottom: 14, color: C.gold, fontSize: 12,
+        lineHeight: 1.5, fontFamily: "Poppins" }}>
+        {sess.tip}
+      </div>
+      {sess.exercises.map(ex => (
+        <MovBlock key={ex.id} ex={ex} level={levelNum} lv={lv} />
+      ))}
+      <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 9,
+        border: `1px solid ${C.border}`, background: C.card,
+        display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <span style={{ color: C.red, fontSize: 13, flexShrink: 0 }}>⚠️</span>
+        <span style={{ color: C.muted, fontSize: 11, lineHeight: 1.5, fontFamily: "Poppins" }}>
+          El botón <strong style={{ color: C.sub }}>CI</strong> muestra contraindicaciones del ejercicio.
+          Revísalas si tienes lesiones activas o molestias previas.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── PLAN TAB ─────────────────────────────────────────────
 function PlanTab({ semanas, logs, onSelect, curWeek }) {
   return (
     <div>
@@ -119,8 +285,8 @@ function PlanTab({ semanas, logs, onSelect, curWeek }) {
         const isCur = w.id === curWeek;
         return (
           <div key={w.id} style={{ background: isCur ? C.accentA : C.card,
-            border: `1px solid ${isCur ? C.accent : C.border}`, borderRadius: 12,
-            padding: "12px 14px", marginBottom: 8 }}>
+            border: `1px solid ${isCur ? C.accent : C.border}`,
+            borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
               <div style={{ background: C.accentA, border: `1px solid ${C.accent}44`,
                 borderRadius: 8, padding: "4px 8px", textAlign: "center", minWidth: 42 }}>
@@ -129,14 +295,13 @@ function PlanTab({ semanas, logs, onSelect, curWeek }) {
                 </div>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-                  {done > 0 && (
-                    <span style={{ background: C.greenA, color: C.green, fontSize: 9,
-                      fontWeight: 700, padding: "1px 6px", borderRadius: 999, fontFamily: "Poppins" }}>
-                      {done}/{w.sesiones.length} ✓
-                    </span>
-                  )}
-                </div>
+                {done > 0 && (
+                  <span style={{ background: C.greenA, color: C.green, fontSize: 9,
+                    fontWeight: 700, padding: "1px 6px", borderRadius: 999,
+                    fontFamily: "Poppins", marginBottom: 4, display: "inline-block" }}>
+                    {done}/{w.sesiones.length} ✓
+                  </span>
+                )}
                 <PseBar target={w.pse} />
               </div>
             </div>
@@ -146,14 +311,14 @@ function PlanTab({ semanas, logs, onSelect, curWeek }) {
                 const tc = TIPO_COLOR[s.type?.toLowerCase()] || C.sub;
                 return (
                   <button key={s.num} onClick={() => onSelect(w.id, s.num)}
-                    style={{ flex: 1, minWidth: 60, background: lg?.completed ? C.greenA : lg?.pse ? C.accentA : C.cardAlt,
+                    style={{ flex: 1, minWidth: 60,
+                      background: lg?.completed ? C.greenA : lg?.pse ? C.accentA : C.cardAlt,
                       border: `1px solid ${lg?.completed ? C.green : lg?.pse ? C.accent : C.border}`,
                       borderRadius: 8, padding: "6px 4px", cursor: "pointer", textAlign: "center" }}>
                     <div style={{ color: lg?.completed ? C.green : lg?.pse ? C.accent : C.sub,
                       fontSize: 11, fontWeight: 700, fontFamily: "Poppins" }}>S{s.num}</div>
-                    <div style={{ fontSize: 8, color: tc, marginTop: 2, fontWeight: 600, fontFamily: "Poppins" }}>
-                      {s.type?.toUpperCase()}
-                    </div>
+                    <div style={{ fontSize: 8, color: tc, marginTop: 2,
+                      fontWeight: 600, fontFamily: "Poppins" }}>{s.type?.toUpperCase()}</div>
                     {lg?.pse && <div style={{ color: C.accent, fontSize: 9, marginTop: 1 }}>PSE {lg.pse}</div>}
                   </button>
                 );
@@ -166,12 +331,20 @@ function PlanTab({ semanas, logs, onSelect, curWeek }) {
   );
 }
 
-// ─── SESIÓN TAB ───────────────────────────────────────────────────────────────
+// ─── SESIÓN TAB ───────────────────────────────────────────
 function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange, onLog }) {
   const wd = semanas.find(w => w.id === week);
   const sd = wd?.sesiones.find(s => s.num === session);
   const lg = logs[`${week}_${session}`];
   const tc = TIPO_COLOR[sd?.type?.toLowerCase()] || C.accent;
+
+  // Lógica de recomendación de movilidad
+  const isLightSession = sd?.type?.toLowerCase() === "alta" || sd?.type?.toLowerCase() === "regen.";
+  const movRec = sd
+    ? isLightSession
+      ? { sess: "B", color: C.teal,   msg: "Sesión B · Post-sesión (15–18 min) — al finalizar esta sesión." }
+      : { sess: "A", color: C.accent, msg: "Sesión A · Pre-sesión (10–12 min) — antes del bloque principal." }
+    : null;
 
   if (!sd) return (
     <div style={{ padding: 20, color: C.sub, textAlign: "center", fontFamily: "Poppins" }}>
@@ -188,7 +361,8 @@ function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange
           <button key={w.id} onClick={() => { onWeekChange(w.id); onSessionChange(1); }}
             style={{ background: w.id === week ? C.accentA : C.cardAlt,
               border: `1px solid ${w.id === week ? C.accent : C.border}`,
-              borderRadius: 7, padding: "4px 9px", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+              borderRadius: 7, padding: "4px 9px", cursor: "pointer",
+              whiteSpace: "nowrap", flexShrink: 0 }}>
             <span style={{ color: w.id === week ? C.accent : C.sub,
               fontSize: 11, fontWeight: 700, fontFamily: "Poppins" }}>{w.id}</span>
           </button>
@@ -236,16 +410,24 @@ function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange
         </div>
         <PseBar target={sd.pse} />
         <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-          {sd.cal > 0 && <span style={{ background: C.card, borderRadius: 7, padding: "3px 9px",
-            color: C.sub, fontSize: 11, fontFamily: "Poppins" }}>🔥 Cal. {sd.cal} min</span>}
-          {sd.vac > 0 && <span style={{ background: C.card, borderRadius: 7, padding: "3px 9px",
-            color: C.sub, fontSize: 11, fontFamily: "Poppins" }}>🧊 VaC {sd.vac} min</span>}
-          {lg?.pse && <span style={{ background: C.accentA, borderRadius: 7, padding: "3px 9px",
-            color: C.accent, fontSize: 11, fontWeight: 700, fontFamily: "Poppins" }}>PSE real: {lg.pse}</span>}
+          {sd.cal > 0 && (
+            <span style={{ background: C.card, borderRadius: 7, padding: "3px 9px",
+              color: C.sub, fontSize: 11, fontFamily: "Poppins" }}>🔥 Cal. {sd.cal} min</span>
+          )}
+          {sd.vac > 0 && (
+            <span style={{ background: C.card, borderRadius: 7, padding: "3px 9px",
+              color: C.sub, fontSize: 11, fontFamily: "Poppins" }}>🧊 VaC {sd.vac} min</span>
+          )}
+          {lg?.pse && (
+            <span style={{ background: C.accentA, borderRadius: 7, padding: "3px 9px",
+              color: C.accent, fontSize: 11, fontWeight: 700, fontFamily: "Poppins" }}>
+              PSE real: {lg.pse}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Advertencia */}
+      {/* Advertencia y nota */}
       {sd.warn && (
         <div style={{ background: C.redA, border: `1px solid ${C.red}33`, borderRadius: 9,
           padding: "10px 12px", marginBottom: 10, color: C.red, fontSize: 12,
@@ -268,18 +450,37 @@ function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange
         </div>
       )}
 
+      {/* Botón registro */}
       <button onClick={onLog}
         style={{ width: "100%", background: lg?.pse ? C.greenA : C.accentA,
           border: `1px solid ${lg?.pse ? C.green : C.accent}`,
           borderRadius: 10, padding: "12px", cursor: "pointer",
-          color: lg?.pse ? C.green : C.accent, fontSize: 13, fontWeight: 700, fontFamily: "Poppins" }}>
+          color: lg?.pse ? C.green : C.accent, fontSize: 13,
+          fontWeight: 700, fontFamily: "Poppins", marginBottom: 12 }}>
         {lg?.pse ? `✓ Ver registro (PSE real: ${lg.pse})` : "📝 Registrar esta sesión"}
       </button>
+
+      {/* Recordatorio de movilidad */}
+      {movRec && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: "11px 13px" }}>
+          <div style={{ color: C.sub, fontSize: 10, fontWeight: 700,
+            textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5, fontFamily: "Poppins" }}>
+            🧘 Movilidad recomendada
+          </div>
+          <div style={{ color: movRec.color, fontSize: 13, lineHeight: 1.5, fontFamily: "Poppins" }}>
+            {movRec.msg}
+          </div>
+          <div style={{ color: C.muted, fontSize: 11, marginTop: 3, fontFamily: "Poppins" }}>
+            Ver pestaña 🧘 Movilidad para los ejercicios de tu nivel.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── REGISTRO TAB ─────────────────────────────────────────────────────────────
+// ─── REGISTRO TAB ─────────────────────────────────────────
 function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
   const ZONES = ["Dedos D", "Dedos I", "Codo D", "Codo I", "Hombro D", "Hombro I", "Espalda"];
   const logKey = `${week}_${session}`;
@@ -304,9 +505,7 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
     try {
       localStorage.setItem(storageKey, JSON.stringify(all));
       setSaved("✓ Guardado");
-    } catch {
-      setSaved("Error al guardar");
-    }
+    } catch { setSaved("Error al guardar"); }
     setTimeout(() => setSaved(""), 2500);
   };
 
@@ -314,11 +513,10 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
 
   return (
     <div>
-      {/* Header */}
       <div style={{ background: C.accentA, border: `1px solid ${C.accent}44`,
         borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-        <div style={{ color: C.accent, fontSize: 10, fontWeight: 700, letterSpacing: 1,
-          marginBottom: 3, fontFamily: "Poppins" }}>REGISTRO ACTUAL</div>
+        <div style={{ color: C.accent, fontSize: 10, fontWeight: 700,
+          letterSpacing: 1, marginBottom: 3, fontFamily: "Poppins" }}>REGISTRO ACTUAL</div>
         <div style={{ color: C.text, fontSize: 14, fontWeight: 700, fontFamily: "Antonio" }}>
           {week} · S{session}
         </div>
@@ -385,7 +583,7 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
         </div>
       </div>
 
-      {/* Regleta + tiempo */}
+      {/* Hangboard */}
       <div style={{ background: C.card, borderRadius: 11, padding: "12px", marginBottom: 9 }}>
         <div style={{ color: C.sub, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
           letterSpacing: 0.5, marginBottom: 8, fontFamily: "Poppins" }}>Hangboard (si aplica)</div>
@@ -396,8 +594,8 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
               <input value={draft[key]} onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
                 placeholder={ph}
                 style={{ width: "100%", background: C.cardAlt, border: `1px solid ${C.border}`,
-                  borderRadius: 7, padding: "7px 9px", color: C.text, fontSize: 12, outline: "none",
-                  boxSizing: "border-box", fontFamily: "Poppins" }} />
+                  borderRadius: 7, padding: "7px 9px", color: C.text, fontSize: 12,
+                  outline: "none", boxSizing: "border-box", fontFamily: "Poppins" }} />
             </div>
           ))}
         </div>
@@ -443,8 +641,7 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
           <div style={{ color: C.sub, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
             textTransform: "uppercase", marginBottom: 8, fontFamily: "Poppins" }}>Historial</div>
           {history.map(([k, v]) => {
-            const ws = k.split("_");
-            const wid = ws[0]; const snum = ws[1];
+            const [wid, snum] = k.split("_");
             const wsem = semanas.find(w => w.id === wid);
             const sse = wsem?.sesiones.find(s => s.num === parseInt(snum));
             return (
@@ -457,8 +654,9 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
                     fontSize: 10, fontWeight: 800, fontFamily: "Poppins" }}>{k}</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: C.text, fontSize: 11, fontWeight: 600, fontFamily: "Poppins",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ color: C.text, fontSize: 11, fontWeight: 600,
+                    fontFamily: "Poppins", overflow: "hidden",
+                    textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {sse?.name || "—"}
                   </div>
                   <div style={{ color: C.sub, fontSize: 10, fontFamily: "Poppins" }}>
@@ -475,13 +673,11 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
   );
 }
 
-// ─── PANTALLAS ESPECIALES ─────────────────────────────────────────────────────
+// ─── PANTALLAS ESPECIALES ─────────────────────────────────
 function Skeleton() {
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "40px 0", textAlign: "center" }}>
-      <div style={{ color: C.sub, fontFamily: "Poppins", fontSize: 14 }}>
-        Cargando tu plan...
-      </div>
+      <div style={{ color: C.sub, fontFamily: "Poppins", fontSize: 14 }}>Cargando tu plan...</div>
     </div>
   );
 }
@@ -505,13 +701,13 @@ function Bloqueado({ estado, nombre }) {
         Tu perfil está <strong style={{ color: "#f59e0b" }}>{estado || "inactivo"}</strong>.
       </p>
       <p style={{ color: C.sub, fontSize: "0.8rem", marginBottom: 28, lineHeight: 1.6, fontFamily: "Poppins" }}>
-        Para acceder al plan de entrenamiento debes tener tu ciclo al día.
+        Para acceder al plan debes tener tu ciclo al día.
         Revisa el estado de tus pagos o contacta a tu entrenador.
       </p>
       <button onClick={() => navigate("/app/mis-pagos")}
         style={{ background: C.accent, border: "none", borderRadius: 8, padding: "12px 28px",
-          cursor: "pointer", color: "#121212", fontSize: "0.9rem", fontWeight: 700,
-          fontFamily: "Poppins", marginRight: 12 }}>
+          cursor: "pointer", color: "#121212", fontSize: "0.9rem",
+          fontWeight: 700, fontFamily: "Poppins", marginRight: 12 }}>
         Ver mis pagos
       </button>
       <button onClick={() => navigate("/app")}
@@ -538,7 +734,7 @@ function SinInscripcion({ nombre }) {
         </p>
       )}
       <p style={{ color: C.sub, fontSize: "0.85rem", marginBottom: 28, lineHeight: 1.6, fontFamily: "Poppins" }}>
-        Aún no tienes un grupo activo asignado. Habla con tu entrenador para que te inscriba en un cohorte.
+        Aún no tienes un grupo activo asignado. Habla con tu entrenador.
       </p>
       <button onClick={() => navigate("/app")}
         style={{ background: C.accent, border: "none", borderRadius: 8, padding: "12px 28px",
@@ -550,11 +746,12 @@ function SinInscripcion({ nombre }) {
   );
 }
 
-// ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
+// ─── PÁGINA PRINCIPAL ─────────────────────────────────────
 const TABS = [
-  { id: "plan",     label: "🗓️ Plan" },
-  { id: "sesion",   label: "💪 Sesión" },
-  { id: "registro", label: "✏️ Registro" },
+  { id: "plan",      label: "🗓️ Plan"      },
+  { id: "sesion",    label: "💪 Sesión"    },
+  { id: "registro",  label: "✏️ Registro"  },
+  { id: "movilidad", label: "🧘 Movilidad" },
 ];
 
 export default function PlanTrackerPage() {
@@ -569,38 +766,31 @@ export default function PlanTrackerPage() {
 
   const storageKey = `plan_logs_${user?.id}`;
 
-  // Carga el plan y los logs al montar
   useEffect(() => {
     setLoading(true);
     api.getMyPlan()
       .then(data => {
         setPlan(data);
         setWeek(data.semanas?.[0]?.id || null);
-        // Cargar logs locales
         try {
           const stored = localStorage.getItem(storageKey);
           if (stored) setLogs(JSON.parse(stored));
         } catch {}
       })
-      .catch(err => {
-        setError(err);
-      })
+      .catch(err => setError(err))
       .finally(() => setLoading(false));
   }, [storageKey]);
 
   const goToSession = (w, s) => { setWeek(w); setSession(s); setTab("sesion"); };
 
-  // ── Estados de carga y error ─────────────────────────────────────────────
   if (loading) return <Skeleton />;
 
   if (error?.status === 403) {
     return <Bloqueado estado={error.data?.estado} nombre={error.data?.nombre} />;
   }
-
   if (error?.status === 404 && error.data?.error?.includes("inscripción")) {
     return <SinInscripcion nombre={error.data?.nombre} />;
   }
-
   if (error) {
     return (
       <div style={{ maxWidth: 480, margin: "60px auto", textAlign: "center", padding: "0 24px" }}>
@@ -611,17 +801,11 @@ export default function PlanTrackerPage() {
       </div>
     );
   }
-
   if (!plan) return null;
 
-  const nivelLabel = {
-    iniciacion: "Iniciación",
-    intermedio: "Intermedio",
-    avanzado:   "Avanzado",
-  }[plan.nivel] || plan.nivel;
-  const nivelColor = NIVEL_COLOR[plan.nivel] || C.accent;
+  const nivelLabel  = { iniciacion: "Iniciación", intermedio: "Intermedio", avanzado: "Avanzado" }[plan.nivel] || plan.nivel;
+  const nivelColor  = NIVEL_COLOR[plan.nivel] || C.accent;
 
-  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div style={{ maxWidth: 600, margin: "0 auto" }}>
       {/* Header */}
@@ -631,8 +815,8 @@ export default function PlanTrackerPage() {
             {plan.trimestre} — Plan de Entrenamiento
           </h1>
           <span style={{ background: `${nivelColor}22`, color: nivelColor, fontSize: 10,
-            fontWeight: 800, padding: "3px 10px", borderRadius: 999, fontFamily: "Poppins",
-            whiteSpace: "nowrap" }}>
+            fontWeight: 800, padding: "3px 10px", borderRadius: 999,
+            fontFamily: "Poppins", whiteSpace: "nowrap" }}>
             {nivelLabel}
           </span>
         </div>
@@ -642,7 +826,7 @@ export default function PlanTrackerPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ background: tab === t.id ? C.accentA : C.card,
@@ -667,6 +851,9 @@ export default function PlanTrackerPage() {
       {tab === "registro" && week && (
         <RegistroTab week={week} session={session} semanas={plan.semanas}
           logs={logs} setLogs={setLogs} storageKey={storageKey} />
+      )}
+      {tab === "movilidad" && (
+        <MovilidadTab nivel={plan.nivel} />
       )}
     </div>
   );
