@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, ArrowLeft, Search } from 'lucide-react';
-import { IconoEscalador, IconoCronometro, IconoCheck, IconoFalta, IconoGrupo, IconoMagnesia, IconoCuerda } from '../components/Icons';
+import { IconoEscalador, IconoCronometro, IconoCheck, IconoFalta, IconoCohorte, IconoMagnesia, IconoCuerda } from '../components/Icons';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 
