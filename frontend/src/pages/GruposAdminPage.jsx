@@ -1,10 +1,10 @@
 /**
  * GruposAdminPage.jsx
- * Gestión de cohortes: listar, filtrar, crear, cambiar estado, navegar al detalle.
+ * Gestión de grupos: listar, filtrar, crear, cambiar estado, navegar al detalle.
  * Consume:
- *   GET    /api/cohortes
- *   POST   /api/cohortes
- *   PATCH  /api/cohortes/:id/estado
+ *   GET    /api/grupos
+ *   POST   /api/grupos
+ *   PATCH  /api/grupos/:id/estado
  *   GET    /api/catalogos/programas
  *   GET    /api/catalogos/ciclos
  *   GET    /api/catalogos/muros
@@ -81,13 +81,13 @@ function InputField({ label, type = 'text', value, onChange, required, placehold
   );
 }
 
-// ─── Tarjeta de cohorte ───────────────────────────────────────────────────────
+// ─── Tarjeta de grupo ──────────────────────────────────────────────────────
 
-function CohorteRow({ cohorte, onEstado, onDetalle }) {
-  const est = ESTADO_COLOR[cohorte.estado] || ESTADO_COLOR.abierta;
+function GrupoRow({ grupo, onEstado, onDetalle }) {
+  const est = ESTADO_COLOR[grupo.estado] || ESTADO_COLOR.abierta;
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const estados = ['abierta', 'cerrada', 'en_curso', 'finalizada'].filter(e => e !== cohorte.estado);
+  const estados = ['abierta', 'cerrada', 'en_curso', 'finalizada'].filter(e => e !== grupo.estado);
 
   return (
     <div style={{
@@ -98,16 +98,16 @@ function CohorteRow({ cohorte, onEstado, onDetalle }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: C.text, marginBottom: '4px' }}>
-            {cohorte.programa_nombre}
+            {grupo.programa_nombre}
           </div>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             <Badge label={est.label} bg={est.bg} color={est.color} />
-            <Badge label={cohorte.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'} bg="rgba(212,175,55,0.1)" color={C.accent} />
-            <Badge label={cohorte.nivel} bg="rgba(158,114,29,0.1)" color={C.accent2} />
+            <Badge label={grupo.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'} bg="rgba(212,175,55,0.1)" color={C.accent} />
+            <Badge label={grupo.nivel} bg="rgba(158,114,29,0.1)" color={C.accent2} />
           </div>
         </div>
         <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.3rem', color: C.accent }}>
-          {cohorte.inscritos_actual}/{cohorte.cupo_maximo}
+          {grupo.inscritos_actual}/{grupo.cupo_maximo}
         </div>
       </div>
 
@@ -115,26 +115,26 @@ function CohorteRow({ cohorte, onEstado, onDetalle }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem', color: C.text2, fontFamily: 'Poppins' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <IconoCronometro style={{ width: '13px', height: '13px', flexShrink: 0 }} />
-          {horarioLabel[cohorte.horario] || cohorte.horario}
+          {horarioLabel[grupo.horario] || grupo.horario}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <IconoMuro style={{ width: '13px', height: '13px', flexShrink: 0 }} />
-          {cohorte.muro_nombre}
+          {grupo.muro_nombre}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <IconoCuerda style={{ width: '13px', height: '13px', flexShrink: 0 }} />
-          {cohorte.entrenador_nombre}
+          {grupo.entrenador_nombre}
         </div>
       </div>
 
       {/* Stats inline */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
         {[
-          [cohorte.total_sesiones || '0', 'Sesiones', '#A09A8C'],
-          [(cohorte.asistencia_pct || 0) + '%', 'Asistencia', parseInt(cohorte.asistencia_pct || 0) >= 80 ? '#22c55e' : '#f59e0b'],
-          [new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(cohorte.ingresos_grupo || 0), 'Ingresos', '#22c55e'],
-          [parseInt(cohorte.pagos_pendientes_grupo) > 0 ? cohorte.pagos_pendientes_grupo : '✓', 'Pagos', parseInt(cohorte.pagos_pendientes_grupo) > 0 ? '#ef4444' : '#22c55e'],
-          [cohorte.fecha_inicio ? new Date(cohorte.fecha_inicio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—', 'Inicio', '#60a5fa'],
+          [grupo.total_sesiones || '0', 'Sesiones', '#A09A8C'],
+          [(grupo.asistencia_pct || 0) + '%', 'Asistencia', parseInt(grupo.asistencia_pct || 0) >= 80 ? '#22c55e' : '#f59e0b'],
+          [new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(grupo.ingresos_grupo || 0), 'Ingresos', '#22c55e'],
+          [parseInt(grupo.pagos_pendientes_grupo) > 0 ? grupo.pagos_pendientes_grupo : '✓', 'Pagos', parseInt(grupo.pagos_pendientes_grupo) > 0 ? '#ef4444' : '#22c55e'],
+          [grupo.fecha_inicio ? new Date(grupo.fecha_inicio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—', 'Inicio', '#60a5fa'],
         ].map(([v, l, c]) => (
           <div key={l} style={{ background: '#242424', borderRadius: '5px', padding: '5px 4px', textAlign: 'center' }}>
             <div style={{ fontFamily: 'Antonio', fontSize: '0.9rem', color: c, lineHeight: 1.2 }}>{v}</div>
@@ -145,7 +145,7 @@ function CohorteRow({ cohorte, onEstado, onDetalle }) {
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: `1px solid ${C.border}` }}>
-        <button onClick={() => onDetalle(cohorte.id)} style={{
+        <button onClick={() => onDetalle(grupo.id)} style={{
           flex: 1, padding: '8px', borderRadius: '6px', border: `1px solid ${C.border}`,
           background: 'transparent', color: C.text2, cursor: 'pointer', fontFamily: 'Poppins',
           fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
@@ -172,7 +172,7 @@ function CohorteRow({ cohorte, onEstado, onDetalle }) {
                 {estados.map(e => {
                   const ec = ESTADO_COLOR[e];
                   return (
-                    <button key={e} onClick={() => { onEstado(cohorte.id, e); setMenuOpen(false); }}
+                    <button key={e} onClick={() => { onEstado(grupo.id, e); setMenuOpen(false); }}
                       style={{
                         display: 'block', width: '100%', padding: '8px 12px', borderRadius: '6px',
                         border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
@@ -194,9 +194,9 @@ function CohorteRow({ cohorte, onEstado, onDetalle }) {
   );
 }
 
-// ─── Modal crear cohorte ──────────────────────────────────────────────────────
+// ─── Modal crear grupo ──────────────────────────────────────────────────────
 
-function ModalCrearCohorte({ open, onClose, onCreada, programas, ciclos, entrenadores, muros }) {
+function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenadores, muros }) {
   const [form, setForm] = useState({
     programaId: '', cicloId: '', entrenadorId: '', muroId: '',
     modalidad: 'acompanado', horario: '', cupoMaximo: 8,
@@ -214,12 +214,12 @@ function ModalCrearCohorte({ open, onClose, onCreada, programas, ciclos, entrena
     setLoading(true);
     setError(null);
     try {
-      await api.crearCohorte(form);
+      await api.crearGrupo(form);
       onCreada();
       onClose();
       setForm({ programaId: '', cicloId: '', entrenadorId: '', muroId: '', modalidad: 'acompanado', horario: '', cupoMaximo: 8 });
     } catch (err) {
-      setError(err?.error || err?.errors?.[0]?.msg || 'Error al crear la cohorte.');
+      setError(err?.error || err?.errors?.[0]?.msg || 'Error al crear el grupo.');
     } finally {
       setLoading(false);
     }
@@ -311,7 +311,7 @@ function ModalCrearCohorte({ open, onClose, onCreada, programas, ciclos, entrena
             background: loading ? '#3a3a2a' : C.accent, color: '#121212', fontFamily: 'Poppins',
             fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
           }}>
-            {loading ? <><Loader2 size={15} className="animate-spin" /> Creando...</> : 'Crear cohorte'}
+            {loading ? <><Loader2 size={15} className="animate-spin" /> Creando...</> : 'Crear grupo'}
           </button>
         </div>
       </div>
@@ -323,7 +323,7 @@ function ModalCrearCohorte({ open, onClose, onCreada, programas, ciclos, entrena
 
 export default function GruposAdminPage() {
   const navigate = useNavigate();
-  const [cohortes, setCohortes] = useState([]);
+  const [grupos, setGrupos] = useState([]);
   const [programas, setProgramas] = useState([]);
   const [ciclos, setCiclos] = useState([]);
   const [entrenadores, setEntrenadores] = useState([]);
@@ -338,13 +338,13 @@ export default function GruposAdminPage() {
     setLoading(true);
     try {
       const [coh, progs, cics, ents, murs] = await Promise.all([
-        api.getCohortes({ estado: filtroEstado || undefined, cicloId: filtroCiclo || undefined }),
+        api.getGrupos({ estado: filtroEstado || undefined, cicloId: filtroCiclo || undefined }),
         api.getProgramas(),
         api.getCiclos(),
         api.getEntrenadores(),
         api.getMuros(),
       ]);
-      setCohortes(coh);
+      setGrupos(coh);
       setProgramas(progs);
       setCiclos(cics);
       setEntrenadores(ents);
@@ -360,7 +360,7 @@ export default function GruposAdminPage() {
 
   const handleEstado = async (id, estado) => {
     try {
-      await api.cambiarEstadoCohorte(id, estado);
+      await api.cambiarEstadoGrupo(id, estado);
       await cargarDatos();
     } catch (err) {
       alert(err?.error || 'Error al cambiar estado');
@@ -368,9 +368,9 @@ export default function GruposAdminPage() {
   };
 
   // Stats
-  const totalInscritos = cohortes.reduce((s, c) => s + (c.inscritos_actual || 0), 0);
-  const abiertas = cohortes.filter(c => c.estado === 'abierta').length;
-  const enCurso = cohortes.filter(c => c.estado === 'en_curso').length;
+  const totalInscritos = grupos.reduce((s, c) => s + (c.inscritos_actual || 0), 0);
+  const abiertas = grupos.filter(c => c.estado === 'abierta').length;
+  const enCurso = grupos.filter(c => c.estado === 'en_curso').length;
 
   return (
     <div>
@@ -379,7 +379,7 @@ export default function GruposAdminPage() {
         <div>
           <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text, marginBottom: '4px' }}>Gestión de Grupos</h1>
           <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>
-            {cohortes.length} cohortes · {totalInscritos} inscritos · {abiertas} abiertas · {enCurso} en curso
+            {grupos.length} grupos · {totalInscritos} inscritos · {abiertas} abiertas · {enCurso} en curso
           </p>
         </div>
         <button onClick={() => setShowCrear(true)} style={{
@@ -387,7 +387,7 @@ export default function GruposAdminPage() {
           borderRadius: '8px', border: 'none', background: C.accent, color: '#121212',
           fontFamily: 'Antonio, sans-serif', fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
         }}>
-          <Plus size={18} /> Nueva cohorte
+          <Plus size={18} /> Nuevo grupo
         </button>
       </div>
 
@@ -414,20 +414,20 @@ export default function GruposAdminPage() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
           <Loader2 className="animate-spin" style={{ width: '28px', height: '28px', color: C.accent }} />
         </div>
-      ) : cohortes.length === 0 ? (
+      ) : grupos.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px' }}>
           <IconoMuro style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
           <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: C.text2, marginBottom: '8px' }}>
-            Sin cohortes{filtroEstado || filtroCiclo ? ' con esos filtros' : ''}
+            Sin grupos{filtroEstado || filtroCiclo ? ' con esos filtros' : ''}
           </div>
           <p style={{ color: C.text3, fontSize: '0.85rem', fontFamily: 'Poppins', marginBottom: '16px' }}>
-            Crea la primera cohorte para iniciar el ciclo.
+            Crea el primer grupo para iniciar el ciclo.
           </p>
           <button onClick={() => setShowCrear(true)} style={{
             padding: '10px 20px', borderRadius: '8px', background: C.accent, color: '#121212',
             border: 'none', fontFamily: 'Antonio, sans-serif', fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
           }}>
-            <Plus size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Crear cohorte
+            <Plus size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Crear grupo
           </button>
         </div>
       ) : (
@@ -436,10 +436,10 @@ export default function GruposAdminPage() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
           gap: '14px',
         }}>
-          {cohortes.map(c => (
-            <CohorteRow
+          {grupos.map(c => (
+            <GrupoRow
               key={c.id}
-              cohorte={c}
+              grupo={c}
               onEstado={handleEstado}
               onDetalle={(id) => navigate(`/app/grupos/${id}`)}
             />
@@ -448,7 +448,7 @@ export default function GruposAdminPage() {
       )}
 
       {/* Modal crear */}
-      <ModalCrearCohorte
+      <ModalCrearGrupo
         open={showCrear}
         onClose={() => setShowCrear(false)}
         onCreada={cargarDatos}

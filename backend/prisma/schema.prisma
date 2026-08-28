@@ -33,7 +33,7 @@ enum ModalidadPlan {
   acompanado
 }
 
-enum EstadoCohorte {
+enum EstadoGrupo {
   abierta
   cerrada
   en_curso
@@ -186,7 +186,7 @@ model Entrenador {
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   usuario  Usuario   @relation(fields: [usuarioId], references: [id])
-  cohortes Cohorte[]
+  grupos    Grupo[]
 
   @@map("entrenador")
 }
@@ -204,7 +204,7 @@ model Programa {
   activo             Boolean            @default(true)
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz()
 
-  cohortes        Cohorte[]
+  grupos          Grupo[]
   contenidoCiclos ContenidoCiclo[]
 
   @@map("programa")
@@ -220,7 +220,7 @@ model Ciclo {
   semanaEmpalme  DateTime @map("semana_empalme") @db.Date
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  cohortes        Cohorte[]
+  grupos          Grupo[]
   contenidoCiclos ContenidoCiclo[]
 
   @@unique([anio, trimestre])
@@ -238,12 +238,12 @@ model MuroAliado {
   lng               Decimal? @db.Decimal(10, 7)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  cohortes Cohorte[]
+  grupos    Grupo[]
 
   @@map("muro_aliado")
 }
 
-model Cohorte {
+model Grupo {
   id              String        @id @default(uuid()) @db.Uuid
   programaId      String        @map("programa_id") @db.Uuid
   cicloId         String        @map("ciclo_id") @db.Uuid
@@ -253,7 +253,7 @@ model Cohorte {
   horario         String        @db.VarChar(50)
   cupoMaximo      Int           @default(8) @map("cupo_maximo")
   inscritosActual Int           @default(0) @map("inscritos_actual")
-  estado          EstadoCohorte @default(abierta)
+  estado          EstadoGrupo @default(abierta)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -270,13 +270,13 @@ model Cohorte {
   @@index([cicloId])
   @@index([programaId])
   @@index([estado])
-  @@map("cohorte")
+  @@map("grupo")
 }
 
 model Inscripcion {
   id                String             @id @default(uuid()) @db.Uuid
   escaladorId       String             @map("escalador_id") @db.Uuid
-  cohorteId         String             @map("cohorte_id") @db.Uuid
+  grupoId           String             @map("grupo_id") @db.Uuid
   fechaInscripcion  DateTime           @default(now()) @map("fecha_inscripcion") @db.Date
   estado            EstadoInscripcion  @default(activa)
   precioCiclo       Decimal            @map("precio_ciclo") @db.Decimal(10, 2)
@@ -285,12 +285,12 @@ model Inscripcion {
   updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
 
   escalador Escalador @relation(fields: [escaladorId], references: [id])
-  cohorte   Cohorte   @relation(fields: [cohorteId], references: [id])
+  grupo     Grupo   @relation(fields: [grupoId], references: [id])
   pagos     Pago[]
 
-  @@unique([escaladorId, cohorteId])
+  @@unique([escaladorId, grupoId])
   @@index([escaladorId])
-  @@index([cohorteId])
+  @@index([grupoId])
   @@index([estado])
   @@map("inscripcion")
 }
@@ -317,7 +317,7 @@ model Pago {
 
 model Sesion {
   id              String     @id @default(uuid()) @db.Uuid
-  cohorteId       String     @map("cohorte_id") @db.Uuid
+  grupoId         String     @map("grupo_id") @db.Uuid
   fecha           DateTime   @db.Date
   horaInicio      DateTime   @map("hora_inicio") @db.Time()
   horaFin         DateTime   @map("hora_fin") @db.Time()
@@ -326,11 +326,11 @@ model Sesion {
   notasEntrenador String?    @map("notas_entrenador") @db.Text
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz()
 
-  cohorte     Cohorte      @relation(fields: [cohorteId], references: [id])
+  grupo       Grupo        @relation(fields: [grupoId], references: [id])
   asistencias Asistencia[]
 
-  @@unique([cohorteId, numeroSesion])
-  @@index([cohorteId])
+  @@unique([grupoId, numeroSesion])
+  @@index([grupoId])
   @@index([fecha])
   @@map("sesion")
 }
@@ -354,7 +354,7 @@ model Asistencia {
 model Evaluacion {
   id           String           @id @default(uuid()) @db.Uuid
   escaladorId  String           @map("escalador_id") @db.Uuid
-  cohorteId    String           @map("cohorte_id") @db.Uuid
+  grupoId       String           @map("grupo_id") @db.Uuid
   tipo         TipoEvaluacion
   fecha        DateTime         @db.Date
   estado       EstadoEvaluacion @default(programada)
@@ -362,12 +362,12 @@ model Evaluacion {
   createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz()
 
   escalador   Escalador       @relation(fields: [escaladorId], references: [id])
-  cohorte     Cohorte         @relation(fields: [cohorteId], references: [id])
+  grupo       Grupo           @relation(fields: [grupoId], references: [id])
   resultados  ResultadoTest[]
   remisiones  Remision[]
 
   @@index([escaladorId])
-  @@index([cohorteId])
+  @@index([grupoId])
   @@map("evaluacion")
 }
 
@@ -443,16 +443,16 @@ model Remision {
 model PuntosLiga {
   id           String   @id @default(uuid()) @db.Uuid
   escaladorId  String   @map("escalador_id") @db.Uuid
-  cohorteId    String   @map("cohorte_id") @db.Uuid
+  grupoId       String   @map("grupo_id") @db.Uuid
   sesionId     String?  @map("sesion_id") @db.Uuid
   puntos       Int
   motivo       String   @db.VarChar(200)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   escalador Escalador @relation(fields: [escaladorId], references: [id])
-  cohorte   Cohorte   @relation(fields: [cohorteId], references: [id])
+  grupo     Grupo   @relation(fields: [grupoId], references: [id])
 
-  @@index([escaladorId, cohorteId])
+  @@index([escaladorId, grupoId])
   @@map("puntos_liga")
 }
 

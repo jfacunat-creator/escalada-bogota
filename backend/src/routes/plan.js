@@ -30,7 +30,7 @@ router.get("/my", authenticate, async (req, res) => {
          c2.trimestre
        FROM escalador e
        LEFT JOIN inscripcion  i  ON i.escalador_id = e.id  AND i.estado = 'activa'
-       LEFT JOIN cohorte      c  ON c.id = i.cohorte_id
+       LEFT JOIN grupo      c  ON c.id = i.grupo_id
        LEFT JOIN ciclo        c2 ON c2.id = c.ciclo_id
        LEFT JOIN programa     p  ON p.id = c.programa_id
        WHERE e.usuario_id = $1

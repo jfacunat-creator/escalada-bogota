@@ -15,7 +15,7 @@ const PRECIO_MENSUAL = {
   avanzado:   { autonomo: 180_000, acompanado: 600_000 },
 };
 
-// ─── GET /cohortes ────────────────────────────────────────
+// ─── GET /grupo ────────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
     const { cicloId, estado } = req.query;
@@ -23,11 +23,11 @@ router.get("/", async (req, res) => {
                       ci.codigo as ciclo_codigo, ci.fecha_inicio, ci.fecha_fin,
                       m.nombre as muro_nombre,
                       e.nombre as entrenador_nombre,
-                      COALESCE((SELECT SUM(pa.monto) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.cohorte_id = c.id AND pa.estado = 'pagado'), 0) AS ingresos_grupo,
-                      COALESCE((SELECT COUNT(*) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.cohorte_id = c.id AND pa.estado = 'pendiente'), 0) AS pagos_pendientes_grupo,
-                      COALESCE((SELECT COUNT(*) FROM sesion s WHERE s.cohorte_id = c.id), 0) AS total_sesiones,
-                      COALESCE((SELECT ROUND(AVG(CASE WHEN a.asistio THEN 1 ELSE 0 END) * 100) FROM asistencia a JOIN sesion s ON a.sesion_id = s.id WHERE s.cohorte_id = c.id), 0) AS asistencia_pct
-               FROM cohorte c
+                      COALESCE((SELECT SUM(pa.monto) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.grupo_id = c.id AND pa.estado = 'pagado'), 0) AS ingresos_grupo,
+                      COALESCE((SELECT COUNT(*) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.grupoc_id = c.id AND pa.estado = 'pendiente'), 0) AS pagos_pendientes_grupo,
+                      COALESCE((SELECT COUNT(*) FROM sesion s WHERE s.grupo_id = c.id), 0) AS total_sesiones,
+                      COALESCE((SELECT ROUND(AVG(CASE WHEN a.asistio THEN 1 ELSE 0 END) * 100) FROM asistencia a JOIN sesion s ON a.sesion_id = s.id WHERE s.grupo_id = c.id), 0) AS asistencia_pct
+               FROM grupo c
                JOIN programa p ON c.programa_id = p.id
                JOIN ciclo ci ON c.ciclo_id = ci.id
                JOIN muro_aliado m ON c.muro_id = m.id
@@ -42,7 +42,7 @@ router.get("/", async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
-// ─── POST /cohortes ───────────────────────────────────────
+// ─── POST /grupo ───────────────────────────────────────
 router.post("/", authorize("admin"), [
   body("programaId").isUUID(), body("cicloId").isUUID(), body("entrenadorId").isUUID(),
   body("muroId").isUUID(), body("modalidad").isIn(["autonomo","acompanado"]),
@@ -52,33 +52,33 @@ router.post("/", authorize("admin"), [
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const d = req.body;
-    const grupos = await db("SELECT COUNT(*) as n FROM cohorte WHERE entrenador_id=$1 AND estado IN ('abierta','en_curso')", [d.entrenadorId]);
-    const ent = await db("SELECT max_grupos FROM entrenador WHERE id=$1", [d.entrenadorId]);
-    if (parseInt(grupos.rows[0].n) >= ent.rows[0].max_grupos)
-      return res.status(400).json({ error: "Entrenador al límite de grupos" });
+    const grupo = await db("SELECT COUNT(*) as n FROM grupo WHERE entrenador_id=$1 AND estado IN ('abierta','en_curso')", [d.entrenadorId]);
+    const ent = await db("SELECT max_grupo FROM entrenador WHERE id=$1", [d.entrenadorId]);
+    if (parseInt(grupo.rows[0].n) >= ent.rows[0].max_grupo)
+      return res.status(400).json({ error: "Entrenador al límite de grupo" });
 
     const prog = await db("SELECT poblacion FROM programa WHERE id=$1", [d.programaId]);
     if (prog.rows[0].poblacion === 'menor' && d.cupoMaximo > 6)
       return res.status(400).json({ error: "Ratio para menores: máximo 6 (Ley 1098)" });
 
     const result = await db(
-      `INSERT INTO cohorte (programa_id, ciclo_id, entrenador_id, muro_id, modalidad, horario, cupo_maximo)
+      `INSERT INTO grupo (programa_id, ciclo_id, entrenador_id, muro_id, modalidad, horario, cupo_maximo)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [d.programaId, d.cicloId, d.entrenadorId, d.muroId, d.modalidad, d.horario, d.cupoMaximo]
     );
     const full = await db(
       `SELECT c.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo, m.nombre as muro_nombre
-       FROM cohorte c JOIN programa p ON c.programa_id=p.id JOIN ciclo ci ON c.ciclo_id=ci.id JOIN muro_aliado m ON c.muro_id=m.id
+       FROM grupo c JOIN programa p ON c.programa_id=p.id JOIN ciclo ci ON c.ciclo_id=ci.id JOIN muro_aliado m ON c.muro_id=m.id
        WHERE c.id=$1`, [result.rows[0].id]);
     res.status(201).json(full.rows[0]);
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: "Ya existe cohorte con ese entrenador/horario/ciclo" });
+    if (err.code === '23505') return res.status(409).json({ error: "Ya existe un grupo con ese entrenador/horario/ciclo" });
     console.error(err); res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── GET /cohortes/disponibles ────────────────────────────
-// Catálogo de cohortes abiertas para adultos.
+// ─── GET /grupo/disponibles ────────────────────────────
+// Catálogo de grupo abiertos para adultos.
 // Devuelve precio_mensual calculado en backend (fuente única).
 // Marca ya_inscrito si el escalador autenticado tiene inscripción activa.
 router.get("/disponibles", async (req, res) => {
@@ -95,7 +95,7 @@ router.get("/disponibles", async (req, res) => {
         m.direccion AS muro_direccion,
         e.id   AS entrenador_id, e.nombre  AS entrenador_nombre,
         e.licencia_ley181
-      FROM cohorte c
+      FROM grupo c
       JOIN programa    p  ON c.programa_id  = p.id
       JOIN ciclo       ci ON c.ciclo_id     = ci.id
       JOIN muro_aliado m  ON c.muro_id      = m.id
@@ -109,14 +109,14 @@ router.get("/disponibles", async (req, res) => {
     let inscritaIds = [];
     if (req.user.rol === "escalador" && req.user.escalador) {
       const ins = await db(
-        `SELECT cohorte_id FROM inscripcion
+        `SELECT grupo_id FROM inscripcion
          WHERE escalador_id = $1 AND estado = 'activa'`,
         [req.user.escalador.id]
       );
-      inscritaIds = ins.rows.map((r) => r.cohorte_id);
+      inscritaIds = ins.rows.map((r) => r.grupo_id);
     }
 
-    const cohortes = result.rows.map((c) => ({
+    const grupo = result.rows.map((c) => ({
       ...c,
       ya_inscrito: inscritaIds.includes(c.id),
       cupos_disponibles: c.cupo_maximo - c.inscritos_actual,
@@ -124,34 +124,34 @@ router.get("/disponibles", async (req, res) => {
       precio_ciclo: (PRECIO_MENSUAL[c.nivel]?.[c.modalidad] ?? 0) * 3,
     }));
 
-    res.json(cohortes);
+    res.json(grupo);
   } catch (err) {
-    console.error("Error GET /cohortes/disponibles:", err);
+    console.error("Error GET /grupo/disponibles:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── GET /cohortes/:id ────────────────────────────────────
+// ─── GET /grupo/:id ────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
     const coh = await db(
       `SELECT c.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo,
               m.nombre as muro_nombre, e.nombre as entrenador_nombre
-       FROM cohorte c JOIN programa p ON c.programa_id=p.id JOIN ciclo ci ON c.ciclo_id=ci.id
+       FROM grupo c JOIN programa p ON c.programa_id=p.id JOIN ciclo ci ON c.ciclo_id=ci.id
        JOIN muro_aliado m ON c.muro_id=m.id JOIN entrenador e ON c.entrenador_id=e.id
        WHERE c.id=$1`, [req.params.id]);
-    if (coh.rows.length === 0) return res.status(404).json({ error: "Cohorte no encontrada" });
+    if (coh.rows.length === 0) return res.status(404).json({ error: "Grupo no encontrado" });
 
     const inscritos = await db(
       `SELECT i.*, e.id as esc_id, e.nombre, e.apellido, e.estado as esc_estado
        FROM inscripcion i JOIN escalador e ON i.escalador_id=e.id
-       WHERE i.cohorte_id=$1 ORDER BY e.nombre`, [req.params.id]);
+       WHERE i.grupo_id=$1 ORDER BY e.nombre`, [req.params.id]);
 
     res.json({ ...coh.rows[0], inscripciones: inscritos.rows });
   } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
-// ─── PATCH /cohortes/:id/estado — Cambiar estado de cohorte ───
+// ─── PATCH /grupo/:id/estado — Cambiar estado de grupo ───
 router.patch("/:id/estado", authorize("admin"), [
   body("estado").isIn(["abierta", "cerrada", "en_curso", "finalizada"]),
 ], async (req, res) => {
@@ -159,10 +159,10 @@ router.patch("/:id/estado", authorize("admin"), [
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
     const { estado } = req.body;
-    const coh = await db("SELECT id, estado FROM cohorte WHERE id=$1", [req.params.id]);
-    if (coh.rows.length === 0) return res.status(404).json({ error: "Cohorte no encontrada" });
+    const coh = await db("SELECT id, estado FROM grupo WHERE id=$1", [req.params.id]);
+    if (coh.rows.length === 0) return res.status(404).json({ error: "Grupo no encontrado" });
 
-    await db("UPDATE cohorte SET estado=$1 WHERE id=$2", [estado, req.params.id]);
+    await db("UPDATE grupo SET estado=$1 WHERE id=$2", [estado, req.params.id]);
     res.json({ message: `Estado cambiado a ${estado}` });
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Error interno" });

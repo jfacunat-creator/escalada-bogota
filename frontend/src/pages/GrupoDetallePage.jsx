@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, ArrowLeft, Search } from 'lucide-react';
-import { IconoEscalador, IconoCronometro, IconoCheck, IconoFalta, IconoCohorte, IconoMagnesia, IconoCuerda } from '../components/Icons';
+import { IconoEscalador, IconoCronometro, IconoCheck, IconoFalta, IconoGrupo, IconoMagnesia, IconoCuerda } from '../components/Icons';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 
@@ -26,7 +26,7 @@ function PanelAsistencia({ sesion, grupoId, onClose }) {
 
   useEffect(() => {
     Promise.all([
-      api.getEscaladores({ cohorteId: grupoId }),
+      api.getEscaladores({ grupoId: grupoId }),
       api.getSesion(sesion.id),
     ]).then(([escs, detail]) => {
       setEscaladores(escs);
@@ -201,13 +201,13 @@ function TabEscaladores({ grupoId, isAdmin }) {
 
   useEffect(() => {
     Promise.all([
-      api.getEscaladores({ cohorteId: grupoId }).then(setEscaladores),
+      api.getEscaladores({ grupoId: grupoId }).then(setEscaladores),
       fetch('/api/catalogos/aliados-salud', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).then(r => r.json()).then(setAliados).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [grupoId]);
 
   const cambiarEstado = async (id, estado) => {
-    try { await api.cambiarEstadoInscripcion(id, estado); const e = await api.getEscaladores({ cohorteId: grupoId }); setEscaladores(e); }
+    try { await api.cambiarEstadoInscripcion(id, estado); const e = await api.getEscaladores({ grupoId: grupoId }); setEscaladores(e); }
     catch (err) { alert(err.error || 'Error'); }
   };
 
@@ -358,7 +358,7 @@ export default function GrupoDetallePage() {
   const backTo = isAdmin ? '/app/grupos' : '/app/mis-grupos';
 
   useEffect(() => {
-    api.getCohorte(id).then(setGrupo).catch(console.error).finally(() => setLoading(false));
+    api.getGrupo(id).then(setGrupo).catch(console.error).finally(() => setLoading(false));
   }, [id]);
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px', background: '#121212', minHeight: '60vh' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>;

@@ -41,75 +41,82 @@ class ApiService {
 
   // Auth
   login(email, password) { return this.request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); }
-  register(data) { return this.request('/auth/register', { method: 'POST', body: JSON.stringify(data) }); }
-  getMe() { return this.request('/auth/me'); }
+  register(data)          { return this.request('/auth/register', { method: 'POST', body: JSON.stringify(data) }); }
+  getMe()                 { return this.request('/auth/me'); }
 
   // Plan de entrenamiento
-  getMyPlan() { return this.request('/plan/my'); }  // ← NUEVO
+  getMyPlan() { return this.request('/plan/my'); }
 
   // Catálogos
-  getProgramas(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/programas${q}`); }
-  getCiclos(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/ciclos${q}`); }
-  getCicloActual() { return this.request('/catalogos/ciclos/actual'); }
-  crearCiclo(data) { return this.request('/catalogos/ciclos', { method: 'POST', body: JSON.stringify(data) }); }
-  getMuros() { return this.request('/catalogos/muros'); }
+  getProgramas(params)  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/programas${q}`); }
+  getCiclos(params)     { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/ciclos${q}`); }
+  getCicloActual()      { return this.request('/catalogos/ciclos/actual'); }
+  crearCiclo(data)      { return this.request('/catalogos/ciclos', { method: 'POST', body: JSON.stringify(data) }); }
+  getMuros()            { return this.request('/catalogos/muros'); }
 
-  // Cohortes
-  getCohortes(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/cohortes${q}`); }
-  getCohorte(id) { return this.request(`/cohortes/${id}`); }
-  getCohortesDisponibles() { return this.request('/cohortes/disponibles'); }
-  crearCohorte(data) { return this.request('/cohortes', { method: 'POST', body: JSON.stringify(data) }); }
-  cambiarEstadoCohorte(id, estado) { return this.request(`/cohortes/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
+  // Grupos (antes: Cohortes)
+  getGrupos(params)             { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/grupos${q}`); }
+  getGrupo(id)                  { return this.request(`/grupos/${id}`); }
+  getGruposDisponibles()        { return this.request('/grupos/disponibles'); }
+  crearGrupo(data)              { return this.request('/grupos', { method: 'POST', body: JSON.stringify(data) }); }
+  cambiarEstadoGrupo(id, estado){ return this.request(`/grupos/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
 
   // Escaladores
   getEscaladores(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/escaladores${q}`); }
-  getEscalador(id) { return this.request(`/escaladores/${id}`); }
+  getEscalador(id)       { return this.request(`/escaladores/${id}`); }
   updateEscalador(id, data) { return this.request(`/escaladores/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 
   // Entrenadores
-  getEntrenadores() { return this.request('/entrenadores'); }
-  getEntrenador(id) { return this.request(`/entrenadores/${id}`); }
-  getEscaladoresEntrenador(id) { return this.request(`/entrenadores/${id}/escaladores`); }
+  getEntrenadores()              { return this.request('/entrenadores'); }
+  getEntrenador(id)              { return this.request(`/entrenadores/${id}`); }
+  getEscaladoresEntrenador(id)   { return this.request(`/entrenadores/${id}/escaladores`); }
 
   // Sesiones
-  getSesiones(cohorteId) { return this.request(`/sesiones?cohorteId=${cohorteId}`); }
-  getSesion(id) { return this.request(`/sesiones/${id}`); }
-  generarSesiones(cohorteId) { return this.request('/sesiones/generar', { method: 'POST', body: JSON.stringify({ cohorteId }) }); }
-  updateNotasSesion(id, notas) { return this.request(`/sesiones/${id}/notas`, { method: 'PUT', body: JSON.stringify({ notas }) }); }
+  getSesiones(grupoId)          { return this.request(`/sesiones?grupoId=${grupoId}`); }
+  getSesion(id)                 { return this.request(`/sesiones/${id}`); }
+  generarSesiones(grupoId)      { return this.request('/sesiones/generar', { method: 'POST', body: JSON.stringify({ grupoId }) }); }
+  updateNotasSesion(id, notas)  { return this.request(`/sesiones/${id}/notas`, { method: 'PUT', body: JSON.stringify({ notas }) }); }
 
   // Asistencia
-  registrarAsistencia(sesionId, registros) { return this.request('/asistencia', { method: 'POST', body: JSON.stringify({ sesionId, registros }) }); }
-  getAsistenciaSesion(sesionId) { return this.request(`/asistencia/sesion/${sesionId}`); }
-  getAsistenciaEscalador(escaladorId, cohorteId) { const q = cohorteId ? `?cohorteId=${cohorteId}` : ''; return this.request(`/asistencia/escalador/${escaladorId}${q}`); }
-  getResumenAsistencia(cohorteId) { return this.request(`/asistencia/cohorte/${cohorteId}/resumen`); }
+  registrarAsistencia(sesionId, registros)          { return this.request('/asistencia', { method: 'POST', body: JSON.stringify({ sesionId, registros }) }); }
+  getAsistenciaSesion(sesionId)                     { return this.request(`/asistencia/sesion/${sesionId}`); }
+  getAsistenciaEscalador(escaladorId, grupoId)      { const q = grupoId ? `?grupoId=${grupoId}` : ''; return this.request(`/asistencia/escalador/${escaladorId}${q}`); }
+  getResumenAsistencia(grupoId)                     { return this.request(`/asistencia/grupo/${grupoId}/resumen`); }
 
   // Contenido
-  getContenido(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/contenido${q}`); }
-  crearContenido(data) { return this.request('/contenido', { method: 'POST', body: JSON.stringify(data) }); }
-  updateProgreso(contenidoId, progresoPct) { return this.request(`/contenido/${contenidoId}/progreso`, { method: 'PUT', body: JSON.stringify({ progresoPct }) }); }
-  getStatsContenido(cicloId) { return this.request(`/contenido/stats/${cicloId}`); }
+  getContenido(params)              { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/contenido${q}`); }
+  crearContenido(data)              { return this.request('/contenido', { method: 'POST', body: JSON.stringify(data) }); }
+  updateProgreso(contenidoId, pct)  { return this.request(`/contenido/${contenidoId}/progreso`, { method: 'PUT', body: JSON.stringify({ progresoPct: pct }) }); }
+  getStatsContenido(cicloId)        { return this.request(`/contenido/stats/${cicloId}`); }
 
   // Evaluaciones
-  getEvaluaciones(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/evaluaciones${q}`); }
-  getEvaluacion(id) { return this.request(`/evaluaciones/${id}`); }
-  crearEvaluacion(data) { return this.request('/evaluaciones', { method: 'POST', body: JSON.stringify(data) }); }
-  registrarResultados(evalId, resultados) { return this.request(`/evaluaciones/${evalId}/resultados`, { method: 'POST', body: JSON.stringify({ resultados }) }); }
-  getProgreso(escaladorId) { return this.request(`/evaluaciones/progreso/${escaladorId}`); }
-  getComparacionCohorte(cohorteId) { return this.request(`/evaluaciones/comparar/${cohorteId}`); }
+  getEvaluaciones(params)           { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/evaluaciones${q}`); }
+  crearEvaluacion(data)             { return this.request('/evaluaciones', { method: 'POST', body: JSON.stringify(data) }); }
+  getEvaluacion(id)                 { return this.request(`/evaluaciones/${id}`); }
+  updateEvaluacion(id, data)        { return this.request(`/evaluaciones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 
   // Inscripciones
-  getInscripciones(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/inscripciones${q}`); }
-  crearInscripcion(data) { return this.request('/inscripciones', { method: 'POST', body: JSON.stringify(data) }); }
-  autoInscribirse(cohorteId) { return this.request('/inscripciones/autoservicio', { method: 'POST', body: JSON.stringify({ cohorteId }) }); }
-  cambiarEstadoInscripcion(id, estado) { return this.request(`/inscripciones/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
+  getInscripciones(params)          { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/inscripciones${q}`); }
+  crearInscripcion(data)            { return this.request('/inscripciones', { method: 'POST', body: JSON.stringify(data) }); }
+  getInscripcion(id)                { return this.request(`/inscripciones/${id}`); }
+  updateInscripcion(id, data)       { return this.request(`/inscripciones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 
   // Pagos
-  getPagos(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos${q}`); }
-  registrarPago(data) { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
-  cambiarEstadoPago(id, estado) { return this.request(`/pagos/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
-  getResumenPagos(cicloId) { const q = cicloId ? `?cicloId=${cicloId}` : ''; return this.request(`/pagos/resumen/general${q}`); }
-  generarLinkPago(pagoId) { return this.request(`/pagos/${pagoId}/link-pago`, { method: 'POST' }); }
+  getPagos(params)                  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos${q}`); }
+  getPago(id)                       { return this.request(`/pagos/${id}`); }
+  crearPago(data)                   { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
+  updatePago(id, data)              { return this.request(`/pagos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  getLinkPago(id)                   { return this.request(`/pagos/${id}/link-pago`); }
+
+  // RRHH
+  getRRHH(params)                   { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/rrhh${q}`); }
+
+  // Dashboard
+  getDashboard()                    { return this.request('/dashboard'); }
+
+  // Contabilidad
+  getContabilidad(params)           { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/contabilidad${q}`); }
+  crearEntradaPyG(data)             { return this.request('/contabilidad', { method: 'POST', body: JSON.stringify(data) }); }
 }
 
-const api = new ApiService();
-export default api;
+export default new ApiService();

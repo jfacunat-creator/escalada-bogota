@@ -6,7 +6,7 @@ const { authenticate, authorize } = require("../middleware/auth");
 const router = express.Router();
 router.use(authenticate);
 
-// ─── Precios mensuales de referencia (misma tabla que cohortes.js) ────────────
+// ─── Precios mensuales de referencia (misma tabla que grupos.js) ────────────
 const PRECIO_MENSUAL = {
   iniciacion: { autonomo: 120_000, acompanado: 350_000 },
   intermedio: { autonomo: 150_000, acompanado: 450_000 },
@@ -16,7 +16,7 @@ const PRECIO_MENSUAL = {
 // ─── GET /inscripciones ──────────────────────────────────
 router.get("/", async (req, res) => {
   try {
-    const { cohorteId, escaladorId, estado } = req.query;
+    const { grupoId, escaladorId, estado } = req.query;
     let sql = `
       SELECT i.*, e.nombre, e.apellido, e.estado as esc_estado, e.rango_etario,
              u.email,
@@ -28,7 +28,7 @@ router.get("/", async (req, res) => {
       FROM inscripcion i
       JOIN escalador e ON i.escalador_id = e.id
       JOIN usuario u ON e.usuario_id = u.id
-      JOIN cohorte co ON i.cohorte_id = co.id
+      JOIN grupo co ON i.grupo_id = co.id
       JOIN programa p ON co.programa_id = p.id
       JOIN ciclo ci ON co.ciclo_id = ci.id
       JOIN muro_aliado m ON co.muro_id = m.id
@@ -36,7 +36,7 @@ router.get("/", async (req, res) => {
       WHERE 1=1
     `;
     const params = [];
-    if (cohorteId) { params.push(cohorteId); sql += ` AND i.cohorte_id = $${params.length}`; }
+    if (grupoId) { params.push(grupoId); sql += ` AND i.grupo_id = $${params.length}`; }
     if (escaladorId) { params.push(escaladorId); sql += ` AND i.escalador_id = $${params.length}`; }
     if (estado) { params.push(estado); sql += ` AND i.estado = $${params.length}`; }
     if (req.user.rol === "escalador") { params.push(req.user.escalador.id); sql += ` AND i.escalador_id = $${params.length}`; }
@@ -53,7 +53,7 @@ router.get("/", async (req, res) => {
 // ─── POST /inscripciones — Inscribir escalador (admin/entrenador) ─────────
 router.post("/", authorize("admin", "entrenador"), [
   body("escaladorId").isUUID(),
-  body("cohorteId").isUUID(),
+  body("grupoId").isUUID(),
   body("precioCiclo").isFloat({ min: 0 }),
   body("descuentoAplicado").optional().isString(),
 ], async (req, res) => {
@@ -61,19 +61,19 @@ router.post("/", authorize("admin", "entrenador"), [
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
   try {
-    const { escaladorId, cohorteId, precioCiclo, descuentoAplicado } = req.body;
+    const { escaladorId, grupoId, precioCiclo, descuentoAplicado } = req.body;
 
-    const coh = await db("SELECT estado, cupo_maximo, inscritos_actual, programa_id FROM cohorte WHERE id=$1", [cohorteId]);
-    if (coh.rows.length === 0) return res.status(404).json({ error: "Cohorte no encontrada" });
-    if (coh.rows[0].estado !== "abierta") return res.status(400).json({ error: "La cohorte no está abierta para inscripciones" });
+    const coh = await db("SELECT estado, cupo_maximo, inscritos_actual, programa_id FROM grupo WHERE id=$1", [grupoId]);
+    if (coh.rows.length === 0) return res.status(404).json({ error: "Grupo no encontrado" });
+    if (coh.rows[0].estado !== "abierta") return res.status(400).json({ error: "El grupo no está abierto para inscripciones" });
 
-    const inscritos = await db("SELECT COUNT(*) as n FROM inscripcion WHERE cohorte_id=$1 AND estado='activa'", [cohorteId]);
+    const inscritos = await db("SELECT COUNT(*) as n FROM inscripcion WHERE grupo_id=$1 AND estado='activa'", [grupoId]);
     if (parseInt(inscritos.rows[0].n) >= coh.rows[0].cupo_maximo) {
-      return res.status(400).json({ error: "Cohorte sin cupos disponibles" });
+      return res.status(400).json({ error: "Grupo sin cupos disponibles" });
     }
 
-    const dup = await db("SELECT id FROM inscripcion WHERE escalador_id=$1 AND cohorte_id=$2", [escaladorId, cohorteId]);
-    if (dup.rows.length > 0) return res.status(409).json({ error: "Escalador ya inscrito en esta cohorte" });
+    const dup = await db("SELECT id FROM inscripcion WHERE escalador_id=$1 AND grupo_id=$2", [escaladorId, grupoId]);
+    if (dup.rows.length > 0) return res.status(409).json({ error: "Escalador ya inscrito en este grupo" });
 
     const esc = await db("SELECT rango_etario FROM escalador WHERE id=$1", [escaladorId]);
     const prog = await db("SELECT poblacion, rango_etario_menor FROM programa WHERE id=$1", [coh.rows[0].programa_id]);
@@ -85,12 +85,12 @@ router.post("/", authorize("admin", "entrenador"), [
     }
 
     const result = await db(
-      `INSERT INTO inscripcion (escalador_id, cohorte_id, precio_ciclo, descuento_aplicado)
+      `INSERT INTO inscripcion (escalador_id, grupo_id, precio_ciclo, descuento_aplicado)
        VALUES ($1,$2,$3,$4) RETURNING *`,
-      [escaladorId, cohorteId, precioCiclo, descuentoAplicado || null]
+      [escaladorId, grupoId, precioCiclo, descuentoAplicado || null]
     );
 
-    await db("UPDATE cohorte SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [cohorteId]);
+    await db("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [grupoId]);
 
     await db(
       `INSERT INTO pago (inscripcion_id, monto, estado, fecha_vencimiento)
@@ -110,7 +110,7 @@ router.post("/", authorize("admin", "entrenador"), [
 router.post(
   "/autoservicio",
   authorize("escalador"),
-  [body("cohorteId").isUUID()],
+  [body("grupoId").isUUID()],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty())
@@ -119,39 +119,39 @@ router.post(
     const client = await pool.connect();
     try {
       const escaladorId = req.user.escalador.id;
-      const { cohorteId } = req.body;
+      const { grupoId } = req.body;
 
       await client.query("BEGIN");
 
-      // Bloqueo de fila: nadie más puede modificar esta cohorte hasta COMMIT
+      // Bloqueo de fila: nadie más puede modificar esta grupo hasta COMMIT
       const coh = await client.query(
         `SELECT c.id, c.estado, c.cupo_maximo, c.inscritos_actual, c.modalidad,
                 p.nivel, p.poblacion
-         FROM cohorte c JOIN programa p ON c.programa_id = p.id
+         FROM grupo c JOIN programa p ON c.programa_id = p.id
          WHERE c.id = $1
          FOR UPDATE OF c`,
-        [cohorteId]
+        [grupoId]
       );
       if (coh.rows.length === 0) {
         await client.query("ROLLBACK");
-        return res.status(404).json({ error: "Cohorte no encontrada" });
+        return res.status(404).json({ error: "Grupo no encontrado" });
       }
 
-      const cohorte = coh.rows[0];
-      if (cohorte.estado !== "abierta") {
+      const grupo = coh.rows[0];
+      if (grupo.estado !== "abierta") {
         await client.query("ROLLBACK");
-        return res.status(400).json({ error: "La cohorte no está abierta para inscripciones" });
+        return res.status(400).json({ error: "El grupo no está abierto para inscripciones" });
       }
-      if (cohorte.inscritos_actual >= cohorte.cupo_maximo) {
+      if (grupo.inscritos_actual >= grupo.cupo_maximo) {
         await client.query("ROLLBACK");
-        return res.status(400).json({ error: "Cohorte sin cupos disponibles" });
+        return res.status(400).json({ error: "Grupo sin cupos disponibles" });
       }
-      if (cohorte.poblacion !== "adulto") {
+      if (grupo.poblacion !== "adulto") {
         await client.query("ROLLBACK");
         return res.status(400).json({ error: "Solo puedes inscribirte en programas adultos" });
       }
 
-      // Máximo una cohorte activa simultánea por escalador
+      // Máximo una grupo activa simultánea por escalador
       const activas = await client.query(
         `SELECT COUNT(*) AS n FROM inscripcion
          WHERE escalador_id = $1 AND estado = 'activa'`,
@@ -165,22 +165,22 @@ router.post(
       }
 
       // Precio
-      const nivel     = cohorte.nivel;
-      const modalidad = cohorte.modalidad;
+      const nivel     = grupo.nivel;
+      const modalidad = grupo.modalidad;
       const precioMensual = PRECIO_MENSUAL[nivel]?.[modalidad] ?? 150_000;
       const precioCiclo   = precioMensual * 3;
 
       // Crear inscripción
       const ins = await client.query(
-        `INSERT INTO inscripcion (escalador_id, cohorte_id, precio_ciclo)
+        `INSERT INTO inscripcion (escalador_id, grupo_id, precio_ciclo)
          VALUES ($1, $2, $3) RETURNING *`,
-        [escaladorId, cohorteId, precioCiclo]
+        [escaladorId, grupoId, precioCiclo]
       );
 
       // Actualizar contador
       await client.query(
-        "UPDATE cohorte SET inscritos_actual = inscritos_actual + 1 WHERE id = $1",
-        [cohorteId]
+        "UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id = $1",
+        [grupoId]
       );
 
       // Primer pago pendiente (mensualidad 1)
@@ -199,7 +199,7 @@ router.post(
     } catch (err) {
       await client.query("ROLLBACK");
       if (err.code === "23505")
-        return res.status(409).json({ error: "Ya estás inscrito en esta cohorte" });
+        return res.status(409).json({ error: "Ya estás inscrito en este grupo" });
       console.error("Error POST /inscripciones/autoservicio:", err);
       res.status(500).json({ error: "Error interno" });
     } finally {
@@ -217,16 +217,16 @@ router.patch("/:id/estado", authorize("admin"), [
 
   try {
     const { estado } = req.body;
-    const insc = await db("SELECT estado as old, cohorte_id FROM inscripcion WHERE id=$1", [req.params.id]);
+    const insc = await db("SELECT estado as old, grupo_id FROM inscripcion WHERE id=$1", [req.params.id]);
     if (insc.rows.length === 0) return res.status(404).json({ error: "Inscripción no encontrada" });
 
     await db("UPDATE inscripcion SET estado=$1 WHERE id=$2", [estado, req.params.id]);
 
     const old = insc.rows[0].old;
     if (old === "activa" && estado !== "activa") {
-      await db("UPDATE cohorte SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id=$1", [insc.rows[0].cohorte_id]);
+      await db("UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id=$1", [insc.rows[0].grupo_id]);
     } else if (old !== "activa" && estado === "activa") {
-      await db("UPDATE cohorte SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [insc.rows[0].cohorte_id]);
+      await db("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [insc.rows[0].grupo_id]);
     }
 
     res.json({ message: `Estado cambiado a ${estado}` });

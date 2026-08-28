@@ -2,7 +2,7 @@
  * InscripcionPage.jsx
  * Catálogo de grupos disponibles y auto-inscripción del escalador.
  * Consume:
- *   GET  /api/cohortes/disponibles   → catálogo con precio_mensual calculado en backend
+ *   GET  /api/grupos/disponibles   → catálogo con precio_mensual calculado en backend
  *   GET  /api/inscripciones?estado=activa
  *   POST /api/inscripciones/autoservicio
  */
@@ -78,8 +78,8 @@ function CapacidadBar({ actual, max }) {
   );
 }
 
-// ─── Tarjeta de cohorte ───────────────────────────────────────────────────────
-function CohorteCard({ cohorte, onInscribirse, tieneInscripcionActiva }) {
+// ─── Tarjeta de grupo ──────────────────────────────────────────────────────
+function GrupoCard({ grupo, onInscribirse, tieneInscripcionActiva }) {
   const {
     modalidad, horario, cupo_maximo, inscritos_actual, estado,
     programa_nombre, nivel, programa_descripcion, incluye_fisio, incluye_nutricion,
@@ -87,7 +87,7 @@ function CohorteCard({ cohorte, onInscribirse, tieneInscripcionActiva }) {
     muro_nombre, muro_direccion,
     entrenador_nombre, licencia_ley181,
     ya_inscrito, precio_mensual,
-  } = cohorte;
+  } = grupo;
 
   const lleno = estado !== 'abierta' || inscritos_actual >= cupo_maximo;
   const nivelColor = NIVEL_COLOR[nivel] || '#D4AF37';
@@ -195,7 +195,7 @@ function CohorteCard({ cohorte, onInscribirse, tieneInscripcionActiva }) {
           </div>
         ) : (
           <button
-            onClick={() => onInscribirse(cohorte)}
+            onClick={() => onInscribirse(grupo)}
             style={{
               padding: '12px', borderRadius: '8px', background: '#D4AF37',
               color: '#121212', border: 'none', fontSize: '0.9rem', fontWeight: 700,
@@ -214,20 +214,20 @@ function CohorteCard({ cohorte, onInscribirse, tieneInscripcionActiva }) {
 }
 
 // ─── Modal de confirmación ────────────────────────────────────────────────────
-function ModalConfirmacion({ cohorte, onConfirmar, onCerrar, loading, error, confirmado }) {
-  if (!cohorte) return null;
+function ModalConfirmacion({ grupo, onConfirmar, onCerrar, loading, error, confirmado }) {
+  if (!grupo) return null;
 
   const filas = [
-    ['Programa',    cohorte.programa_nombre],
-    ['Nivel',       NIVEL_LABEL[cohorte.nivel] || cohorte.nivel],
-    ['Ciclo',       cohorte.ciclo_codigo],
-    ['Entrenador',  cohorte.entrenador_nombre],
-    ['Muro',        cohorte.muro_nombre],
-    ['Horario',     cohorte.horario],
-    ['Inicio',      formatFecha(cohorte.fecha_inicio)],
-    ['Fin',         formatFecha(cohorte.fecha_fin)],
-    ['Mensualidad', formatCOP(cohorte.precio_mensual)],
-    ['Ciclo completo (3 meses)', formatCOP(cohorte.precio_ciclo)],
+    ['Programa',    grupo.programa_nombre],
+    ['Nivel',       NIVEL_LABEL[grupo.nivel] || grupo.nivel],
+    ['Ciclo',       grupo.ciclo_codigo],
+    ['Entrenador',  grupo.entrenador_nombre],
+    ['Muro',        grupo.muro_nombre],
+    ['Horario',     grupo.horario],
+    ['Inicio',      formatFecha(grupo.fecha_inicio)],
+    ['Fin',         formatFecha(grupo.fecha_fin)],
+    ['Mensualidad', formatCOP(grupo.precio_mensual)],
+    ['Ciclo completo (3 meses)', formatCOP(grupo.precio_ciclo)],
   ];
 
   return (
@@ -253,7 +253,7 @@ function ModalConfirmacion({ cohorte, onConfirmar, onCerrar, loading, error, con
               Tu primer pago está pendiente. Recibirás comunicación del equipo
               con las instrucciones del ciclo.
               <br /><br />
-              El ciclo inicia el <strong style={{ color: '#D4AF37' }}>{formatFecha(cohorte.fecha_inicio)}</strong>.
+              El ciclo inicia el <strong style={{ color: '#D4AF37' }}>{formatFecha(grupo.fecha_inicio)}</strong>.
             </div>
             <button
               onClick={onCerrar}
@@ -381,7 +381,7 @@ function InscripcionActivaCard({ inscripcion }) {
 
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────
 export default function InscripcionPage() {
-  const [cohortes, setCohortes]           = useState([]);
+  const [grupos, setGrupos]           = useState([]);
   const [inscActiva, setInscActiva]       = useState(null);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
@@ -389,7 +389,7 @@ export default function InscripcionPage() {
   const [filtroModalidad, setFiltroModalidad] = useState('todos');
   const [filtroNivel, setFiltroNivel]         = useState('todos');
 
-  const [cohorteSeleccionada, setCohorteSeleccionada] = useState(null);
+  const [grupoSeleccionado, setGrupoSeleccionado] = useState(null);
   const [modalLoading, setModalLoading]               = useState(false);
   const [modalError, setModalError]                   = useState(null);
   const [confirmado, setConfirmado]                   = useState(false);
@@ -398,11 +398,11 @@ export default function InscripcionPage() {
     setLoading(true);
     setError(null);
     try {
-      const [cohortesData, inscData] = await Promise.all([
-        api.getCohortesDisponibles(),
+      const [gruposData, inscData] = await Promise.all([
+        api.getGruposDisponibles(),
         api.getInscripciones({ estado: 'activa' }),
       ]);
-      setCohortes(cohortesData);
+      setGrupos(gruposData);
       setInscActiva(inscData?.[0] || null);
     } catch {
       setError('No se pudieron cargar las grupos disponibles. Intenta de nuevo.');
@@ -413,31 +413,31 @@ export default function InscripcionPage() {
 
   useEffect(() => { cargarDatos(); }, []);
 
-  const cohortesFiltradas = cohortes.filter(c => {
+  const gruposFiltrados = grupos.filter(c => {
     if (filtroModalidad !== 'todos' && c.modalidad !== filtroModalidad) return false;
     if (filtroNivel !== 'todos' && c.nivel !== filtroNivel) return false;
     return true;
   });
 
-  const handleInscribirse = (cohorte) => {
-    setCohorteSeleccionada(cohorte);
+  const handleInscribirse = (grupo) => {
+    setGrupoSeleccionado(grupo);
     setModalError(null);
     setConfirmado(false);
   };
 
   const handleConfirmar = async () => {
-    if (!cohorteSeleccionada) return;
+    if (!grupoSeleccionado) return;
     setModalLoading(true);
     setModalError(null);
     try {
-      await api.autoInscribirse(cohorteSeleccionada.id);
+      await api.autoInscribirse(grupoSeleccionado.id);
       setConfirmado(true);
       // Recargar para reflejar cambios
-      const [cohortesData, inscData] = await Promise.all([
-        api.getCohortesDisponibles(),
+      const [gruposData, inscData] = await Promise.all([
+        api.getGruposDisponibles(),
         api.getInscripciones({ estado: 'activa' }),
       ]);
-      setCohortes(cohortesData);
+      setGrupos(gruposData);
       setInscActiva(inscData?.[0] || null);
     } catch (err) {
       setModalError(err?.error || 'Ocurrió un error al procesar la inscripción.');
@@ -447,7 +447,7 @@ export default function InscripcionPage() {
   };
 
   const handleCerrarModal = () => {
-    setCohorteSeleccionada(null);
+    setGrupoSeleccionado(null);
     setModalError(null);
     if (confirmado) setConfirmado(false);
   };
@@ -490,7 +490,7 @@ export default function InscripcionPage() {
           Inscríbete en el próximo ciclo
         </h1>
         <p style={{ fontSize: '0.85rem', color: '#A09A8C' }}>
-          {cohortes.filter(c => c.cupos_disponibles > 0).length} cohortes con cupos disponibles
+          {grupos.filter(c => c.cupos_disponibles > 0).length} grupos con cupos disponibles
         </p>
       </div>
 
@@ -533,7 +533,7 @@ export default function InscripcionPage() {
         </div>
       </div>
 
-      {cohortesFiltradas.length === 0 ? (
+      {gruposFiltrados.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280', fontSize: '0.9rem' }}>
           No hay grupos disponibles con ese filtro.
         </div>
@@ -543,10 +543,10 @@ export default function InscripcionPage() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
           gap: '16px',
         }}>
-          {cohortesFiltradas.map(c => (
-            <CohorteCard
+          {gruposFiltrados.map(c => (
+            <GrupoCard
               key={c.id}
-              cohorte={c}
+              grupo={c}
               onInscribirse={handleInscribirse}
               tieneInscripcionActiva={!!inscActiva && !c.ya_inscrito}
             />
@@ -555,7 +555,7 @@ export default function InscripcionPage() {
       )}
 
       <ModalConfirmacion
-        cohorte={cohorteSeleccionada}
+        grupo={grupoSeleccionado}
         onConfirmar={handleConfirmar}
         onCerrar={handleCerrarModal}
         loading={modalLoading}

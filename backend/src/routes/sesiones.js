@@ -6,28 +6,28 @@ const { authenticate, authorize } = require("../middleware/auth");
 const router = express.Router();
 router.use(authenticate);
 
-// ─── GET /sesiones?cohorteId=xxx ─────────────────────────
+// ─── GET /sesiones?grupoId=xxx ─────────────────────────
 router.get("/", async (req, res) => {
   try {
-    const { cohorteId } = req.query;
-    if (!cohorteId) return res.status(400).json({ error: "cohorteId requerido" });
+    const { grupoId } = req.query;
+    if (!grupoId) return res.status(400).json({ error: "grupoId requerido" });
 
-    // Verificar acceso: escalador solo ve sesiones de sus cohortes
+    // Verificar acceso: escalador solo ve sesiones de sus grupos
     if (req.user.rol === "escalador") {
       const check = await db(
-        "SELECT 1 FROM inscripcion WHERE escalador_id = $1 AND cohorte_id = $2 AND estado = 'activa'",
-        [req.user.escalador.id, cohorteId]
+        "SELECT 1 FROM inscripcion WHERE escalador_id = $1 AND grupo_id = $2 AND estado = 'activa'",
+        [req.user.escalador.id, grupoId]
       );
-      if (check.rows.length === 0) return res.status(403).json({ error: "No estás inscrito en esta cohorte" });
+      if (check.rows.length === 0) return res.status(403).json({ error: "No estás inscrito en esta grupo" });
     }
 
-    // Entrenador solo ve sesiones de sus cohortes
+    // Entrenador solo ve sesiones de sus grupos
     if (req.user.rol === "entrenador") {
       const check = await db(
-        "SELECT 1 FROM cohorte WHERE id = $1 AND entrenador_id = $2",
-        [cohorteId, req.user.entrenador.id]
+        "SELECT 1 FROM grupo WHERE id = $1 AND entrenador_id = $2",
+        [grupoId, req.user.entrenador.id]
       );
-      if (check.rows.length === 0) return res.status(403).json({ error: "Esta cohorte no es tuya" });
+      if (check.rows.length === 0) return res.status(403).json({ error: "Esta grupo no es tuya" });
     }
 
     const result = await db(
@@ -35,9 +35,9 @@ router.get("/", async (req, res) => {
               (SELECT COUNT(*) FROM asistencia a WHERE a.sesion_id = s.id AND a.asistio = true) as asistentes,
               (SELECT COUNT(*) FROM asistencia a WHERE a.sesion_id = s.id) as registros
        FROM sesion s
-       WHERE s.cohorte_id = $1
+       WHERE s.grupo_id = $1
        ORDER BY s.numero_sesion ASC`,
-      [cohorteId]
+      [grupoId]
     );
 
     res.json(result.rows);
@@ -51,29 +51,29 @@ router.get("/", async (req, res) => {
 router.post(
   "/generar",
   authorize("admin", "entrenador"),
-  [body("cohorteId").isUUID()],
+  [body("grupoId").isUUID()],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     try {
-      const { cohorteId } = req.body;
+      const { grupoId } = req.body;
 
-      // Obtener cohorte con ciclo
+      // Obtener grupo con ciclo
       const cohRes = await db(
         `SELECT c.*, ci.fecha_inicio, ci.fecha_fin, c.horario
-         FROM cohorte c JOIN ciclo ci ON c.ciclo_id = ci.id
+         FROM grupo c JOIN ciclo ci ON c.ciclo_id = ci.id
          WHERE c.id = $1`,
-        [cohorteId]
+        [grupoId]
       );
-      if (cohRes.rows.length === 0) return res.status(404).json({ error: "Cohorte no encontrada" });
+      if (cohRes.rows.length === 0) return res.status(404).json({ error: "grupo no encontrada" });
 
       const coh = cohRes.rows[0];
 
       // Verificar que no haya sesiones ya generadas
-      const existing = await db("SELECT COUNT(*) as n FROM sesion WHERE cohorte_id = $1", [cohorteId]);
+      const existing = await db("SELECT COUNT(*) as n FROM sesion WHERE grupo_id = $1", [grupoId]);
       if (parseInt(existing.rows[0].n) > 0) {
-        return res.status(409).json({ error: `Ya hay ${existing.rows[0].n} sesiones generadas para esta cohorte` });
+        return res.status(409).json({ error: `Ya hay ${existing.rows[0].n} sesiones generadas para esta grupo` });
       }
 
       // Parsear horario: "lun_mie_18_20" → días [1,3], hora 18:00-20:00
@@ -103,7 +103,7 @@ router.post(
           const fecha = current.toISOString().split("T")[0];
           // Última sesión (semana 12-13) es checkpoint fest
           const tipo = num >= 25 ? "checkpoint_fest" : (num === 1 || num === 2 ? "test" : "regular");
-          sesiones.push({ cohorteId, fecha, horaInicio, horaFin, num, tipo });
+          sesiones.push({ grupoId, fecha, horaInicio, horaFin, num, tipo });
           num++;
         }
         current.setDate(current.getDate() + 1);
@@ -112,9 +112,9 @@ router.post(
       // Insertar en batch
       for (const s of sesiones) {
         await db(
-          `INSERT INTO sesion (cohorte_id, fecha, hora_inicio, hora_fin, numero_sesion, tipo)
+          `INSERT INTO sesion (grupo_id, fecha, hora_inicio, hora_fin, numero_sesion, tipo)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [s.cohorteId, s.fecha, s.horaInicio, s.horaFin, s.num, s.tipo]
+          [s.grupoId, s.fecha, s.horaInicio, s.horaFin, s.num, s.tipo]
         );
       }
 
@@ -140,7 +140,7 @@ router.get("/:id", async (req, res) => {
               p.nombre as programa_nombre,
               m.nombre as muro_nombre
        FROM sesion s
-       JOIN cohorte c ON s.cohorte_id = c.id
+       JOIN grupo c ON s.grupo_id = c.id
        JOIN programa p ON c.programa_id = p.id
        JOIN muro_aliado m ON c.muro_id = m.id
        WHERE s.id = $1`,

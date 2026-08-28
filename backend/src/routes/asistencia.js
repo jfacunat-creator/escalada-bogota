@@ -27,14 +27,14 @@ router.post(
       // Verificar que la sesión existe y pertenece al entrenador
       const sesion = await db(
         `SELECT s.id, c.entrenador_id
-         FROM sesion s JOIN cohorte c ON s.cohorte_id = c.id
+         FROM sesion s JOIN grupo c ON s.grupo_id = c.id
          WHERE s.id = $1`,
         [sesionId]
       );
       if (sesion.rows.length === 0) return res.status(404).json({ error: "Sesión no encontrada" });
 
       if (req.user.rol === "entrenador" && sesion.rows[0].entrenador_id !== req.user.entrenador.id) {
-        return res.status(403).json({ error: "Esta sesión no es de tu cohorte" });
+        return res.status(403).json({ error: "Esta sesión no es de tu grupo" });
       }
 
       let insertados = 0;
@@ -98,7 +98,7 @@ router.get("/sesion/:sesionId", async (req, res) => {
 router.get("/escalador/:escaladorId", async (req, res) => {
   try {
     const { escaladorId } = req.params;
-    const { cohorteId } = req.query;
+    const { grupoId } = req.query;
 
     // Escalador solo ve su propia asistencia
     if (req.user.rol === "escalador" && req.user.escalador.id !== escaladorId) {
@@ -108,16 +108,16 @@ router.get("/escalador/:escaladorId", async (req, res) => {
     let sql = `
       SELECT a.asistio, a.observaciones, a.created_at,
              s.fecha, s.hora_inicio, s.hora_fin, s.numero_sesion, s.tipo,
-             s.cohorte_id
+             s.grupo_id
       FROM asistencia a
       JOIN sesion s ON a.sesion_id = s.id
       WHERE a.escalador_id = $1
     `;
     const params = [escaladorId];
 
-    if (cohorteId) {
-      params.push(cohorteId);
-      sql += ` AND s.cohorte_id = $${params.length}`;
+    if (grupoId) {
+      params.push(grupoId);
+      sql += ` AND s.grupo_id = $${params.length}`;
     }
 
     sql += " ORDER BY s.fecha DESC";
@@ -145,8 +145,8 @@ router.get("/escalador/:escaladorId", async (req, res) => {
   }
 });
 
-// ─── GET /asistencia/cohorte/:cohorteId/resumen — Resumen por cohorte
-router.get("/cohorte/:cohorteId/resumen", authorize("entrenador", "admin"), async (req, res) => {
+// ─── GET /asistencia/grupo/:grupoId/resumen — Resumen por grupo
+router.get("/grupo/:grupoId/resumen", authorize("entrenador", "admin"), async (req, res) => {
   try {
     const result = await db(
       `SELECT e.id, e.nombre, e.apellido,
@@ -156,11 +156,11 @@ router.get("/cohorte/:cohorteId/resumen", authorize("entrenador", "admin"), asyn
        FROM inscripcion i
        JOIN escalador e ON i.escalador_id = e.id
        LEFT JOIN asistencia a ON a.escalador_id = e.id
-         AND a.sesion_id IN (SELECT id FROM sesion WHERE cohorte_id = $1)
-       WHERE i.cohorte_id = $1 AND i.estado = 'activa'
+         AND a.sesion_id IN (SELECT id FROM sesion WHERE grupo_id = $1)
+       WHERE i.grupo_id = $1 AND i.estado = 'activa'
        GROUP BY e.id
        ORDER BY e.nombre`,
-      [req.params.cohorteId]
+      [req.params.grupoId]
     );
 
     res.json(result.rows);
