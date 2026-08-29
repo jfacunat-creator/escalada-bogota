@@ -80,8 +80,8 @@ router.post(
       // FIX: incluir updated_at = NOW() por si la columna no tiene DEFAULT
       // en el esquema SQL (Prisma maneja @updatedAt en el cliente, no en la DB).
       const userResult = await client.query(
-        `INSERT INTO usuario (email, password_hash, rol, updated_at)
-         VALUES ($1, $2, 'escalador', NOW())
+        `INSERT INTO usuario (id, email, password_hash, rol, updated_at)
+         VALUES (gen_random_uuid(), $1, $2, 'escalador', NOW())
          RETURNING id, email, rol`,
         [email, passwordHash]
       );
@@ -90,9 +90,9 @@ router.post(
       // FIX: incluir updated_at = NOW() en escalador también
       const escResult = await client.query(
         `INSERT INTO escalador
-           (usuario_id, nombre, apellido, fecha_nacimiento, rango_etario,
+           (id, usuario_id, nombre, apellido, fecha_nacimiento, rango_etario,
             peso_kg, telefono, contacto_emergencia, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, NOW())
          RETURNING id, nombre, apellido, rango_etario, estado, created_at`,
         [
           usuario.id,
@@ -126,11 +126,7 @@ router.post(
         constraint: err.constraint,
       });
       // En desarrollo exponer el mensaje real; en producción respuesta genérica
-      const isDev = process.env.NODE_ENV !== "production";
-      res.status(500).json({
-        error: "Error interno del servidor",
-        ...(isDev && { detalle: err.message, codigo: err.code }),
-      });
+      res.status(500).json({ error: "Error interno del servidor" });
     } finally {
       client.release();
     }
