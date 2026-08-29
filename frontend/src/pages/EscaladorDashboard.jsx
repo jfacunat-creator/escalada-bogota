@@ -94,7 +94,7 @@ export default function EscaladorDashboard() {
                   📱 Escríbenos por WhatsApp
                 </a>
                 <a
-                  href={\`mailto:\${EMAIL}\`}
+                  href={`mailto:${EMAIL}`}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: '#242424', color: '#A09A8C', fontFamily: 'Poppins', fontSize: '0.82rem', textDecoration: 'none' }}
                 >
                   ✉️ {EMAIL}
@@ -107,7 +107,7 @@ export default function EscaladorDashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '18px' }}>
             <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '12px' }}>Mi Perfil</div>
-            {[['Nombre', \`\${esc?.nombre} \${esc?.apellido}\`], ['Estado', estadoLabel[esc?.estado]], ['Teléfono', profile?.escalador?.telefono || '—']].map(([k, v]) => (
+            {[['Nombre', `${esc?.nombre} ${esc?.apellido}`], ['Estado', estadoLabel[esc?.estado]], ['Teléfono', profile?.escalador?.telefono || '—']].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #242424', fontSize: '0.85rem' }}>
                 <span style={{ color: '#A09A8C' }}>{k}</span>
                 <span style={{ color: '#F0EDE8', fontWeight: 500 }}>{v}</span>
