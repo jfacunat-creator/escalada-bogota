@@ -5,6 +5,10 @@ import api from '../services/api';
 import { Loader2 } from 'lucide-react';
 import { IconoPresa, IconoRoca, IconoCronometro, IconoMuro, IconoEscalador } from '../components/Icons';
 
+// Constantes de contacto — ajustar cuando el equipo las defina
+const WHATSAPP_URL = 'https://wa.me/573001234567?text=Hola%2C+acabo+de+registrarme+en+la+plataforma+de+Escalada+Bogot%C3%A1+y+quiero+conocer+los+pr%C3%B3ximos+pasos.';
+const EMAIL        = 'info@escaladabogota.com';
+
 function Stat({ icon: Icon, label, value, color = '#D4AF37' }) {
   return (
     <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -51,13 +55,8 @@ export default function EscaladorDashboard() {
         <Stat icon={IconoRoca} label="Miembro desde" value={esc?.createdAt ? new Date(esc.createdAt).toLocaleDateString('es-CO', { month: 'short', year: 'numeric' }) : '—'} color='#A09A8C' />
       </div>
 
-      {esc?.estado === 'activo' && !activa && (
-        <div style={{ background: '#1a1200', border: '1px solid #D4AF3730', borderRadius: '8px', padding: '10px 16px', marginBottom: '16px', fontSize: '0.82rem', color: '#D4AF37', fontFamily: 'Poppins' }}>
-          ℹ️ Tu cuenta está activa en la plataforma pero <strong>aún no tienes grupo inscrito</strong> para el ciclo vigente.
-        </div>
-      )}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }} className="esc-grid">
-        <style>{`@media(max-width:768px){.esc-grid{grid-template-columns:1fr!important}}`}</style>
+        <style>{\`@media(max-width:768px){.esc-grid{grid-template-columns:1fr!important}}\`}</style>
 
         {activa ? (
           <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
@@ -72,28 +71,43 @@ export default function EscaladorDashboard() {
             </div>
           </div>
         ) : (
-          <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '48px', textAlign: 'center' }}>
-            <IconoMuro style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
-            <h3 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#A09A8C', marginBottom: '8px' }}>No estás inscrito en ningún grupo</h3>
-            <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: '20px' }}>Inscríbete en el próximo ciclo directamente desde la plataforma.</p>
-            <button
-              onClick={() => navigate('/app/inscribirme')}
-              style={{
-                padding: '11px 24px', borderRadius: '8px', background: '#D4AF37',
-                color: '#121212', border: 'none', fontFamily: 'Antonio, sans-serif',
-                fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', gap: '6px',
-              }}
-            >
-              Ver grupos disponibles →
-            </button>
+          <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ background: '#141000', borderBottom: '1px solid #D4AF3730', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#D4AF37', flexShrink: 0 }} />
+              <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1rem', color: '#D4AF37' }}>
+                Pendiente de asignación
+              </span>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <p style={{ fontFamily: 'Poppins', fontSize: '0.88rem', color: '#F0EDE8', marginBottom: '8px', fontWeight: 500 }}>
+                Tu registro está completo ✓
+              </p>
+              <p style={{ fontFamily: 'Poppins', fontSize: '0.83rem', color: '#A09A8C', lineHeight: 1.6, marginBottom: '18px' }}>
+                Un entrenador de Escalada Bogotá se pondrá en contacto contigo en los próximos días hábiles para coordinar tu evaluación inicial y asignarte al programa y grupo que mejor se adapte a tu nivel.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: '#25D366', color: '#fff', fontFamily: 'Poppins', fontSize: '0.82rem', fontWeight: 600, textDecoration: 'none' }}
+                >
+                  📱 Escríbenos por WhatsApp
+                </a>
+                <a
+                  href={\`mailto:\${EMAIL}\`}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: '#242424', color: '#A09A8C', fontFamily: 'Poppins', fontSize: '0.82rem', textDecoration: 'none' }}
+                >
+                  ✉️ {EMAIL}
+                </a>
+              </div>
+            </div>
           </div>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '18px' }}>
             <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '12px' }}>Mi Perfil</div>
-            {[['Nombre', `${esc?.nombre} ${esc?.apellido}`], ['Estado', estadoLabel[esc?.estado]], ['Teléfono', profile?.escalador?.telefono || '—']].map(([k, v]) => (
+            {[['Nombre', \`\${esc?.nombre} \${esc?.apellido}\`], ['Estado', estadoLabel[esc?.estado]], ['Teléfono', profile?.escalador?.telefono || '—']].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #242424', fontSize: '0.85rem' }}>
                 <span style={{ color: '#A09A8C' }}>{k}</span>
                 <span style={{ color: '#F0EDE8', fontWeight: 500 }}>{v}</span>
@@ -104,10 +118,9 @@ export default function EscaladorDashboard() {
           <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '18px' }}>
             <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '12px' }}>Accesos rápidos</div>
             {[
-              { label: 'Mi grupo', path: '/app/mi-grupo' },
-              { label: 'Mis pagos', path: '/app/mis-pagos' },
-              { label: 'Mi progreso', path: '/app/mi-progreso' },
-              { label: 'Inscripción', path: '/app/inscribirme' },
+              { label: 'Mi grupo',   path: '/app/mi-grupo' },
+              { label: 'Mis pagos',  path: '/app/mis-pagos' },
+              { label: 'Mi progreso',path: '/app/mi-progreso' },
             ].map(({ label, path }) => (
               <button key={path} onClick={() => navigate(path)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #242424', background: 'none', border: 'none', borderBottom: '1px solid #242424', cursor: 'pointer', fontSize: '0.85rem', color: '#D4AF37', fontFamily: 'Poppins' }}>
                 {label} →

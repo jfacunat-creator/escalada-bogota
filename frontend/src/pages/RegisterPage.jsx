@@ -62,7 +62,7 @@ export default function RegisterPage() {
         contactoEmergencia: `${contactoEmergenciaNombre} - ${contactoEmergenciaTelefono}`,
       };
       await register(data);
-      navigate('/app');
+      navigate('/bienvenida');
     } catch (err) {
       setError(err.error || err.errors?.[0]?.msg || 'Error en registro');
     } finally {

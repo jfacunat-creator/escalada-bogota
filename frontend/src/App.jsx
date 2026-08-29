@@ -10,6 +10,7 @@ import ContactoPage from './pages/landing/ContactoPage';
 import NormatividadPage from './pages/landing/NormatividadPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import BienvenidaPage from './pages/BienvenidaPage';   // ← NUEVO
 import EscaladorDashboard from './pages/EscaladorDashboard';
 import EntrenadorDashboard from './pages/EntrenadorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
@@ -26,7 +27,7 @@ import InscripcionPage from './pages/InscripcionPage';
 import GruposAdminPage from './pages/GruposAdminPage';
 import MisPagosPage from './pages/MisPagosPage';
 import RRHHPage from './pages/RRHHPage';
-import PlanTrackerPage from './pages/PlanTrackerPage';  // ← NUEVO
+import PlanTrackerPage from './pages/PlanTrackerPage';
 import { Loader2 } from 'lucide-react';
 
 const Spinner = () => (
@@ -59,20 +60,6 @@ function DashboardRouter() {
   }
 }
 
-function Proximamente({ title }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '80px', textAlign: 'center' }}>
-      <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: '#1c1c1c', border: '1px solid #2e2e2e', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="#4A2F0F" strokeWidth="2" style={{ width: '28px', height: '28px' }}>
-          <path d="M3 20L8 4l5 8 5-6 3 14H3z" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-      <h2 style={{ fontFamily: 'Antonio', fontSize: '1.5rem', color: '#F0EDE8', marginBottom: '8px' }}>{title}</h2>
-      <p style={{ color: '#A09A8C', fontSize: '0.9rem', fontFamily: 'Poppins' }}>Próximamente disponible.</p>
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -92,6 +79,9 @@ export default function App() {
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/registro" element={<RegisterPage />} />
 
+          {/* Post-registro: protegida pero fuera del AppLayout (pantalla limpia) */}
+          <Route path="/bienvenida" element={<ProtectedRoute><BienvenidaPage /></ProtectedRoute>} />
+
           {/* APP (protegido) */}
           <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route index element={<DashboardRouter />} />
@@ -110,7 +100,7 @@ export default function App() {
             <Route path="programas"      element={<ProgramasAdminPage />} />
             <Route path="pagos"          element={<PagosPage />} />
             <Route path="rrhh"           element={<RRHHPage />} />
-            <Route path="mi-plan"        element={<PlanTrackerPage />} />  {/* ← NUEVO */}
+            <Route path="mi-plan"        element={<PlanTrackerPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
