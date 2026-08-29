@@ -56,7 +56,7 @@ export default function EscaladorDashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }} className="esc-grid">
-        <style>{\`@media(max-width:768px){.esc-grid{grid-template-columns:1fr!important}}\`}</style>
+        <style>{`@media(max-width:768px){.esc-grid{grid-template-columns:1fr!important}}`}</style>
 
         {activa ? (
           <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', overflow: 'hidden' }}>
