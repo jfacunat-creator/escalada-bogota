@@ -31,20 +31,19 @@ export default function EntrenadorDashboard() {
       api.getEntrenador(user.entrenador.id).then(setData).catch(console.error).finally(() => setLoading(false));
     } else { setLoading(false); }
 
-    // Escaladores sin grupo — el entrenador necesita saber quiénes están por asignarse
-    // (solo el admin puede asignarlos; esta sección es informativa)
-    try {
-      const res = await fetch('/api/escaladores', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
-      });
-      if (res.ok) {
-        const todos = await res.json();
-        // Para el entrenador, el endpoint devuelve solo sus escaladores asignados.
-        // grupos_activos === 0 aquí significaría escalador en su grupo sin inscripción activa
-        // (edge case). La sección queda para que admin vea el total; entrenador ve la alerta.
-        setPendientes(todos.filter(e => e.estado === 'pendiente'));
-      }
-    } catch (_) {}
+    // Escaladores sin grupo — informativo para el entrenador
+    const fetchPendientes = async () => {
+      try {
+        const res = await fetch('/api/escaladores', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
+        });
+        if (res.ok) {
+          const todos = await res.json();
+          setPendientes(todos.filter(e => e.estado === 'pendiente'));
+        }
+      } catch (_) {}
+    };
+    fetchPendientes();
   }, [user?.entrenador?.id]);
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>;
@@ -65,7 +64,6 @@ export default function EntrenadorDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
         <StatCard icon={IconoMuro} label="Grupos activos" value={stats.grupos_activos || 0} color="#D4AF37" />
         <StatCard icon={IconoEscalador} label="Escaladores activos" value={stats.escaladores_activos || 0} color="#9E721D" />
-        <StatCard icon={IconoPresa} label="Escaladores activos" value={stats.escaladores_activos || 0} color="#22c55e" />
         <StatCard icon={IconoCronometro} label="Grupos histórico" value={stats.total_grupos_historico || 0} color="#A09A8C" />
         <StatCard icon={IconoPresa} label="Máx. grupos" value={data?.max_grupos || 6} color="#A09A8C" />
       </div>
