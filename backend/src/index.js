@@ -23,8 +23,11 @@ app.get("/api/health", (req, res) => {
 // Rutas
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/catalogos", require("./routes/catalogos"));
+app.use("/api/dashboard", require("./routes/dashboard"));
+app.use("/api/grupos", require("./routes/grupos"));
 app.use("/api/escaladores", require("./routes/escaladores"));
 app.use("/api/entrenadores", require("./routes/entrenadores"));
+app.use("/api/pagos", require("./routes/pagos"));
 app.use("/api/sesiones", require("./routes/sesiones"));
 app.use("/api/asistencia", require("./routes/asistencia"));
 
