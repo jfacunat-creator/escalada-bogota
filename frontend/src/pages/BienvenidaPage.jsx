@@ -93,8 +93,8 @@ export default function BienvenidaPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <Step
                 num={1} active={true}
-                title="Registro completado ✓"
-                desc="Tu perfil ya está en nuestra plataforma y tu cuenta está activa."
+                title="Cuenta abierta ✓"
+                desc="Tu cuenta está creada. Aún no estás inscrito en ningún grupo — eso lo coordina el entrenador contigo."
               />
               <Step
                 num={2} active={true}

@@ -236,9 +236,9 @@ export default function AdminDashboard() {
       {/* ── OPERACIÓN ────────────────────── */}
       <SectionTitle color={C.accent2}>Operación</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
-        <StatCard icon={IconoEscalador} label="Escaladores activos" value={data.escaladores_activos} sub={`${data.escaladores_total} registrados · ${data.adultos} adultos · ${data.menores} menores`} color="#22c55e" onClick={() => navigate('/admin/escaladores')} />
+        <StatCard icon={IconoEscalador} label="Escaladores activos" value={data.escaladores_activos} sub={`${data.escaladores_total} registrados · ${data.adultos} adultos · ${data.menores} menores`} color="#22c55e" onClick={() => navigate('/app/escaladores')} />
         <StatCard icon={IconoPresa} label="Inscripciones activas" value={data.inscripciones_activas} sub={`${data.inscripciones_total} total`} color={C.accent} />
-        <StatCard icon={IconoMuro} label="Grupos abiertos" value={data.grupos_abiertos} sub={`${data.grupos_en_curso} en curso`} color="#60a5fa" onClick={() => navigate('/admin/grupos')} />
+        <StatCard icon={IconoMuro} label="Grupos abiertos" value={data.grupos_abiertos} sub={`${data.grupos_en_curso} en curso`} color="#60a5fa" onClick={() => navigate('/app/grupos')} />
         <StatCard icon={IconoPlanEntreno} label="Capacidad" value={`${data.total_inscritos}/${data.capacidad_total}`} sub={`${data.ocupacion_pct}% ocupación`} color={data.ocupacion_pct >= 70 ? '#22c55e' : '#f59e0b'} />
         <StatCard icon={IconoCronometro} label="Renovación" value={data.escaladores_renovados} sub="2+ ciclos" color="#a78bfa" />
       </div>
@@ -277,6 +277,42 @@ export default function AdminDashboard() {
       </div>
 
       {/* ── ALERTAS ────────────────────── */}
+      {/* ── Pendientes de asignación ── */}
+      {pendientes.length > 0 && (
+        <div style={{ marginTop: '8px' }}>
+          <SectionTitle color="#f59e0b">
+            Cuentas nuevas · pendientes de asignación · {pendientes.length}
+          </SectionTitle>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {pendientes.map(e => (
+              <div key={e.id} style={{ background: C.surface, border: '1px solid #f59e0b40', borderLeft: '3px solid #f59e0b', borderRadius: '10px', padding: '14px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
+                <div style={{ flex: 1, minWidth: '180px' }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: '0.9rem', color: C.text, fontWeight: 600 }}>
+                    {e.nombre} {e.apellido}
+                    <span style={{ marginLeft: '8px', fontSize: '0.72rem', fontWeight: 400, color: C.text3 }}>
+                      {e.rango_etario === 'adulto' ? 'Adulto' : e.rango_etario?.replace('menor_', 'Menor ')}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: C.text2, marginTop: '2px' }}>{e.email}</div>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: C.text2, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {e.telefono && <span>📱 {e.telefono}</span>}
+                  {e.contacto_emergencia && <span>🆘 {e.contacto_emergencia}</span>}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: C.text3 }}>
+                  Registro: {new Date(e.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </div>
+                <button
+                  onClick={() => navigate('/app/escaladores')}
+                  style={{ padding: '6px 14px', borderRadius: '8px', background: '#f59e0b20', border: '1px solid #f59e0b60', color: '#f59e0b', fontFamily: 'Poppins', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  Asignar grupo →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {(data.alertas?.pagos_vencidos > 0 || data.alertas?.grupos_casi_llenos > 0) && (
         <>
           <SectionTitle color="#ef4444">Alertas</SectionTitle>

@@ -38,7 +38,7 @@ export default function EscaladorDashboard() {
 
   const inscripciones = profile?.escalador?.inscripciones || [];
   const activa = inscripciones.find(i => i.estado === 'activa');
-  const estadoLabel = { activo: 'Activo', inactivo: 'Inactivo', congelado: 'Congelado' };
+  const estadoLabel = { pendiente: 'Cuenta abierta', activo: 'Activo', inactivo: 'Inactivo', congelado: 'Congelado' };
 
   return (
     <div>
@@ -48,7 +48,7 @@ export default function EscaladorDashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '28px' }}>
-        <Stat icon={IconoPresa} label="Estado plataforma" value={estadoLabel[esc?.estado] || 'Activo'} color={esc?.estado === 'activo' ? '#22c55e' : '#f59e0b'} />
+        <Stat icon={IconoPresa} label="Estado plataforma" value={estadoLabel[esc?.estado] || 'Activo'} color={esc?.estado === 'activo' ? '#22c55e' : esc?.estado === 'pendiente' ? '#f59e0b' : '#666'} />
         <Stat icon={IconoRoca} label="Nivel" value={esc?.rangoEtario === 'adulto' ? 'Adulto' : esc?.rangoEtario?.replace('menor_', 'Menor ')} />
         <Stat icon={IconoMuro} label="Grupo activo" value={activa ? activa.cohorte?.programa?.nombre?.split(' ')[0] || 'Sí' : 'Sin grupo'} color={activa ? '#22c55e' : '#A09A8C'} />
         <Stat icon={IconoCronometro} label="Ciclo" value={activa?.cohorte?.ciclo?.codigo || '—'} />

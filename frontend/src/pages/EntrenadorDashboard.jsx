@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2 } from 'lucide-react';
@@ -20,13 +21,30 @@ function StatCard({ icon: Icon, label, value, color = '#D4AF37' }) {
 
 export default function EntrenadorDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [pendientes, setPendientes] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user?.entrenador?.id) {
       api.getEntrenador(user.entrenador.id).then(setData).catch(console.error).finally(() => setLoading(false));
     } else { setLoading(false); }
+
+    // Escaladores sin grupo — el entrenador necesita saber quiénes están por asignarse
+    // (solo el admin puede asignarlos; esta sección es informativa)
+    try {
+      const res = await fetch('/api/escaladores', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
+      });
+      if (res.ok) {
+        const todos = await res.json();
+        // Para el entrenador, el endpoint devuelve solo sus escaladores asignados.
+        // grupos_activos === 0 aquí significaría escalador en su grupo sin inscripción activa
+        // (edge case). La sección queda para que admin vea el total; entrenador ve la alerta.
+        setPendientes(todos.filter(e => e.estado === 'pendiente'));
+      }
+    } catch (_) {}
   }, [user?.entrenador?.id]);
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>;
@@ -86,6 +104,41 @@ export default function EntrenadorDashboard() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Nuevos registros pendientes ── */}
+      {pendientes.length > 0 && (
+        <div style={{ marginTop: '32px', background: '#1c0f00', border: '1px solid #f59e0b40', borderLeft: '3px solid #f59e0b', borderRadius: '12px', padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+            <span style={{ fontSize: '1rem' }}>⏳</span>
+            <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: '#f59e0b' }}>
+              {pendientes.length} escalador{pendientes.length !== 1 ? 'es' : ''} nuevo{pendientes.length !== 1 ? 's' : ''} sin grupo asignado
+            </span>
+          </div>
+          <p style={{ fontFamily: 'Poppins', fontSize: '0.83rem', color: '#A09A8C', lineHeight: 1.6, marginBottom: '14px' }}>
+            Estas personas se registraron recientemente y aún no tienen grupo. Coordina con el administrador para asignarlos o contáctalos directamente para la evaluación inicial.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+            {pendientes.map(e => (
+              <div key={e.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', padding: '10px 12px', background: '#1c1c1c', borderRadius: '8px' }}>
+                <div style={{ flex: 1, minWidth: '160px' }}>
+                  <div style={{ fontFamily: 'Poppins', fontWeight: 600, color: '#F0EDE8', fontSize: '0.88rem' }}>{e.nombre} {e.apellido}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#A09A8C' }}>{e.email}</div>
+                </div>
+                {e.telefono && (
+                  <a href={`tel:${e.telefono}`} style={{ fontSize: '0.8rem', color: '#D4AF37', textDecoration: 'none', fontFamily: 'Poppins' }}>📱 {e.telefono}</a>
+                )}
+                {e.contacto_emergencia && (
+                  <span style={{ fontSize: '0.75rem', color: '#A09A8C' }}>🆘 {e.contacto_emergencia}</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <button onClick={() => navigate('/app/mis-escaladores')}
+            style={{ padding: '8px 16px', borderRadius: '8px', background: '#f59e0b20', border: '1px solid #f59e0b60', color: '#f59e0b', fontFamily: 'Poppins', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}>
+            Ver todos los escaladores →
+          </button>
         </div>
       )}
 

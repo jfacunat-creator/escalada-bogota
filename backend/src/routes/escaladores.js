@@ -68,7 +68,7 @@ router.put("/:id", [body("nombre").optional().trim(), body("apellido").optional(
   } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
 });
 
-router.patch("/:id/estado", authorize("admin"), [body("estado").isIn(["activo","inactivo","congelado"])], async (req, res) => {
+router.patch("/:id/estado", authorize("admin"), [body("estado").isIn(["pendiente","activo","inactivo","congelado"])], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
