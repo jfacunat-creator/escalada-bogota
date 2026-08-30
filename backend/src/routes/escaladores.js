@@ -6,75 +6,157 @@ const { authenticate, authorize } = require("../middleware/auth");
 const router = express.Router();
 router.use(authenticate);
 
+// ─── GET /escaladores ─────────────────────────────────────
+// Admin y entrenadores ven la lista de escaladores
 router.get("/", authorize("admin", "entrenador"), async (req, res) => {
   try {
-    const { estado, rangoEtario, buscar, cohorteId } = req.query;
+    const { estado, rangoEtario, buscar, grupoId } = req.query;
     let sql = `
       SELECT e.*, u.email, u.activo as usuario_activo,
-             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado='activa') as grupos_activos,
-             (SELECT COUNT(*) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.escalador_id = e.id AND pa.estado = 'pendiente') as pagos_pendientes,
-             (SELECT p.nombre FROM inscripcion i JOIN cohorte co ON i.cohorte_id = co.id JOIN programa p ON co.programa_id = p.id WHERE i.escalador_id = e.id AND i.estado = 'activa' LIMIT 1) as programa_activo,
-             (SELECT co.horario FROM inscripcion i JOIN cohorte co ON i.cohorte_id = co.id WHERE i.escalador_id = e.id AND i.estado = 'activa' LIMIT 1) as horario_activo,
-             (SELECT ent.nombre FROM inscripcion i JOIN cohorte co ON i.cohorte_id = co.id JOIN entrenador ent ON co.entrenador_id = ent.id WHERE i.escalador_id = e.id AND i.estado = 'activa' LIMIT 1) as entrenador_activo,
-             (SELECT COALESCE(SUM(pa.monto),0) FROM pago pa JOIN inscripcion i ON pa.inscripcion_id = i.id WHERE i.escalador_id = e.id AND pa.estado = 'pagado') as total_pagado
-      FROM escalador e JOIN usuario u ON e.usuario_id = u.id WHERE 1=1`;
+             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado = 'activa') as grupos_activos
+      FROM escalador e
+      JOIN usuario u ON e.usuario_id = u.id
+      WHERE 1=1`;
     const params = [];
-    if (estado) { params.push(estado); sql += ` AND e.estado = $${params.length}`; }
-    if (rangoEtario) { params.push(rangoEtario); sql += ` AND e.rango_etario = $${params.length}`; }
-    if (buscar) { params.push(`%${buscar}%`); sql += ` AND (e.nombre ILIKE $${params.length} OR e.apellido ILIKE $${params.length})`; }
-    if (cohorteId) { params.push(cohorteId); sql += ` AND EXISTS (SELECT 1 FROM inscripcion i WHERE i.escalador_id=e.id AND i.cohorte_id=$${params.length} AND i.estado='activa')`; }
-    if (req.user.rol === "entrenador") { params.push(req.user.entrenador.id); sql += ` AND EXISTS (SELECT 1 FROM inscripcion i JOIN cohorte co ON i.cohorte_id=co.id WHERE i.escalador_id=e.id AND co.entrenador_id=$${params.length} AND i.estado='activa')`; }
+
+    if (estado) {
+      params.push(estado);
+      sql += ` AND e.estado = $${params.length}`;
+    }
+    if (rangoEtario) {
+      params.push(rangoEtario);
+      sql += ` AND e.rango_etario = $${params.length}`;
+    }
+    if (buscar) {
+      params.push(`%${buscar}%`);
+      sql += ` AND (e.nombre ILIKE $${params.length} OR e.apellido ILIKE $${params.length})`;
+    }
+    if (grupoId) {
+      params.push(grupoId);
+      sql += ` AND EXISTS (SELECT 1 FROM inscripcion i WHERE i.escalador_id = e.id AND i.grupo_id = $${params.length} AND i.estado = 'activa')`;
+    }
+
+    // Entrenador solo ve SUS escaladores (los de sus grupos)
+    if (req.user.rol === "entrenador") {
+      params.push(req.user.entrenador.id);
+      sql += ` AND EXISTS (
+        SELECT 1 FROM inscripcion i
+        JOIN grupo g ON i.grupo_id = g.id
+        WHERE i.escalador_id = e.id
+          AND g.entrenador_id = $${params.length}
+          AND i.estado = 'activa'
+      )`;
+    }
+
     sql += " ORDER BY e.nombre, e.apellido";
     const result = await db(sql, params);
     res.json(result.rows);
-  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
+  } catch (err) {
+    console.error("Error GET /escaladores:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
 });
 
+// ─── GET /escaladores/:id ─────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (req.user.rol === "escalador" && req.user.escalador?.id !== id)
+
+    // Escalador solo puede ver su propio perfil
+    if (req.user.rol === "escalador" && req.user.escalador?.id !== id) {
       return res.status(403).json({ error: "Solo puedes ver tu propio perfil" });
+    }
+
     const result = await db(
-      `SELECT e.*, u.email FROM escalador e JOIN usuario u ON e.usuario_id=u.id WHERE e.id=$1`, [id]);
-    if (!result.rows.length) return res.status(404).json({ error: "Escalador no encontrado" });
+      `SELECT e.*, u.email FROM escalador e JOIN usuario u ON e.usuario_id = u.id WHERE e.id = $1`,
+      [id]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Escalador no encontrado" });
+    }
+
+    // Inscripciones con datos completos del grupo
     const inscripciones = await db(
-      `SELECT i.*, p.nombre as programa, ci.codigo as ciclo, m.nombre as muro, co.horario, co.modalidad
-       FROM inscripcion i JOIN cohorte co ON i.cohorte_id=co.id JOIN programa p ON co.programa_id=p.id
-       JOIN ciclo ci ON co.ciclo_id=ci.id JOIN muro_aliado m ON co.muro_id=m.id
-       WHERE i.escalador_id=$1 ORDER BY i.created_at DESC`, [id]);
+      `SELECT i.*, p.nombre AS programa, ci.codigo AS ciclo,
+              m.nombre AS muro, g.horario, g.modalidad,
+              ent.nombre AS entrenador
+       FROM inscripcion i
+       JOIN grupo g ON i.grupo_id = g.id
+       JOIN programa p ON g.programa_id = p.id
+       JOIN ciclo ci ON g.ciclo_id = ci.id
+       JOIN muro_aliado m ON g.muro_id = m.id
+       JOIN entrenador ent ON g.entrenador_id = ent.id
+       WHERE i.escalador_id = $1
+       ORDER BY i.created_at DESC`,
+      [id]
+    );
+
     res.json({ ...result.rows[0], inscripciones: inscripciones.rows });
-  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
+  } catch (err) {
+    console.error("Error GET /escaladores/:id:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
 });
 
-router.put("/:id", [body("nombre").optional().trim(), body("apellido").optional().trim(), body("telefono").optional().trim()], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-  try {
-    const { id } = req.params;
-    if (req.user.rol === "escalador" && req.user.escalador?.id !== id)
-      return res.status(403).json({ error: "Solo puedes editar tu propio perfil" });
-    const { nombre, apellido, pesoKg, telefono, contactoEmergencia } = req.body;
-    const sets = [], params = [];
-    if (nombre) { params.push(nombre); sets.push(`nombre=$${params.length}`); }
-    if (apellido) { params.push(apellido); sets.push(`apellido=$${params.length}`); }
-    if (pesoKg !== undefined) { params.push(pesoKg); sets.push(`peso_kg=$${params.length}`); }
-    if (telefono !== undefined) { params.push(telefono); sets.push(`telefono=$${params.length}`); }
-    if (contactoEmergencia) { params.push(contactoEmergencia); sets.push(`contacto_emergencia=$${params.length}`); }
-    if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
-    params.push(id);
-    const result = await db(`UPDATE escalador SET ${sets.join(',')} WHERE id=$${params.length} RETURNING *`, params);
-    res.json(result.rows[0]);
-  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
-});
+// ─── PUT /escaladores/:id ─────────────────────────────────
+router.put(
+  "/:id",
+  [
+    body("nombre").optional().trim(),
+    body("apellido").optional().trim(),
+    body("telefono").optional().trim(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-router.patch("/:id/estado", authorize("admin"), [body("estado").isIn(["pendiente","activo","inactivo","congelado"])], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-  try {
-    await db("UPDATE escalador SET estado=$1 WHERE id=$2", [req.body.estado, req.params.id]);
-    res.json({ message: `Estado cambiado a ${req.body.estado}` });
-  } catch (err) { console.error(err); res.status(500).json({ error: "Error interno" }); }
-});
+    try {
+      const { id } = req.params;
+      if (req.user.rol === "escalador" && req.user.escalador?.id !== id) {
+        return res.status(403).json({ error: "Solo puedes editar tu propio perfil" });
+      }
+
+      const { nombre, apellido, pesoKg, telefono, contactoEmergencia } = req.body;
+      const sets = [], params = [];
+
+      if (nombre) { params.push(nombre); sets.push(`nombre = $${params.length}`); }
+      if (apellido) { params.push(apellido); sets.push(`apellido = $${params.length}`); }
+      if (pesoKg !== undefined) { params.push(pesoKg); sets.push(`peso_kg = $${params.length}`); }
+      if (telefono !== undefined) { params.push(telefono); sets.push(`telefono = $${params.length}`); }
+      if (contactoEmergencia) { params.push(contactoEmergencia); sets.push(`contacto_emergencia = $${params.length}`); }
+
+      if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
+
+      params.push(id);
+      const result = await db(
+        `UPDATE escalador SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
+        params
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error("Error PUT /escaladores/:id:", err);
+      res.status(500).json({ error: "Error interno" });
+    }
+  }
+);
+
+// ─── PATCH /escaladores/:id/estado ────────────────────────
+router.patch(
+  "/:id/estado",
+  authorize("admin"),
+  [body("estado").isIn(["activo", "inactivo", "congelado"])],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    try {
+      await db("UPDATE escalador SET estado = $1 WHERE id = $2", [req.body.estado, req.params.id]);
+      res.json({ message: `Estado cambiado a ${req.body.estado}` });
+    } catch (err) {
+      console.error("Error PATCH estado:", err);
+      res.status(500).json({ error: "Error interno" });
+    }
+  }
+);
 
 module.exports = router;
