@@ -15,6 +15,8 @@ export default function EntrenadoresAdminPage() {
   const [loading, setLoading] = useState(true);
   const [buscar, setBuscar] = useState('');
   const [expanded, setExpanded] = useState(null);
+  const [detalles, setDetalles] = useState({});
+  const [loadingDetalle, setLoadingDetalle] = useState(null);
   const [showCrear, setShowCrear] = useState(false);
   const [editando, setEditando] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -83,6 +85,19 @@ export default function EntrenadoresAdminPage() {
     }
   };
 
+  const toggleExpanded = async (entId) => {
+    if (expanded === entId) { setExpanded(null); return; }
+    setExpanded(entId);
+    if (!detalles[entId]) {
+      setLoadingDetalle(entId);
+      try {
+        const d = await api.getEntrenador(entId);
+        setDetalles(prev => ({ ...prev, [entId]: d }));
+      } catch (err) { console.error(err); }
+      finally { setLoadingDetalle(null); }
+    }
+  };
+
   const filtrados = entrenadores.filter(e =>
     !buscar || `${e.nombre} ${e.email}`.toLowerCase().includes(buscar.toLowerCase())
   );
@@ -144,7 +159,8 @@ export default function EntrenadoresAdminPage() {
       {/* Cards de entrenadores */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filtrados.map(ent => {
-          const grupos = ent.grupos || [];
+          const detalle = detalles[ent.id];
+          const grupos = detalle?.grupos || [];
           const isOpen = expanded === ent.id;
           const pct = ent.max_grupos > 0 ? Math.round((parseInt(ent.grupos_activos) / ent.max_grupos) * 100) : 0;
 
@@ -152,7 +168,7 @@ export default function EntrenadoresAdminPage() {
             <div key={ent.id} style={{ background: C.surface, border: `1px solid ${isOpen ? C.accent + '50' : C.border}`, borderRadius: '12px', overflow: 'hidden', transition: 'border-color 0.2s' }}>
               {/* Fila principal */}
               <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' }}
-                onClick={() => setExpanded(isOpen ? null : ent.id)}>
+                onClick={() => toggleExpanded(ent.id)}>
                 {/* Avatar */}
                 <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#3a2e0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Antonio', fontSize: '1.1rem', color: C.accent, flexShrink: 0 }}>
                   {ent.nombre?.charAt(0)}
@@ -200,7 +216,11 @@ export default function EntrenadoresAdminPage() {
                   <div style={{ fontSize: '0.72rem', color: C.text2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '12px', fontFamily: 'Poppins' }}>
                     Grupos activos
                   </div>
-                  {grupos.length === 0 ? (
+                  {loadingDetalle === ent.id ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
+                      <Loader2 className="animate-spin" style={{ width: '18px', height: '18px', color: C.accent }} />
+                    </div>
+                  ) : grupos.length === 0 ? (
                     <p style={{ color: C.text3, fontFamily: 'Poppins', fontSize: '0.85rem' }}>Sin grupos activos en este ciclo.</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -228,7 +248,7 @@ export default function EntrenadoresAdminPage() {
                     </div>
                   )}
                   <div style={{ marginTop: '12px', padding: '10px 14px', background: '#0a0a0a', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins' }}>
-                    Fecha de ingreso: {ent.fecha_ingreso ? new Date(ent.fecha_ingreso).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
+                    Fecha de ingreso: {(detalle?.fecha_ingreso || ent.fecha_ingreso) ? new Date(detalle?.fecha_ingreso || ent.fecha_ingreso).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
                   </div>
                 </div>
               )}
