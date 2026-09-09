@@ -95,7 +95,7 @@ export default function PagosPage() {
           </div>
           <div className="bg-white rounded-xl border p-4 text-center">
             <p className="text-lg font-bold text-slate-700">{formatCOP(resumen.ingresos_esperados)}</p>
-            <p className="text-xs text-slate-500">Esperado</p>
+            <p className="text-xs text-slate-500">Total ciclo</p>
           </div>
           <div className="bg-white rounded-xl border p-4 text-center">
             <p className="text-lg font-bold text-green-600">{formatCOP(resumen.ingresos_recibidos)}</p>

@@ -14,7 +14,9 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
              ci.codigo AS ciclo_codigo, ci.anio, ci.trimestre,
              ci.fecha_inicio, ci.fecha_fin,
              m.nombre AS muro_nombre, ent.nombre AS entrenador_nombre,
-             (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'activa') AS inscritos_actual
+             (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'activa') AS inscritos_actual,
+             (SELECT COUNT(*) FROM sesion s WHERE s.grupo_id = g.id) AS total_sesiones,
+             (SELECT MAX(s.numero_sesion) FROM sesion s WHERE s.grupo_id = g.id AND s.fecha <= CURRENT_DATE) AS sesion_actual
       FROM grupo g
       JOIN programa p ON g.programa_id = p.id
       JOIN ciclo ci ON g.ciclo_id = ci.id

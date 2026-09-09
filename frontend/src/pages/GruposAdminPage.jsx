@@ -97,8 +97,16 @@ function GrupoRow({ grupo, onEstado, onDetalle }) {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: C.text, marginBottom: '4px' }}>
+          <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: C.text, marginBottom: '2px' }}>
             {grupo.programa_nombre}
+          </div>
+          <div style={{ fontSize: '0.78rem', color: C.accent, fontFamily: 'Poppins', fontWeight: 600, marginBottom: '6px' }}>
+            {grupo.ciclo_codigo}
+            {grupo.total_sesiones > 0 && (
+              <span style={{ color: C.text2, fontWeight: 400, marginLeft: '10px' }}>
+                Ses. {grupo.sesion_actual || 0}/{grupo.total_sesiones}
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             <Badge label={est.label} bg={est.bg} color={est.color} />

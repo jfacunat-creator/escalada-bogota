@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronRight as ChevronRight2 } from 'lucide-react';
 import { IconoPresa, IconoRoca, IconoEscalador } from '../components/Icons';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
@@ -65,6 +65,8 @@ export default function ProgramasAdminPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [filtro, setFiltro] = useState('');
+  const [sesionesGrupo, setSesionesGrupo] = useState([]);
+  const [semanaAbierta, setSemanaAbierta] = useState(null);
 
   useEffect(() => {
     Promise.all([api.getProgramas(), api.getGrupos({ estado: 'en_curso' })])
@@ -72,6 +74,18 @@ export default function ProgramasAdminPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  // Cuando se selecciona un programa, cargar sesiones del primer grupo activo
+  useEffect(() => {
+    setSesionesGrupo([]);
+    setSemanaAbierta(null);
+    if (!selected) return;
+    const prog = programas.find(p => p.id === selected);
+    if (!prog) return;
+    const grupoActivo = grupos.find(g => g.programa_nombre === prog.nombre || g.programa_id === selected);
+    if (!grupoActivo) return;
+    api.getSesiones(grupoActivo.id).then(setSesionesGrupo).catch(() => setSesionesGrupo([]));
+  }, [selected]);
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
@@ -84,6 +98,28 @@ export default function ProgramasAdminPage() {
   const prog = selected ? programas.find(p => p.id === selected) : null;
   const curriculo = prog ? CURRICULO[prog.nivel] : null;
   const gruposDelProg = grupos.filter(g => g.programa_id === selected || g.programa_nombre === prog?.nombre);
+
+  // Para un item de currículo, obtener las sesiones reales que caen en ese rango de semanas
+  const getSesionesParaItem = (item) => {
+    if (sesionesGrupo.length === 0 || !gruposDelProg.length) return [];
+    const grupo = gruposDelProg[0];
+    if (!grupo.fecha_inicio) return [];
+    const inicio = new Date(grupo.fecha_inicio);
+
+    // Parsear rango de semanas del item ("1", "2–4", "9–10", "13")
+    const [semDesde, semHasta] = item.semana.includes('–')
+      ? item.semana.split('–').map(Number)
+      : [parseInt(item.semana), parseInt(item.semana)];
+
+    const diaDesde = (semDesde - 1) * 7;
+    const diaHasta = semHasta * 7;
+
+    return sesionesGrupo.filter(s => {
+      const fecha = new Date(s.fecha);
+      const diff = Math.floor((fecha - inicio) / (1000 * 60 * 60 * 24));
+      return diff >= diaDesde && diff < diaHasta;
+    });
+  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: selected ? '300px 1fr' : '1fr', gap: '20px' }} className="prog-layout">
@@ -210,29 +246,110 @@ export default function ProgramasAdminPage() {
             </div>
           )}
 
-          {/* Currículo semana a semana */}
+          {/* Currículo semana a semana — expandible con sesiones reales */}
           {curriculo && (
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', overflow: 'hidden' }}>
-              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, fontSize: '0.72rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'Poppins' }}>
-                Currículo · Sesión por sesión
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.72rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'Poppins' }}>
+                  Currículo · Semana por semana
+                </span>
+                {sesionesGrupo.length > 0 && (
+                  <span style={{ fontSize: '0.72rem', color: '#22c55e', fontFamily: 'Poppins', fontWeight: 600 }}>
+                    {sesionesGrupo.length} sesiones generadas
+                  </span>
+                )}
               </div>
-              {curriculo.estructura.map((item, i) => (
-                <div key={i} style={{ padding: '14px 18px', borderBottom: i < curriculo.estructura.length - 1 ? `1px solid #1a1a1a` : 'none', display: 'flex', gap: '14px' }}>
-                  <div style={{ flexShrink: 0, width: '56px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.68rem', color: C.text3, fontFamily: 'Poppins' }}>Sem.</div>
-                    <div style={{ fontFamily: 'Antonio', fontSize: '0.95rem', color: C.text2 }}>{item.semana}</div>
+              {curriculo.estructura.map((item, i) => {
+                const sesItemRaw = getSesionesParaItem(item);
+                const sesItem = sesItemRaw;
+                const abierta = semanaAbierta === i;
+                const hoy = new Date().toISOString().split('T')[0];
+
+                return (
+                  <div key={i} style={{ borderBottom: i < curriculo.estructura.length - 1 ? `1px solid #1a1a1a` : 'none' }}>
+                    {/* Fila de semana — clickable */}
+                    <button
+                      onClick={() => setSemanaAbierta(abierta ? null : i)}
+                      style={{ width: '100%', padding: '14px 18px', display: 'flex', gap: '14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#242424'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ flexShrink: 0, width: '56px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.68rem', color: C.text3, fontFamily: 'Poppins' }}>Sem.</div>
+                        <div style={{ fontFamily: 'Antonio', fontSize: '0.95rem', color: C.text2 }}>{item.semana}</div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '0.7rem', padding: '1px 7px', borderRadius: '4px', fontWeight: 600, fontFamily: 'Poppins', background: tipoColor[item.tipo] + '20', color: tipoColor[item.tipo] }}>
+                            {tipoLabel[item.tipo]}
+                          </span>
+                          <span style={{ fontWeight: 600, color: C.text, fontSize: '0.88rem', fontFamily: 'Poppins' }}>{item.titulo}</span>
+                          {sesItem.length > 0 && (
+                            <span style={{ fontSize: '0.7rem', color: '#60a5fa', fontFamily: 'Poppins', marginLeft: 'auto' }}>
+                              {sesItem.length} ses.
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins', lineHeight: 1.6 }}>{item.detalle}</div>
+                      </div>
+                      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', color: C.text3 }}>
+                        {abierta ? <ChevronDown size={16} /> : <ChevronRight2 size={16} />}
+                      </div>
+                    </button>
+
+                    {/* Sesiones expandidas */}
+                    {abierta && (
+                      <div style={{ borderTop: `1px solid #1a1a1a`, background: '#161616', padding: '12px 18px 12px 88px' }}>
+                        {sesItem.length === 0 ? (
+                          <p style={{ fontSize: '0.8rem', color: C.text3, fontFamily: 'Poppins' }}>
+                            {sesionesGrupo.length === 0
+                              ? 'Genera las sesiones del grupo para ver las fechas reales.'
+                              : 'No hay sesiones en este rango de semanas.'}
+                          </p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {sesItem.map(s => {
+                              const fs = s.fecha?.split('T')[0];
+                              const pasada = fs < hoy;
+                              const esHoy = fs === hoy;
+                              const tieneAsist = parseInt(s.asistentes || s.total_asistencias || 0) > 0;
+                              return (
+                                <div key={s.id} style={{
+                                  display: 'flex', alignItems: 'center', gap: '12px',
+                                  padding: '8px 12px', borderRadius: '8px',
+                                  background: esHoy ? 'rgba(245,158,11,0.07)' : 'rgba(36,36,36,0.6)',
+                                  border: `1px solid ${esHoy ? 'rgba(245,158,11,0.25)' : '#252525'}`,
+                                }}>
+                                  <span style={{ fontFamily: 'Antonio', fontSize: '0.95rem', color: C.accent, width: '28px' }}>
+                                    #{s.numero_sesion}
+                                  </span>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '0.82rem', color: pasada ? C.text2 : C.text, fontFamily: 'Poppins', fontWeight: 500 }}>
+                                      {new Date(s.fecha).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' })}
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: C.text3, fontFamily: 'Poppins' }}>
+                                      {s.hora_inicio?.substring(0, 5)}–{s.hora_fin?.substring(0, 5)}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                    {esHoy && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b' }} />}
+                                    {tieneAsist && (
+                                      <span style={{ fontSize: '0.72rem', color: '#22c55e', fontFamily: 'Poppins' }}>✓ Asistencia</span>
+                                    )}
+                                    {pasada && !tieneAsist && (
+                                      <span style={{ fontSize: '0.72rem', color: '#ef4444', fontFamily: 'Poppins' }}>Sin registro</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '0.7rem', padding: '1px 7px', borderRadius: '4px', fontWeight: 600, fontFamily: 'Poppins', background: tipoColor[item.tipo] + '20', color: tipoColor[item.tipo] }}>
-                        {tipoLabel[item.tipo]}
-                      </span>
-                      <span style={{ fontWeight: 600, color: C.text, fontSize: '0.88rem', fontFamily: 'Poppins' }}>{item.titulo}</span>
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins', lineHeight: 1.6 }}>{item.detalle}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
