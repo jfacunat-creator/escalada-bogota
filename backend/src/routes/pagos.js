@@ -11,14 +11,14 @@ router.get("/resumen", authorize("admin"), async (req, res) => {
     const result = await db(`
       SELECT
         COUNT(*) FILTER (WHERE i.estado = 'activa') AS activas,
-        COALESCE(SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa'), 0) AS ingresos_esperados,
+        COALESCE(SUM(p.monto), 0) AS ingresos_esperados,
         COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS ingresos_recibidos,
         COUNT(p.id) FILTER (WHERE p.estado = 'pendiente') AS pagos_pendientes,
         CASE
-          WHEN SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa') > 0
+          WHEN SUM(p.monto) > 0
           THEN ROUND(
             SUM(p.monto) FILTER (WHERE p.estado = 'pagado') * 100.0 /
-            SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa')
+            SUM(p.monto)
           )
           ELSE 0
         END AS tasa_recaudo
