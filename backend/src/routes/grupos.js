@@ -12,8 +12,9 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
     let sql = `
       SELECT g.*, p.nombre AS programa_nombre, p.nivel, p.poblacion,
              ci.codigo AS ciclo_codigo, ci.anio, ci.trimestre,
+             ci.fecha_inicio, ci.fecha_fin,
              m.nombre AS muro_nombre, ent.nombre AS entrenador_nombre,
-             (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'activa') AS inscritos
+             (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'activa') AS inscritos_actual
       FROM grupo g
       JOIN programa p ON g.programa_id = p.id
       JOIN ciclo ci ON g.ciclo_id = ci.id
@@ -107,8 +108,8 @@ router.get("/:id", async (req, res) => {
 router.patch("/:id/estado", authorize("admin"), async (req, res) => {
   try {
     const { estado } = req.body;
-    if (!["abierta", "en_curso", "cerrada", "cancelada"].includes(estado)) {
-      return res.status(400).json({ error: "Estado inválido" });
+    if (!["abierta", "en_curso", "cerrada", "finalizada"].includes(estado)) {
+      return res.status(400).json({ error: "Estado inválido (abierta | en_curso | cerrada | finalizada)" });
     }
     await db("UPDATE grupo SET estado = $1 WHERE id = $2", [estado, req.params.id]);
     res.json({ message: `Estado cambiado a ${estado}` });

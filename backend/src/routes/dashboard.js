@@ -50,7 +50,7 @@ router.get("/", authorize("admin"), async (req, res) => {
       // 1. Métricas financieras
       db(`
         SELECT
-          COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'confirmado'), 0) AS ingresos_recibidos,
+          COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS ingresos_recibidos,
           COUNT(p.id) FILTER (WHERE p.estado = 'pendiente') AS pagos_pendientes,
           COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'vencido'), 0) AS ingresos_vencidos
         FROM pago p
@@ -62,18 +62,19 @@ router.get("/", authorize("admin"), async (req, res) => {
       `, p1),
 
       // 2. Gastos entrenadores (desde contratos activos × factor prestacional)
+      // Tabla contrato_entrenador puede no existir en todas las instalaciones
       db(`
         SELECT
           COALESCE(SUM(salario_base) * 1.54, 0) AS gastos_entrenadores_estimado,
           COUNT(*) AS n_entrenadores
         FROM contrato_entrenador WHERE estado = 'activo'
-      `),
+      `).catch(() => ({ rows: [{ gastos_entrenadores_estimado: 0, n_entrenadores: 0 }] })),
 
       // 3. Ingresos por nivel
       db(`
         SELECT pr.nivel, g.modalidad,
                COUNT(DISTINCT i.id) AS inscripciones,
-               COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'confirmado'), 0) AS recaudado
+               COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS recaudado
         FROM inscripcion i
         JOIN grupo g ON i.grupo_id = g.id
         JOIN programa pr ON g.programa_id = pr.id
@@ -88,7 +89,7 @@ router.get("/", authorize("admin"), async (req, res) => {
       db(`
         SELECT ent.nombre AS entrenador,
                COUNT(DISTINCT i.id) AS inscripciones,
-               COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'confirmado'), 0) AS recaudado
+               COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS recaudado
         FROM inscripcion i
         JOIN grupo g ON i.grupo_id = g.id
         JOIN entrenador ent ON g.entrenador_id = ent.id
@@ -196,7 +197,7 @@ router.get("/", authorize("admin"), async (req, res) => {
         SELECT TO_CHAR(fecha_pago, 'YYYY-MM') AS periodo,
                COALESCE(SUM(monto), 0) AS total
         FROM pago
-        WHERE estado = 'confirmado'
+        WHERE estado = 'pagado'
           AND fecha_pago >= CURRENT_DATE - INTERVAL '6 months'
         GROUP BY periodo
         ORDER BY periodo ASC

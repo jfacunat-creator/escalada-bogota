@@ -12,12 +12,12 @@ router.get("/resumen", authorize("admin"), async (req, res) => {
       SELECT
         COUNT(*) FILTER (WHERE i.estado = 'activa') AS activas,
         COALESCE(SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa'), 0) AS ingresos_esperados,
-        COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'confirmado'), 0) AS ingresos_recibidos,
+        COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS ingresos_recibidos,
         COUNT(p.id) FILTER (WHERE p.estado = 'pendiente') AS pagos_pendientes,
         CASE
           WHEN SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa') > 0
           THEN ROUND(
-            SUM(p.monto) FILTER (WHERE p.estado = 'confirmado') * 100.0 /
+            SUM(p.monto) FILTER (WHERE p.estado = 'pagado') * 100.0 /
             SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa')
           )
           ELSE 0
@@ -76,7 +76,7 @@ router.post("/", authorize("admin"), async (req, res) => {
 
     const result = await db(
       `INSERT INTO pago (inscripcion_id, monto, estado, metodo, referencia, fecha_pago, fecha_vencimiento)
-       VALUES ($1, $2, 'confirmado', $3, $4, CURRENT_DATE, CURRENT_DATE)
+       VALUES ($1, $2, 'pagado', $3, $4, CURRENT_DATE, CURRENT_DATE)
        RETURNING *`,
       [inscripcionId, parseFloat(monto), metodo || "transferencia", referencia || null]
     );
@@ -120,8 +120,8 @@ router.patch("/:id", authorize("admin"), async (req, res) => {
     const sets = [], params = [];
 
     if (estado) {
-      if (!["pendiente", "confirmado", "rechazado", "vencido"].includes(estado)) {
-        return res.status(400).json({ error: "Estado inválido" });
+      if (!["pendiente", "pagado", "vencido"].includes(estado)) {
+        return res.status(400).json({ error: "Estado inválido (pendiente | pagado | vencido)" });
       }
       params.push(estado);
       sets.push(`estado = $${params.length}`);

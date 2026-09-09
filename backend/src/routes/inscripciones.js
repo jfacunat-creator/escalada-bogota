@@ -23,7 +23,7 @@ router.get("/", async (req, res) => {
              p.nombre as programa, ci.codigo as ciclo, m.nombre as muro,
              co.horario, co.modalidad,
              ent.nombre as entrenador_nombre,
-             (SELECT COALESCE(SUM(pa.monto) FILTER (WHERE pa.estado='confirmado'),0) FROM pago pa WHERE pa.inscripcion_id=i.id) as total_pagado,
+             (SELECT COALESCE(SUM(pa.monto) FILTER (WHERE pa.estado='pagado'),0) FROM pago pa WHERE pa.inscripcion_id=i.id) as total_pagado,
              (SELECT COUNT(*) FROM pago pa WHERE pa.inscripcion_id=i.id AND pa.estado='pendiente') as pagos_pendientes
       FROM inscripcion i
       JOIN escalador e ON i.escalador_id = e.id

@@ -24,7 +24,7 @@ function formatFecha(d) {
 
 const ESTADO_PAGO = {
   pendiente: { icon: Clock,         color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Pendiente' },
-  confirmado:    { icon: CheckCircle2,   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  label: 'Pagado' },
+  pagado:    { icon: CheckCircle2,   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  label: 'Pagado' },
   vencido:   { icon: AlertCircle,    color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  label: 'Vencido' },
 };
 
@@ -70,16 +70,16 @@ function PagoCard({ pago, onPagar, pagando }) {
         </div>
         <div style={{ background: '#252525', borderRadius: '8px', padding: '10px 12px' }}>
           <div style={{ fontSize: '0.68rem', color: C.text2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '4px', fontFamily: 'Poppins' }}>
-            {pago.estado === 'confirmado' ? 'Fecha de pago' : 'Vence'}
+            {pago.estado === 'pagado' ? 'Fecha de pago' : 'Vence'}
           </div>
           <div style={{ fontFamily: 'Poppins', fontSize: '0.9rem', fontWeight: 600, color: vencido ? '#ef4444' : C.text }}>
-            {formatFecha(pago.estado === 'confirmado' ? pago.fecha_pago : pago.fecha_vencimiento)}
+            {formatFecha(pago.estado === 'pagado' ? pago.fecha_pago : pago.fecha_vencimiento)}
           </div>
         </div>
       </div>
 
       {/* Método y referencia si ya pagó */}
-      {pago.estado === 'confirmado' && (
+      {pago.estado === 'pagado' && (
         <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins', display: 'flex', gap: '16px' }}>
           {pago.metodo && <span>Método: <span style={{ color: C.text, textTransform: 'capitalize' }}>{pago.metodo}</span></span>}
           {pago.referencia && <span>Ref: <span style={{ color: C.text }}>{pago.referencia.substring(0, 20)}</span></span>}
@@ -87,7 +87,7 @@ function PagoCard({ pago, onPagar, pagando }) {
       )}
 
       {/* Botón de pago */}
-      {pago.estado !== 'confirmado' && (
+      {pago.estado !== 'pagado' && (
         <button
           onClick={() => onPagar(pago.id)}
           disabled={pagando === pago.id}
@@ -138,10 +138,10 @@ export default function MisPagosPage() {
     }
   };
 
-  const pendientes = pagos.filter(p => p.estado !== 'confirmado');
-  const confirmados = pagos.filter(p => p.estado === 'confirmado');
+  const pendientes = pagos.filter(p => p.estado !== 'pagado');
+  const pagados = pagos.filter(p => p.estado === 'pagado');
   const totalPendiente = pendientes.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
-  const totalPagado = confirmados.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
+  const totalPagado = pagados.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
 
   if (loading) {
     return (
@@ -205,13 +205,13 @@ export default function MisPagosPage() {
       )}
 
       {/* Historial */}
-      {confirmados.length > 0 && (
+      {pagados.length > 0 && (
         <>
           <div style={{ fontSize: '0.72rem', color: '#22c55e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px', fontFamily: 'Poppins' }}>
             Pagos realizados
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
-            {confirmados.map(p => (
+            {pagados.map(p => (
               <PagoCard key={p.id} pago={p} onPagar={handlePagar} pagando={pagando} />
             ))}
           </div>
