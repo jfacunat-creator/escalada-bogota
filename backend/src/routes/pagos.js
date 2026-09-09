@@ -5,22 +5,49 @@ const { authenticate, authorize } = require("../middleware/auth");
 const router = express.Router();
 router.use(authenticate);
 
+// ─── GET /pagos/resumen ───────────────────────────────────
+router.get("/resumen", authorize("admin"), async (req, res) => {
+  try {
+    const result = await db(`
+      SELECT
+        COUNT(*) FILTER (WHERE i.estado = 'activa') AS activas,
+        COALESCE(SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa'), 0) AS ingresos_esperados,
+        COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'confirmado'), 0) AS ingresos_recibidos,
+        COUNT(p.id) FILTER (WHERE p.estado = 'pendiente') AS pagos_pendientes,
+        CASE
+          WHEN SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa') > 0
+          THEN ROUND(
+            SUM(p.monto) FILTER (WHERE p.estado = 'confirmado') * 100.0 /
+            SUM(i.precio_ciclo) FILTER (WHERE i.estado = 'activa')
+          )
+          ELSE 0
+        END AS tasa_recaudo
+      FROM inscripcion i
+      LEFT JOIN pago p ON p.inscripcion_id = i.id
+    `);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error GET /pagos/resumen:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 // ─── GET /pagos ───────────────────────────────────────────
 router.get("/", authorize("admin"), async (req, res) => {
   try {
     const { estado, grupoId } = req.query;
     let sql = `
-      SELECT pg.*, 
-             e.nombre || ' ' || e.apellido AS escalador_nombre,
+      SELECT pg.*,
+             e.nombre, e.apellido,
              e.id AS escalador_id,
-             p.nombre AS programa,
+             pr.nombre AS programa,
              g.modalidad, g.horario,
              ci.codigo AS ciclo
       FROM pago pg
       JOIN inscripcion i ON pg.inscripcion_id = i.id
       JOIN escalador e ON i.escalador_id = e.id
       JOIN grupo g ON i.grupo_id = g.id
-      JOIN programa p ON g.programa_id = p.id
+      JOIN programa pr ON g.programa_id = pr.id
       JOIN ciclo ci ON g.ciclo_id = ci.id
       WHERE 1=1`;
     const params = [];
@@ -33,6 +60,29 @@ router.get("/", authorize("admin"), async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error("Error GET /pagos:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── POST /pagos — Registrar un pago adicional ────────────
+router.post("/", authorize("admin"), async (req, res) => {
+  try {
+    const { inscripcionId, monto, metodo, referencia } = req.body;
+    if (!inscripcionId || !monto || parseFloat(monto) <= 0) {
+      return res.status(400).json({ error: "inscripcionId y monto son requeridos" });
+    }
+    const insc = await db("SELECT id FROM inscripcion WHERE id = $1", [inscripcionId]);
+    if (!insc.rows.length) return res.status(404).json({ error: "Inscripción no encontrada" });
+
+    const result = await db(
+      `INSERT INTO pago (inscripcion_id, monto, estado, metodo, referencia, fecha_pago, fecha_vencimiento)
+       VALUES ($1, $2, 'confirmado', $3, $4, CURRENT_DATE, CURRENT_DATE)
+       RETURNING *`,
+      [inscripcionId, parseFloat(monto), metodo || "transferencia", referencia || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("Error POST /pagos:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });

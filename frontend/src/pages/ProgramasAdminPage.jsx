@@ -67,7 +67,7 @@ export default function ProgramasAdminPage() {
   const [filtro, setFiltro] = useState('');
 
   useEffect(() => {
-    Promise.all([api.getProgramas(), api.getCohortes({ estado: 'en_curso' })])
+    Promise.all([api.getProgramas(), api.getGrupos({ estado: 'en_curso' })])
       .then(([p, g]) => { setProgramas(p); setGrupos(g); })
       .catch(console.error)
       .finally(() => setLoading(false));

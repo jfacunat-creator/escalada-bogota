@@ -104,9 +104,12 @@ class ApiService {
   // Pagos
   getPagos(params)                  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos${q}`); }
   getPago(id)                       { return this.request(`/pagos/${id}`); }
+  getResumenPagos()                 { return this.request('/pagos/resumen'); }
   crearPago(data)                   { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
-  updatePago(id, data)              { return this.request(`/pagos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  registrarPago(data)               { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
+  updatePago(id, data)              { return this.request(`/pagos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   getLinkPago(id)                   { return this.request(`/pagos/${id}/link-pago`); }
+  cambiarEstadoInscripcion(id, est) { return this.request(`/inscripciones/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado: est }) }); }
 
   // RRHH
   getRRHH(params)                   { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/rrhh${q}`); }

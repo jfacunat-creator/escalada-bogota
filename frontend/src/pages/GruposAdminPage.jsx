@@ -337,8 +337,11 @@ export default function GruposAdminPage() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
+      const grupoParams = {};
+      if (filtroEstado) grupoParams.estado = filtroEstado;
+      if (filtroCiclo)  grupoParams.cicloId = filtroCiclo;
       const [coh, progs, cics, ents, murs] = await Promise.all([
-        api.getGrupos({ estado: filtroEstado || undefined, cicloId: filtroCiclo || undefined }),
+        api.getGrupos(Object.keys(grupoParams).length ? grupoParams : undefined),
         api.getProgramas(),
         api.getCiclos(),
         api.getEntrenadores(),

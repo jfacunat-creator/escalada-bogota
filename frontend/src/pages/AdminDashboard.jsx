@@ -174,6 +174,7 @@ export default function AdminDashboard() {
 
   const ciclos = data._ciclos || [];
   const entrenadores = data._entrenadores || [];
+  const pendientes = data.pendientes || [];
 
   return (
     <div>

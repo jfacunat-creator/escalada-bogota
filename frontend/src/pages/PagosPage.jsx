@@ -11,9 +11,10 @@ const estadoInscColor = {
   completada: 'bg-teal-100 text-teal-700',
 };
 const estadoPagoColor = {
-  pagado: 'bg-green-100 text-green-700',
-  pendiente: 'bg-amber-100 text-amber-700',
-  vencido: 'bg-red-100 text-red-700',
+  confirmado: 'bg-green-100 text-green-700',
+  pendiente:  'bg-amber-100 text-amber-700',
+  vencido:    'bg-red-100 text-red-700',
+  rechazado:  'bg-slate-100 text-slate-500',
 };
 
 function formatCOP(val) {
