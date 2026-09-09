@@ -148,7 +148,7 @@ export default function PagosPage() {
                   {inscripciones.map(i => {
                     const pagado = parseFloat(i.total_pagado) || 0;
                     const precio = parseFloat(i.precio_ciclo) || 0;
-                    const saldo = precio - pagado;
+                    const pendiente = parseFloat(i.total_pendiente) || 0;
                     return (
                       <tr key={i.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                         <td className="px-4 py-3">
@@ -159,10 +159,10 @@ export default function PagosPage() {
                         <td className="px-4 py-3 text-slate-600">{i.ciclo}</td>
                         <td className="px-4 py-3 font-medium text-slate-700">{formatCOP(precio)}</td>
                         <td className="px-4 py-3">
-                          <span className={`font-medium ${saldo <= 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                          <span className={`font-medium ${pendiente > 0 ? 'text-amber-600' : 'text-green-600'}`}>
                             {formatCOP(pagado)}
                           </span>
-                          {saldo > 0 && <p className="text-xs text-red-500">Debe: {formatCOP(saldo)}</p>}
+                          {pendiente > 0 && <p className="text-xs text-red-500">Pendiente: {formatCOP(pendiente)}</p>}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoInscColor[i.estado]}`}>{i.estado}</span>

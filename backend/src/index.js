@@ -27,6 +27,7 @@ app.use("/api/dashboard", require("./routes/dashboard"));
 app.use("/api/grupos", require("./routes/grupos"));
 app.use("/api/escaladores", require("./routes/escaladores"));
 app.use("/api/entrenadores", require("./routes/entrenadores"));
+app.use("/api/inscripciones", require("./routes/inscripciones"));
 app.use("/api/pagos", require("./routes/pagos"));
 app.use("/api/sesiones", require("./routes/sesiones"));
 app.use("/api/asistencia", require("./routes/asistencia"));
