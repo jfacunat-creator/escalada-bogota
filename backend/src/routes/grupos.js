@@ -1,4 +1,6 @@
 const express = require("express");
+const { body, validationResult } = require("express-validator");
+const { randomUUID } = require("crypto");
 const { query: db } = require("../config/database");
 const { authenticate, authorize } = require("../middleware/auth");
 
@@ -102,6 +104,90 @@ router.get("/:id", async (req, res) => {
     res.json({ ...result.rows[0], escaladores: escaladores.rows });
   } catch (err) {
     console.error("Error:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── POST /grupos — Crear grupo ───────────────────────────
+router.post("/", authorize("admin"), [
+  body("programaId").isUUID(),
+  body("cicloId").isUUID(),
+  body("muroId").isUUID(),
+  body("entrenadorId").isUUID(),
+  body("modalidad").isIn(["autonomo", "acompanado"]),
+  body("horario").notEmpty(),
+  body("cupoMaximo").isInt({ min: 1 }),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  try {
+    const { programaId, cicloId, muroId, entrenadorId, modalidad, horario, cupoMaximo, estado } = req.body;
+    const id = randomUUID();
+    const result = await db(
+      `INSERT INTO grupo (id, programa_id, ciclo_id, muro_id, entrenador_id, modalidad, horario, cupo_maximo, estado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [id, programaId, cicloId, muroId, entrenadorId, modalidad, horario, cupoMaximo, estado || "abierta"]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("Error POST /grupos:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── PUT /grupos/:id — Editar grupo ───────────────────────
+router.put("/:id", authorize("admin"), async (req, res) => {
+  try {
+    const { modalidad, horario, cupoMaximo, entrenadorId, muroId } = req.body;
+    const sets = [], params = [];
+
+    if (modalidad) { params.push(modalidad); sets.push(`modalidad = $${params.length}`); }
+    if (horario)   { params.push(horario);   sets.push(`horario = $${params.length}`); }
+    if (cupoMaximo !== undefined) { params.push(cupoMaximo); sets.push(`cupo_maximo = $${params.length}`); }
+    if (entrenadorId) { params.push(entrenadorId); sets.push(`entrenador_id = $${params.length}`); }
+    if (muroId)    { params.push(muroId);    sets.push(`muro_id = $${params.length}`); }
+
+    if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
+
+    params.push(req.params.id);
+    const result = await db(
+      `UPDATE grupo SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ error: "Grupo no encontrado" });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error PUT /grupos/:id:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── DELETE /grupos/:id — Eliminar grupo (cascade) ────────
+router.delete("/:id", authorize("admin"), async (req, res) => {
+  const grupoId = req.params.id;
+  try {
+    const check = await db("SELECT id FROM grupo WHERE id = $1", [grupoId]);
+    if (!check.rows.length) return res.status(404).json({ error: "Grupo no encontrado" });
+
+    // Cascade: asistencia → sesion → pago → inscripcion → grupo
+    const sesiones = await db("SELECT id FROM sesion WHERE grupo_id = $1", [grupoId]);
+    const sesionIds = sesiones.rows.map(r => r.id);
+    if (sesionIds.length) {
+      await db(`DELETE FROM asistencia WHERE sesion_id = ANY($1::uuid[])`, [sesionIds]);
+      await db("DELETE FROM sesion WHERE grupo_id = $1", [grupoId]);
+    }
+    const inscs = await db("SELECT id FROM inscripcion WHERE grupo_id = $1", [grupoId]);
+    const inscIds = inscs.rows.map(r => r.id);
+    if (inscIds.length) {
+      await db(`DELETE FROM pago WHERE inscripcion_id = ANY($1::uuid[])`, [inscIds]);
+      await db("DELETE FROM inscripcion WHERE grupo_id = $1", [grupoId]);
+    }
+    await db("DELETE FROM grupo WHERE id = $1", [grupoId]);
+
+    res.json({ message: "Grupo eliminado" });
+  } catch (err) {
+    console.error("Error DELETE /grupos/:id:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });

@@ -59,16 +59,22 @@ class ApiService {
   getGrupo(id)                  { return this.request(`/grupos/${id}`); }
   getGruposDisponibles()        { return this.request('/grupos/disponibles'); }
   crearGrupo(data)              { return this.request('/grupos', { method: 'POST', body: JSON.stringify(data) }); }
+  updateGrupo(id, data)         { return this.request(`/grupos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  deleteGrupo(id)               { return this.request(`/grupos/${id}`, { method: 'DELETE' }); }
   cambiarEstadoGrupo(id, estado){ return this.request(`/grupos/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
 
   // Escaladores
   getEscaladores(params) { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/escaladores${q}`); }
   getEscalador(id)       { return this.request(`/escaladores/${id}`); }
   updateEscalador(id, data) { return this.request(`/escaladores/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  deleteEscalador(id)    { return this.request(`/escaladores/${id}`, { method: 'DELETE' }); }
 
   // Entrenadores
   getEntrenadores()              { return this.request('/entrenadores'); }
   getEntrenador(id)              { return this.request(`/entrenadores/${id}`); }
+  crearEntrenador(data)          { return this.request('/entrenadores', { method: 'POST', body: JSON.stringify(data) }); }
+  updateEntrenador(id, data)     { return this.request(`/entrenadores/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  deleteEntrenador(id)           { return this.request(`/entrenadores/${id}`, { method: 'DELETE' }); }
   getEscaladoresEntrenador(id)   { return this.request(`/entrenadores/${id}/escaladores`); }
 
   // Sesiones
@@ -100,6 +106,7 @@ class ApiService {
   crearInscripcion(data)            { return this.request('/inscripciones', { method: 'POST', body: JSON.stringify(data) }); }
   getInscripcion(id)                { return this.request(`/inscripciones/${id}`); }
   updateInscripcion(id, data)       { return this.request(`/inscripciones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  deleteInscripcion(id)             { return this.request(`/inscripciones/${id}`, { method: 'DELETE' }); }
 
   // Pagos
   getPagos(params)                  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos${q}`); }
@@ -108,6 +115,7 @@ class ApiService {
   crearPago(data)                   { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
   registrarPago(data)               { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
   updatePago(id, data)              { return this.request(`/pagos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  deletePago(id)                    { return this.request(`/pagos/${id}`, { method: 'DELETE' }); }
   getLinkPago(id)                   { return this.request(`/pagos/${id}/link-pago`); }
   cambiarEstadoInscripcion(id, est) { return this.request(`/inscripciones/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado: est }) }); }
 

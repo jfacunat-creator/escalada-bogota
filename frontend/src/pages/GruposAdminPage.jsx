@@ -13,7 +13,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, ChevronRight, X, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, ChevronRight, X, AlertCircle, Trash2, Pencil } from 'lucide-react';
 import api from '../services/api';
 import { IconoCronometro, IconoMuro, IconoEscalador, IconoCuerda } from '../components/Icons';
 
@@ -83,7 +83,7 @@ function InputField({ label, type = 'text', value, onChange, required, placehold
 
 // ─── Tarjeta de grupo ──────────────────────────────────────────────────────
 
-function GrupoRow({ grupo, onEstado, onDetalle }) {
+function GrupoRow({ grupo, onEstado, onDetalle, onDelete, onEdit }) {
   const est = ESTADO_COLOR[grupo.estado] || ESTADO_COLOR.abierta;
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -159,6 +159,20 @@ function GrupoRow({ grupo, onEstado, onDetalle }) {
           fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
         }}>
           Ver detalle <ChevronRight size={14} />
+        </button>
+
+        <button onClick={() => onEdit(grupo)} title="Editar" style={{
+          padding: '8px 10px', borderRadius: '6px', border: `1px solid ${C.border}`,
+          background: 'transparent', color: C.text2, cursor: 'pointer',
+        }}>
+          <Pencil size={14} />
+        </button>
+
+        <button onClick={() => onDelete(grupo)} title="Eliminar" style={{
+          padding: '8px 10px', borderRadius: '6px', border: 'none',
+          background: 'rgba(239,68,68,0.1)', color: '#ef4444', cursor: 'pointer',
+        }}>
+          <Trash2 size={14} />
         </button>
 
         <div style={{ position: 'relative' }}>
@@ -327,6 +341,101 @@ function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenado
   );
 }
 
+// ─── Modal editar grupo ─────────────────────────────────────────────────────
+
+function ModalEditarGrupo({ grupo, onClose, onGuardado, entrenadores, muros }) {
+  const [form, setForm] = useState({
+    modalidad: grupo?.modalidad || 'acompanado',
+    horario: grupo?.horario || '',
+    cupoMaximo: grupo?.cupo_maximo || 8,
+    entrenadorId: grupo?.entrenador_id || '',
+    muroId: grupo?.muro_id || '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleSubmit = async () => {
+    setLoading(true); setError(null);
+    try {
+      await api.updateGrupo(grupo.id, {
+        modalidad: form.modalidad,
+        horario: form.horario,
+        cupoMaximo: form.cupoMaximo,
+        entrenadorId: form.entrenadorId,
+        muroId: form.muroId,
+      });
+      onGuardado();
+      onClose();
+    } catch (err) {
+      setError(err?.error || 'Error al guardar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!grupo) return null;
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px',
+    }}>
+      <div style={{
+        background: C.surface, border: `1px solid ${C.border}`, borderRadius: '14px',
+        padding: '28px', maxWidth: '480px', width: '100%',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: C.text }}>
+            Editar grupo · {grupo.programa_nombre}
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.text2 }}><X size={20} /></button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <SelectField label="Modalidad" value={form.modalidad} onChange={e => set('modalidad', e.target.value)}>
+            <option value="acompanado">Acompañado</option>
+            <option value="autonomo">Autónomo</option>
+          </SelectField>
+          <SelectField label="Horario" value={form.horario} onChange={e => set('horario', e.target.value)}>
+            {HORARIOS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+          </SelectField>
+          <InputField label="Cupo máximo" type="number" value={form.cupoMaximo}
+            onChange={e => set('cupoMaximo', parseInt(e.target.value) || 4)} min={1} max={20} />
+          <SelectField label="Entrenador" value={form.entrenadorId} onChange={e => set('entrenadorId', e.target.value)}>
+            <option value="">Sin cambio</option>
+            {entrenadores.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </SelectField>
+          <SelectField label="Muro aliado" value={form.muroId} onChange={e => set('muroId', e.target.value)}>
+            <option value="">Sin cambio</option>
+            {muros.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+          </SelectField>
+        </div>
+
+        {error && (
+          <div style={{ marginTop: '12px', color: '#fca5a5', fontSize: '0.82rem', fontFamily: 'Poppins' }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+          <button onClick={onClose} style={{
+            flex: 1, padding: '10px', borderRadius: '8px', background: 'transparent',
+            color: C.text2, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'Poppins',
+          }}>Cancelar</button>
+          <button onClick={handleSubmit} disabled={loading} style={{
+            flex: 2, padding: '10px', borderRadius: '8px', border: 'none',
+            background: C.accent, color: '#121212', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700,
+          }}>
+            {loading ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────
 
 export default function GruposAdminPage() {
@@ -341,6 +450,9 @@ export default function GruposAdminPage() {
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroCiclo, setFiltroCiclo] = useState('');
   const [showCrear, setShowCrear] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const cargarDatos = async () => {
     setLoading(true);
@@ -375,6 +487,20 @@ export default function GruposAdminPage() {
       await cargarDatos();
     } catch (err) {
       alert(err?.error || 'Error al cambiar estado');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await api.deleteGrupo(confirmDelete.id);
+      setConfirmDelete(null);
+      await cargarDatos();
+    } catch (err) {
+      alert(err?.error || 'Error al eliminar');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -453,6 +579,8 @@ export default function GruposAdminPage() {
               grupo={c}
               onEstado={handleEstado}
               onDetalle={(id) => navigate(`/app/grupos/${id}`)}
+              onEdit={setEditando}
+              onDelete={setConfirmDelete}
             />
           ))}
         </div>
@@ -468,6 +596,51 @@ export default function GruposAdminPage() {
         entrenadores={entrenadores}
         muros={muros}
       />
+
+      {/* Modal editar */}
+      <ModalEditarGrupo
+        grupo={editando}
+        onClose={() => setEditando(null)}
+        onGuardado={cargarDatos}
+        entrenadores={entrenadores}
+        muros={muros}
+      />
+
+      {/* Confirm delete */}
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: C.surface, border: `1px solid #ef444440`, borderRadius: '14px',
+            padding: '28px', maxWidth: '400px', width: '100%',
+          }}>
+            <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#ef4444', marginBottom: '8px' }}>
+              Eliminar grupo
+            </div>
+            <p style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem', marginBottom: '6px' }}>
+              Se eliminará <strong style={{ color: C.text }}>{confirmDelete.programa_nombre} · {confirmDelete.ciclo_codigo}</strong> y todos sus datos:
+            </p>
+            <ul style={{ color: C.text3, fontFamily: 'Poppins', fontSize: '0.8rem', margin: '8px 0 20px 16px', lineHeight: 1.7 }}>
+              <li>Sesiones y asistencias</li>
+              <li>Inscripciones y pagos</li>
+            </ul>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                flex: 1, padding: '10px', borderRadius: '8px', background: 'transparent',
+                color: C.text2, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'Poppins',
+              }}>Cancelar</button>
+              <button onClick={handleDelete} disabled={deleting} style={{
+                flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
+                background: '#ef4444', color: '#fff', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700,
+              }}>
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

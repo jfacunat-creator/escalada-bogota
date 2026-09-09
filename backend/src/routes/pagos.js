@@ -146,4 +146,18 @@ router.patch("/:id", authorize("admin"), async (req, res) => {
   }
 });
 
+// ─── DELETE /pagos/:id ────────────────────────────────────
+router.delete("/:id", authorize("admin"), async (req, res) => {
+  try {
+    const check = await db("SELECT id FROM pago WHERE id = $1", [req.params.id]);
+    if (!check.rows.length) return res.status(404).json({ error: "Pago no encontrado" });
+
+    await db("DELETE FROM pago WHERE id = $1", [req.params.id]);
+    res.json({ message: "Pago eliminado" });
+  } catch (err) {
+    console.error("Error DELETE /pagos/:id:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 module.exports = router;

@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, Plus, Trash2, Pencil, X } from 'lucide-react';
 import { IconoEscalador, IconoMuro, IconoCronometro, IconoPresa } from '../components/Icons';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
@@ -15,13 +15,73 @@ export default function EntrenadoresAdminPage() {
   const [loading, setLoading] = useState(true);
   const [buscar, setBuscar] = useState('');
   const [expanded, setExpanded] = useState(null);
+  const [showCrear, setShowCrear] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
+  const FORM_VACIO = { nombre: '', apellido: '', email: '', password: '', especialidad: '', maxGrupos: 4 };
+  const [form, setForm] = useState(FORM_VACIO);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const load = () => {
+    setLoading(true);
     api.getEntrenadores()
       .then(setEntrenadores)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleCrear = async () => {
+    setSaving(true); setFormError(null);
+    try {
+      await api.crearEntrenador(form);
+      setShowCrear(false);
+      setForm(FORM_VACIO);
+      load();
+    } catch (err) {
+      setFormError(err?.error || err?.errors?.[0]?.msg || 'Error al crear');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditar = async () => {
+    setSaving(true); setFormError(null);
+    try {
+      await api.updateEntrenador(editando.id, {
+        nombre: form.nombre,
+        apellido: form.apellido,
+        especialidad: form.especialidad,
+        maxGrupos: form.maxGrupos,
+      });
+      setEditando(null);
+      setForm(FORM_VACIO);
+      load();
+    } catch (err) {
+      setFormError(err?.error || 'Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.deleteEntrenador(confirmDelete.id);
+      setConfirmDelete(null);
+      load();
+    } catch (err) {
+      alert(err?.error || 'Error al eliminar');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const filtrados = entrenadores.filter(e =>
     !buscar || `${e.nombre} ${e.email}`.toLowerCase().includes(buscar.toLowerCase())
@@ -39,11 +99,20 @@ export default function EntrenadoresAdminPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Entrenadores</h1>
-        <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>
-          {entrenadores.length} entrenador{entrenadores.length !== 1 ? 'es' : ''} registrado{entrenadores.length !== 1 ? 's' : ''}
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
+        <div>
+          <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Entrenadores</h1>
+          <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>
+            {entrenadores.length} entrenador{entrenadores.length !== 1 ? 'es' : ''} registrado{entrenadores.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <button onClick={() => { setForm(FORM_VACIO); setFormError(null); setShowCrear(true); }} style={{
+          display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px',
+          borderRadius: '8px', border: 'none', background: C.accent, color: '#121212',
+          fontFamily: 'Antonio, sans-serif', fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
+        }}>
+          <Plus size={17} /> Nuevo entrenador
+        </button>
       </div>
 
       {/* KPIs rápidos */}
@@ -116,6 +185,12 @@ export default function EntrenadoresAdminPage() {
                     <div style={{ fontSize: '0.65rem', color: C.text3, fontFamily: 'Poppins' }}>carga</div>
                   </div>
                   <div style={{ color: C.text3, fontSize: '18px', transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</div>
+                  <button onClick={ev => { ev.stopPropagation(); setEditando(ent); setForm({ nombre: ent.nombre || '', apellido: ent.apellido || '', email: ent.email || '', password: '', especialidad: ent.especialidad || '', maxGrupos: ent.max_grupos || 4 }); setFormError(null); }} title="Editar" style={{
+                    background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, cursor: 'pointer', borderRadius: '6px', padding: '5px 7px', flexShrink: 0,
+                  }}><Pencil size={13} /></button>
+                  <button onClick={ev => { ev.stopPropagation(); setConfirmDelete(ent); }} title="Eliminar" style={{
+                    background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', borderRadius: '6px', padding: '5px 7px', flexShrink: 0,
+                  }}><Trash2 size={13} /></button>
                 </div>
               </div>
 
@@ -167,6 +242,107 @@ export default function EntrenadoresAdminPage() {
           </div>
         )}
       </div>
+
+      {/* Modal crear/editar entrenador */}
+      {(showCrear || editando) && (() => {
+        const isEditing = !!editando;
+        return (
+          <div onClick={() => { setShowCrear(false); setEditando(null); }} style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px',
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: C.surface, border: `1px solid ${C.border}`, borderRadius: '14px',
+              padding: '28px', maxWidth: '460px', width: '100%',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: C.text }}>
+                  {isEditing ? `Editar · ${editando.nombre}` : 'Nuevo entrenador'}
+                </div>
+                <button onClick={() => { setShowCrear(false); setEditando(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.text2 }}><X size={20} /></button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {[['nombre', 'Nombre'], ['apellido', 'Apellido']].map(([k, label]) => (
+                    <div key={k}>
+                      <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>{label} *</label>
+                      <input value={form[k]} onChange={e => setF(k, e.target.value)} className="input-dark" style={{ width: '100%' }} />
+                    </div>
+                  ))}
+                </div>
+                {!isEditing && (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Email *</label>
+                      <input value={form.email} onChange={e => setF('email', e.target.value)} type="email" className="input-dark" style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Contraseña *</label>
+                      <input value={form.password} onChange={e => setF('password', e.target.value)} type="password" placeholder="mín. 6 caracteres" className="input-dark" style={{ width: '100%' }} />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Especialidad</label>
+                  <input value={form.especialidad} onChange={e => setF('especialidad', e.target.value)} placeholder="Ej: Búlder, Deportiva..." className="input-dark" style={{ width: '100%' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Máximo de grupos</label>
+                  <input value={form.maxGrupos} onChange={e => setF('maxGrupos', parseInt(e.target.value) || 1)} type="number" min={1} max={10} className="input-dark" style={{ width: '100%' }} />
+                </div>
+              </div>
+
+              {formError && (
+                <div style={{ marginTop: '12px', color: '#fca5a5', fontSize: '0.82rem', fontFamily: 'Poppins' }}>{formError}</div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button onClick={() => { setShowCrear(false); setEditando(null); }} style={{
+                  flex: 1, padding: '10px', borderRadius: '8px', background: 'transparent',
+                  color: C.text2, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'Poppins',
+                }}>Cancelar</button>
+                <button onClick={isEditing ? handleEditar : handleCrear} disabled={saving} style={{
+                  flex: 2, padding: '10px', borderRadius: '8px', border: 'none',
+                  background: C.accent, color: '#121212', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700,
+                }}>
+                  {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear entrenador'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Confirm delete entrenador */}
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: C.surface, border: '1px solid #ef444440', borderRadius: '14px',
+            padding: '28px', maxWidth: '400px', width: '100%',
+          }}>
+            <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#ef4444', marginBottom: '8px' }}>Eliminar entrenador</div>
+            <p style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Se eliminará a <strong style={{ color: C.text }}>{confirmDelete.nombre}</strong> junto con todos sus grupos, sesiones, inscripciones y pagos.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                flex: 1, padding: '10px', borderRadius: '8px', background: 'transparent',
+                color: C.text2, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'Poppins',
+              }}>Cancelar</button>
+              <button onClick={handleDelete} disabled={deleting} style={{
+                flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
+                background: '#ef4444', color: '#fff', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700,
+              }}>
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

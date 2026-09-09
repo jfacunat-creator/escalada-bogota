@@ -236,4 +236,24 @@ router.patch("/:id/estado", authorize("admin"), [
   }
 });
 
+// ─── DELETE /inscripciones/:id ────────────────────────────
+router.delete("/:id", authorize("admin"), async (req, res) => {
+  try {
+    const insc = await db("SELECT grupo_id, estado FROM inscripcion WHERE id = $1", [req.params.id]);
+    if (!insc.rows.length) return res.status(404).json({ error: "Inscripción no encontrada" });
+
+    await db("DELETE FROM pago WHERE inscripcion_id = $1", [req.params.id]);
+    await db("DELETE FROM inscripcion WHERE id = $1", [req.params.id]);
+
+    if (insc.rows[0].estado === "activa") {
+      await db("UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id = $1", [insc.rows[0].grupo_id]);
+    }
+
+    res.json({ message: "Inscripción eliminada" });
+  } catch (err) {
+    console.error("Error DELETE /inscripciones/:id:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 module.exports = router;

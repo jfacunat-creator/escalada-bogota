@@ -5,7 +5,7 @@
  */
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Loader2, Search, X, ChevronRight } from 'lucide-react';
+import { Loader2, Search, X, ChevronRight, Trash2 } from 'lucide-react';
 import { IconoEscalador, IconoPresa, IconoMuro, IconoCronometro } from '../components/Icons';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
@@ -20,6 +20,8 @@ export default function EscaladoresAdminPage() {
   const [selected, setSelected] = useState(null);
   const [detalle, setDetalle] = useState(null);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { load(); }, [buscar, estado, rangoEtario]);
 
@@ -33,6 +35,22 @@ export default function EscaladoresAdminPage() {
       setEscaladores(await api.getEscaladores(params));
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await api.deleteEscalador(confirmDelete.id);
+      setConfirmDelete(null);
+      setSelected(null);
+      setDetalle(null);
+      load();
+    } catch (err) {
+      alert(err?.error || 'Error al eliminar');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const openDetalle = async (id) => {
@@ -145,6 +163,12 @@ export default function EscaladoresAdminPage() {
                   {/* Estado */}
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: e.estado === 'activo' ? '#22c55e' : e.estado === 'congelado' ? '#f59e0b' : '#666', flexShrink: 0 }} />
                   <ChevronRight size={14} style={{ color: C.text3, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
+                  <button onClick={ev => { ev.stopPropagation(); setConfirmDelete(e); }} title="Eliminar escalador" style={{
+                    background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer',
+                    borderRadius: '6px', padding: '5px 7px', flexShrink: 0,
+                  }}>
+                    <Trash2 size={13} />
+                  </button>
                 </div>
 
                 {/* Detalle expandible */}
@@ -203,6 +227,36 @@ export default function EscaladoresAdminPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Confirm delete escalador */}
+      {confirmDelete && (
+        <div onClick={() => setConfirmDelete(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: C.surface, border: '1px solid #ef444440', borderRadius: '14px',
+            padding: '28px', maxWidth: '400px', width: '100%',
+          }}>
+            <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#ef4444', marginBottom: '8px' }}>Eliminar escalador</div>
+            <p style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Se eliminará a <strong style={{ color: C.text }}>{confirmDelete.nombre} {confirmDelete.apellido}</strong> junto con todas sus inscripciones, pagos y registros de asistencia.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                flex: 1, padding: '10px', borderRadius: '8px', background: 'transparent',
+                color: C.text2, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'Poppins',
+              }}>Cancelar</button>
+              <button onClick={handleDelete} disabled={deleting} style={{
+                flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
+                background: '#ef4444', color: '#fff', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700,
+              }}>
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

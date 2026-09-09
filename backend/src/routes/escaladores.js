@@ -140,6 +140,34 @@ router.put(
   }
 );
 
+// ─── DELETE /escaladores/:id ─────────────────────────────
+router.delete("/:id", authorize("admin"), async (req, res) => {
+  const escaladorId = req.params.id;
+  try {
+    const check = await db("SELECT usuario_id FROM escalador WHERE id = $1", [escaladorId]);
+    if (!check.rows.length) return res.status(404).json({ error: "Escalador no encontrado" });
+    const usuarioId = check.rows[0].usuario_id;
+
+    // Cascade: asistencia → pago → inscripcion → escalador → usuario
+    await db("DELETE FROM asistencia WHERE escalador_id = $1", [escaladorId]);
+    const inscs = await db("SELECT id, grupo_id, estado FROM inscripcion WHERE escalador_id = $1", [escaladorId]);
+    for (const insc of inscs.rows) {
+      await db("DELETE FROM pago WHERE inscripcion_id = $1", [insc.id]);
+      if (insc.estado === "activa") {
+        await db("UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id = $1", [insc.grupo_id]);
+      }
+    }
+    await db("DELETE FROM inscripcion WHERE escalador_id = $1", [escaladorId]);
+    await db("DELETE FROM escalador WHERE id = $1", [escaladorId]);
+    await db("DELETE FROM usuario WHERE id = $1", [usuarioId]);
+
+    res.json({ message: "Escalador eliminado" });
+  } catch (err) {
+    console.error("Error DELETE /escaladores/:id:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 // ─── PATCH /escaladores/:id/estado ────────────────────────
 router.patch(
   "/:id/estado",

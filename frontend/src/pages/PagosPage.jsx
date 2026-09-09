@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { IconoPresa, IconoMagnesia, IconoCuerda, IconoCheck, IconoFalta } from '../components/Icons';
 
 const estadoInscColor = {
@@ -32,6 +32,8 @@ export default function PagosPage() {
   const [saving, setSaving] = useState(false);
   const [filtroNivel, setFiltroNivel] = useState('');
   const [filtroModalidad, setFiltroModalidad] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const isAdmin = user?.rol === 'admin';
   const isEntrenador = user?.rol === 'entrenador';
@@ -75,6 +77,24 @@ export default function PagosPage() {
       await api.cambiarEstadoInscripcion(id, estado);
       loadData();
     } catch (err) { alert(err.error || 'Error'); }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      if (confirmDelete.type === 'inscripcion') {
+        await api.deleteInscripcion(confirmDelete.id);
+      } else {
+        await api.deletePago(confirmDelete.id);
+      }
+      setConfirmDelete(null);
+      loadData();
+    } catch (err) {
+      alert(err?.error || 'Error al eliminar');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-teal-600 animate-spin" /></div>;
@@ -168,8 +188,8 @@ export default function PagosPage() {
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoInscColor[i.estado]}`}>{i.estado}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-1.5">
-                            <button onClick={() => { setShowNuevoPago(i.id); setPagoForm({ monto: String(saldo > 0 ? saldo : precio), metodo: 'transferencia', referencia: '' }); }}
+                          <div className="flex gap-1.5 items-center">
+                            <button onClick={() => { setShowNuevoPago(i.id); setPagoForm({ monto: '', metodo: 'transferencia', referencia: '' }); }}
                               className="px-2.5 py-1 bg-teal-50 text-teal-700 rounded text-xs font-medium hover:bg-teal-100 transition">
                               + Pago
                             </button>
@@ -183,6 +203,12 @@ export default function PagosPage() {
                               <button onClick={() => handleCambiarEstadoInsc(i.id, 'activa')}
                                 className="px-2.5 py-1 bg-green-50 text-green-700 rounded text-xs font-medium hover:bg-green-100 transition">
                                 Reactivar
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button onClick={() => setConfirmDelete({ type: 'inscripcion', id: i.id, label: `inscripción de ${i.nombre} ${i.apellido}` })}
+                                className="p-1 rounded hover:bg-red-50 transition" title="Eliminar inscripción">
+                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
                               </button>
                             )}
                           </div>
@@ -233,6 +259,24 @@ export default function PagosPage() {
         </div>
       )}
 
+      {/* Confirm delete */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmDelete(null)}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 mb-3">Eliminar {confirmDelete.type === 'inscripcion' ? 'inscripción' : 'pago'}</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              Se eliminará la {confirmDelete.label}. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmDelete(null)} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+              <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pagos */}
       {tab === 'pagos' && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -253,6 +297,7 @@ export default function PagosPage() {
                     <th className="px-4 py-3 font-medium">Referencia</th>
                     <th className="px-4 py-3 font-medium">Fecha</th>
                     <th className="px-4 py-3 font-medium">Estado</th>
+                    {isAdmin && <th className="px-4 py-3 font-medium"></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -269,6 +314,14 @@ export default function PagosPage() {
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoPagoColor[p.estado]}`}>{p.estado}</span>
                       </td>
+                      {isAdmin && (
+                        <td className="px-4 py-3">
+                          <button onClick={() => setConfirmDelete({ type: 'pago', id: p.id, label: `pago de ${formatCOP(p.monto)} de ${p.nombre} ${p.apellido}` })}
+                            className="p-1 rounded hover:bg-red-50 transition" title="Eliminar pago">
+                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
