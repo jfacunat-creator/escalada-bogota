@@ -297,17 +297,20 @@ export default function ProgramasAdminPage() {
                       </div>
                     </button>
 
-                    {/* Sesiones expandidas */}
+                    {/* Detalle expandido */}
                     {abierta && (
-                      <div style={{ borderTop: `1px solid #1a1a1a`, background: '#161616', padding: '12px 18px 12px 88px' }}>
-                        {sesItem.length === 0 ? (
-                          <p style={{ fontSize: '0.8rem', color: C.text3, fontFamily: 'Poppins' }}>
-                            {sesionesGrupo.length === 0
-                              ? 'Genera las sesiones del grupo para ver las fechas reales.'
-                              : 'No hay sesiones en este rango de semanas.'}
-                          </p>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ borderTop: `1px solid #1a1a1a`, background: '#161616', padding: '16px 18px 16px 88px' }}>
+                        {/* Contenido pedagógico — siempre visible */}
+                        <p style={{ fontSize: '0.85rem', color: C.text2, fontFamily: 'Poppins', lineHeight: 1.7, marginBottom: sesItem.length > 0 ? '14px' : 0 }}>
+                          {item.detalle}
+                        </p>
+
+                        {/* Fechas reales si el grupo ya tiene sesiones generadas */}
+                        {sesItem.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            <div style={{ fontSize: '0.68rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'Poppins', marginBottom: '4px' }}>
+                              Fechas del grupo
+                            </div>
                             {sesItem.map(s => {
                               const fs = s.fecha?.split('T')[0];
                               const pasada = fs < hoy;
@@ -316,30 +319,18 @@ export default function ProgramasAdminPage() {
                               return (
                                 <div key={s.id} style={{
                                   display: 'flex', alignItems: 'center', gap: '12px',
-                                  padding: '8px 12px', borderRadius: '8px',
+                                  padding: '7px 11px', borderRadius: '7px',
                                   background: esHoy ? 'rgba(245,158,11,0.07)' : 'rgba(36,36,36,0.6)',
-                                  border: `1px solid ${esHoy ? 'rgba(245,158,11,0.25)' : '#252525'}`,
+                                  border: `1px solid ${esHoy ? 'rgba(245,158,11,0.2)' : '#252525'}`,
                                 }}>
-                                  <span style={{ fontFamily: 'Antonio', fontSize: '0.95rem', color: C.accent, width: '28px' }}>
-                                    #{s.numero_sesion}
+                                  <span style={{ fontFamily: 'Antonio', fontSize: '0.9rem', color: C.accent, width: '26px' }}>#{s.numero_sesion}</span>
+                                  <span style={{ fontSize: '0.82rem', color: pasada ? C.text2 : C.text, fontFamily: 'Poppins', flex: 1 }}>
+                                    {new Date(s.fecha).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                    <span style={{ color: C.text3, marginLeft: '8px' }}>{s.hora_inicio?.substring(0, 5)}–{s.hora_fin?.substring(0, 5)}</span>
                                   </span>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '0.82rem', color: pasada ? C.text2 : C.text, fontFamily: 'Poppins', fontWeight: 500 }}>
-                                      {new Date(s.fecha).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' })}
-                                    </div>
-                                    <div style={{ fontSize: '0.72rem', color: C.text3, fontFamily: 'Poppins' }}>
-                                      {s.hora_inicio?.substring(0, 5)}–{s.hora_fin?.substring(0, 5)}
-                                    </div>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                    {esHoy && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b' }} />}
-                                    {tieneAsist && (
-                                      <span style={{ fontSize: '0.72rem', color: '#22c55e', fontFamily: 'Poppins' }}>✓ Asistencia</span>
-                                    )}
-                                    {pasada && !tieneAsist && (
-                                      <span style={{ fontSize: '0.72rem', color: '#ef4444', fontFamily: 'Poppins' }}>Sin registro</span>
-                                    )}
-                                  </div>
+                                  {esHoy && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />}
+                                  {tieneAsist && <span style={{ fontSize: '0.7rem', color: '#22c55e', fontFamily: 'Poppins' }}>✓</span>}
+                                  {pasada && !tieneAsist && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontFamily: 'Poppins' }}>sin registro</span>}
                                 </div>
                               );
                             })}

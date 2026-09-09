@@ -1,4 +1,5 @@
 const express = require("express");
+const { randomUUID } = require("crypto");
 const { query: db } = require("../config/database");
 const { authenticate, authorize } = require("../middleware/auth");
 
@@ -94,17 +95,17 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
       return 'regular';
     };
 
-    // INSERT en bulk con parámetros posicionales
+    // INSERT en bulk — Prisma no pone DEFAULT uuid en la DB, hay que generarlo en app
     const paramSets = [];
     const vals = [];
     fechas.forEach((fecha, i) => {
-      const b = i * 6;
-      paramSets.push(`($${b+1}, $${b+2}, $${b+3}, $${b+4}, $${b+5}, $${b+6})`);
-      vals.push(grupoId, fecha, info.inicio, info.fin, i + 1, getTipo(i));
+      const b = i * 7;
+      paramSets.push(`($${b+1}, $${b+2}, $${b+3}, $${b+4}, $${b+5}, $${b+6}, $${b+7})`);
+      vals.push(randomUUID(), grupoId, fecha, info.inicio, info.fin, i + 1, getTipo(i));
     });
 
     await db(
-      `INSERT INTO sesion (grupo_id, fecha, hora_inicio, hora_fin, numero_sesion, tipo) VALUES ${paramSets.join(', ')}`,
+      `INSERT INTO sesion (id, grupo_id, fecha, hora_inicio, hora_fin, numero_sesion, tipo) VALUES ${paramSets.join(', ')}`,
       vals
     );
 
