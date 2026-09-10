@@ -19,9 +19,9 @@ router.get("/", async (req, res) => {
         SELECT cc.*, p.nombre as programa_nombre,
                pc.visto, pc.progreso_pct
         FROM contenido_ciclo cc
-        JOIN cohorte co ON co.ciclo_id = cc.ciclo_id
-          AND (cc.programa_id IS NULL OR cc.programa_id = co.programa_id)
-        JOIN inscripcion i ON i.cohorte_id = co.id
+        JOIN grupo g ON g.ciclo_id = cc.ciclo_id
+          AND (cc.programa_id IS NULL OR cc.programa_id = g.programa_id)
+        JOIN inscripcion i ON i.grupo_id = g.id
         LEFT JOIN programa p ON cc.programa_id = p.id
         LEFT JOIN progreso_contenido pc ON pc.contenido_id = cc.id AND pc.escalador_id = $1
         WHERE i.escalador_id = $1
@@ -108,8 +108,8 @@ router.put("/:id/progreso", authorize("escalador"), async (req, res) => {
     // Verificar acceso
     const access = await db(
       `SELECT cc.id FROM contenido_ciclo cc
-       JOIN cohorte co ON co.ciclo_id = cc.ciclo_id
-       JOIN inscripcion i ON i.cohorte_id = co.id
+       JOIN grupo g ON g.ciclo_id = cc.ciclo_id
+       JOIN inscripcion i ON i.grupo_id = g.id
        WHERE cc.id = $1 AND i.escalador_id = $2 AND i.estado = 'activa'`,
       [id, escaladorId]
     );

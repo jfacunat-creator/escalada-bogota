@@ -20,21 +20,21 @@ router.get("/", async (req, res) => {
              co.horario, m.nombre as muro_nombre,
              (SELECT COUNT(*) FROM resultado_test rt WHERE rt.evaluacion_id = ev.id) as num_resultados
       FROM evaluacion ev
-      JOIN cohorte co ON ev.cohorte_id = co.id
-      JOIN programa p ON co.programa_id = p.id
-      JOIN ciclo ci ON co.ciclo_id = ci.id
-      JOIN muro_aliado m ON co.muro_id = m.id
+      JOIN grupo g ON ev.grupo_id = g.id
+      JOIN programa p ON g.programa_id = p.id
+      JOIN ciclo ci ON g.ciclo_id = ci.id
+      JOIN muro_aliado m ON g.muro_id = m.id
       WHERE 1=1
     `;
     const params = [];
 
     if (escaladorId) { params.push(escaladorId); sql += ` AND ev.escalador_id = $${params.length}`; }
-    if (cohorteId) { params.push(cohorteId); sql += ` AND ev.cohorte_id = $${params.length}`; }
+    if (cohorteId) { params.push(cohorteId); sql += ` AND ev.grupo_id = $${params.length}`; }
     if (tipo) { params.push(tipo); sql += ` AND ev.tipo = $${params.length}`; }
 
     if (req.user.rol === "entrenador") {
       params.push(req.user.entrenador.id);
-      sql += ` AND co.entrenador_id = $${params.length}`;
+      sql += ` AND g.entrenador_id = $${params.length}`;
     }
 
     sql += " ORDER BY ev.fecha DESC";
@@ -59,7 +59,7 @@ router.post("/", authorize("entrenador", "admin"), [
   try {
     const { escaladorId, cohorteId, tipo, fecha, notas } = req.body;
     const result = await db(
-      `INSERT INTO evaluacion (escalador_id, cohorte_id, tipo, fecha, notas)
+      `INSERT INTO evaluacion (escalador_id, grupo_id, tipo, fecha, notas)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [escaladorId, cohorteId, tipo, fecha, notas || null]
     );
@@ -77,9 +77,9 @@ router.get("/:id", async (req, res) => {
       `SELECT ev.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo,
               e.nombre as escalador_nombre, e.apellido as escalador_apellido
        FROM evaluacion ev
-       JOIN cohorte co ON ev.cohorte_id = co.id
-       JOIN programa p ON co.programa_id = p.id
-       JOIN ciclo ci ON co.ciclo_id = ci.id
+       JOIN grupo g ON ev.grupo_id = g.id
+       JOIN programa p ON g.programa_id = p.id
+       JOIN ciclo ci ON g.ciclo_id = ci.id
        JOIN escalador e ON ev.escalador_id = e.id
        WHERE ev.id = $1`,
       [req.params.id]
@@ -156,9 +156,9 @@ router.get("/progreso/:escaladorId", async (req, res) => {
               p.nombre as programa
        FROM resultado_test rt
        JOIN evaluacion ev ON rt.evaluacion_id = ev.id
-       JOIN cohorte co ON ev.cohorte_id = co.id
-       JOIN ciclo ci ON co.ciclo_id = ci.id
-       JOIN programa p ON co.programa_id = p.id
+       JOIN grupo g ON ev.grupo_id = g.id
+       JOIN ciclo ci ON g.ciclo_id = ci.id
+       JOIN programa p ON g.programa_id = p.id
        WHERE ev.escalador_id = $1
          AND ev.estado = 'realizada'
        ORDER BY ci.fecha_inicio ASC, ev.tipo ASC`,
@@ -236,7 +236,7 @@ router.get("/comparar/:cohorteId", authorize("entrenador", "admin"), async (req,
        FROM resultado_test rt
        JOIN evaluacion ev ON rt.evaluacion_id = ev.id
        JOIN escalador e ON ev.escalador_id = e.id
-       WHERE ev.cohorte_id = $1 AND ev.estado = 'realizada'
+       WHERE ev.grupo_id = $1 AND ev.estado = 'realizada'
        ORDER BY e.nombre, rt.metrica, ev.tipo`,
       [req.params.cohorteId]
     );

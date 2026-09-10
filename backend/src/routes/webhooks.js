@@ -117,9 +117,9 @@ router.post("/:id/link-pago", authenticate, async (req, res) => {
        FROM pago pa
        JOIN inscripcion i ON pa.inscripcion_id = i.id
        JOIN escalador e ON i.escalador_id = e.id
-       JOIN cohorte co ON i.cohorte_id = co.id
-       JOIN programa p ON co.programa_id = p.id
-       JOIN ciclo ci ON co.ciclo_id = ci.id
+       JOIN grupo g ON i.grupo_id = g.id
+       JOIN programa p ON g.programa_id = p.id
+       JOIN ciclo ci ON g.ciclo_id = ci.id
        WHERE pa.id = $1`,
       [pagoId]
     );

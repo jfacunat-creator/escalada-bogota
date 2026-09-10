@@ -92,7 +92,7 @@ router.post(
         `INSERT INTO escalador
            (id, usuario_id, nombre, apellido, fecha_nacimiento, rango_etario,
             peso_kg, telefono, contacto_emergencia, estado, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', NOW())
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'activo', NOW())
          RETURNING id, nombre, apellido, rango_etario, estado, created_at`,
         [
           usuario.id,
@@ -228,8 +228,8 @@ router.get(
         const inscRes = await db(
           `SELECT
              i.id, i.estado, i.fecha_inscripcion, i.precio_ciclo, i.descuento_aplicado,
-             co.id   AS cohorte_id,   co.modalidad,     co.horario,
-             co.estado AS cohorte_estado, co.cupo_maximo, co.inscritos_actual,
+             g.id   AS grupo_id,    g.modalidad,     g.horario,
+             g.estado AS grupo_estado, g.cupo_maximo, g.inscritos_actual,
              p.id    AS prog_id,      p.nombre AS prog_nombre, p.nivel,
              p.descripcion AS prog_desc, p.incluye_fisio, p.incluye_nutricion,
              ci.id   AS ciclo_id,     ci.codigo AS ciclo_codigo,
@@ -237,11 +237,11 @@ router.get(
              m.id    AS muro_id,      m.nombre  AS muro_nombre, m.direccion AS muro_dir,
              ent.id  AS entrenador_id, ent.nombre AS entrenador_nombre
            FROM inscripcion i
-           JOIN cohorte co  ON i.cohorte_id   = co.id
-           JOIN programa p  ON co.programa_id  = p.id
-           JOIN ciclo ci    ON co.ciclo_id     = ci.id
-           JOIN muro_aliado m ON co.muro_id   = m.id
-           JOIN entrenador ent ON co.entrenador_id = ent.id
+           JOIN grupo g     ON i.grupo_id      = g.id
+           JOIN programa p  ON g.programa_id   = p.id
+           JOIN ciclo ci    ON g.ciclo_id      = ci.id
+           JOIN muro_aliado m ON g.muro_id     = m.id
+           JOIN entrenador ent ON g.entrenador_id = ent.id
            WHERE i.escalador_id = $1
            ORDER BY i.fecha_inscripcion DESC`,
           [row.esc_id]
@@ -276,10 +276,10 @@ router.get(
           descuentoAplicado: r.descuento_aplicado,
           pagos: pagosByInsc[r.id] || [],
           cohorte: {
-            id: r.cohorte_id,
+            id: r.grupo_id,
             modalidad: r.modalidad,
             horario: r.horario,
-            estado: r.cohorte_estado,
+            estado: r.grupo_estado,
             cupoMaximo: r.cupo_maximo,
             inscritosActual: r.inscritos_actual,
             programa: {
