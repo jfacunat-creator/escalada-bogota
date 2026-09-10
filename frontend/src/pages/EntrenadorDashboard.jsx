@@ -35,7 +35,7 @@ export default function EntrenadorDashboard() {
     const fetchPendientes = async () => {
       try {
         const res = await fetch('/api/escaladores', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` }
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         if (res.ok) {
           const todos = await res.json();

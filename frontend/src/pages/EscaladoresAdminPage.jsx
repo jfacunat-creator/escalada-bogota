@@ -4,6 +4,7 @@
  * Drill-down: clic en fila abre detalle con inscripciones y pagos.
  */
 import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, Search, X, ChevronRight, Trash2 } from 'lucide-react';
 import { IconoEscalador, IconoPresa, IconoMuro, IconoCronometro } from '../components/Icons';
@@ -12,6 +13,8 @@ const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0
 function fmt(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0); }
 
 export default function EscaladoresAdminPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.rol === 'admin';
   const [escaladores, setEscaladores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [buscar, setBuscar] = useState('');
@@ -163,12 +166,14 @@ export default function EscaladoresAdminPage() {
                   {/* Estado */}
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: e.estado === 'activo' ? '#22c55e' : e.estado === 'congelado' ? '#f59e0b' : '#666', flexShrink: 0 }} />
                   <ChevronRight size={14} style={{ color: C.text3, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
-                  <button onClick={ev => { ev.stopPropagation(); setConfirmDelete(e); }} title="Eliminar escalador" style={{
-                    background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer',
-                    borderRadius: '6px', padding: '5px 7px', flexShrink: 0,
-                  }}>
-                    <Trash2 size={13} />
-                  </button>
+                  {isAdmin && (
+                    <button onClick={ev => { ev.stopPropagation(); setConfirmDelete(e); }} title="Eliminar escalador" style={{
+                      background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer',
+                      borderRadius: '6px', padding: '5px 7px', flexShrink: 0,
+                    }}>
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Detalle expandible */}

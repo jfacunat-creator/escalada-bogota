@@ -210,7 +210,7 @@ router.post(
 );
 
 // ─── PATCH /inscripciones/:id/estado — Cambiar estado ────
-router.patch("/:id/estado", authorize("admin"), [
+router.patch("/:id/estado", authorize("admin", "entrenador"), [
   body("estado").isIn(["activa", "congelada", "cancelada", "completada"]),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -218,8 +218,19 @@ router.patch("/:id/estado", authorize("admin"), [
 
   try {
     const { estado } = req.body;
-    const insc = await db("SELECT estado as old, grupo_id FROM inscripcion WHERE id=$1", [req.params.id]);
+    const insc = await db(
+      `SELECT i.estado as old, i.grupo_id, g.entrenador_id
+       FROM inscripcion i
+       JOIN grupo g ON i.grupo_id = g.id
+       WHERE i.id=$1`,
+      [req.params.id]
+    );
     if (insc.rows.length === 0) return res.status(404).json({ error: "Inscripción no encontrada" });
+
+    // Entrenador solo puede modificar inscripciones de sus grupos
+    if (req.user.rol === "entrenador" && insc.rows[0].entrenador_id !== req.user.entrenador?.id) {
+      return res.status(403).json({ error: "No puedes modificar inscripciones de grupos que no son tuyos" });
+    }
 
     await db("UPDATE inscripcion SET estado=$1 WHERE id=$2", [estado, req.params.id]);
 

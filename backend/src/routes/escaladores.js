@@ -10,45 +10,57 @@ router.use(authenticate);
 // Admin y entrenadores ven la lista de escaladores
 router.get("/", authorize("admin", "entrenador"), async (req, res) => {
   try {
+    if (req.user.rol === "entrenador" && !req.user.entrenador?.id) {
+      return res.status(403).json({ error: "Perfil de entrenador no encontrado" });
+    }
+
     const { estado, rangoEtario, buscar, grupoId } = req.query;
-    let sql = `
-      SELECT e.*, u.email, u.activo as usuario_activo,
-             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado = 'activa') as grupos_activos
-      FROM escalador e
-      JOIN usuario u ON e.usuario_id = u.id
-      WHERE 1=1`;
     const params = [];
+    const conditions = [];
+    let inscripcionActivaSelect = "";
 
     if (estado) {
       params.push(estado);
-      sql += ` AND e.estado = $${params.length}`;
+      conditions.push(`e.estado = $${params.length}`);
     }
     if (rangoEtario) {
       params.push(rangoEtario);
-      sql += ` AND e.rango_etario = $${params.length}`;
+      conditions.push(`e.rango_etario = $${params.length}`);
     }
     if (buscar) {
       params.push(`%${buscar}%`);
-      sql += ` AND (e.nombre ILIKE $${params.length} OR e.apellido ILIKE $${params.length})`;
+      const p = params.length;
+      conditions.push(`(e.nombre ILIKE $${p} OR e.apellido ILIKE $${p})`);
     }
     if (grupoId) {
       params.push(grupoId);
-      sql += ` AND EXISTS (SELECT 1 FROM inscripcion i WHERE i.escalador_id = e.id AND i.grupo_id = $${params.length} AND i.estado = 'activa')`;
+      const p = params.length;
+      conditions.push(`EXISTS (SELECT 1 FROM inscripcion i WHERE i.escalador_id = e.id AND i.grupo_id = $${p} AND i.estado = 'activa')`);
+      inscripcionActivaSelect = `, (SELECT id FROM inscripcion i2 WHERE i2.escalador_id = e.id AND i2.grupo_id = $${p} AND i2.estado = 'activa' LIMIT 1) as inscripcion_activa_id`;
     }
 
     // Entrenador solo ve SUS escaladores (los de sus grupos)
     if (req.user.rol === "entrenador") {
       params.push(req.user.entrenador.id);
-      sql += ` AND EXISTS (
+      conditions.push(`EXISTS (
         SELECT 1 FROM inscripcion i
         JOIN grupo g ON i.grupo_id = g.id
         WHERE i.escalador_id = e.id
           AND g.entrenador_id = $${params.length}
           AND i.estado = 'activa'
-      )`;
+      )`);
     }
 
-    sql += " ORDER BY e.nombre, e.apellido";
+    const where = conditions.length ? " AND " + conditions.join(" AND ") : "";
+    const sql = `
+      SELECT e.*, u.email, u.activo as usuario_activo,
+             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado = 'activa') as grupos_activos
+             ${inscripcionActivaSelect}
+      FROM escalador e
+      JOIN usuario u ON e.usuario_id = u.id
+      WHERE 1=1${where}
+      ORDER BY e.nombre, e.apellido`;
+
     const result = await db(sql, params);
     res.json(result.rows);
   } catch (err) {

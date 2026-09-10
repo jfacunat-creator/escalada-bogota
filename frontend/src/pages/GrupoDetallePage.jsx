@@ -200,15 +200,27 @@ function TabEscaladores({ grupoId, isAdmin }) {
   const [aliados, setAliados] = useState([]);
 
   useEffect(() => {
-    Promise.all([
-      api.getEscaladores({ grupoId: grupoId }).then(setEscaladores),
-      fetch('/api/catalogos/aliados-salud', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).then(r => r.json()).then(setAliados).catch(() => {}),
-    ]).finally(() => setLoading(false));
+    const load = async () => {
+      try {
+        const escs = await api.getEscaladores({ grupoId });
+        setEscaladores(escs);
+      } catch (err) {
+        console.error('Error cargando escaladores del grupo:', err);
+      }
+      fetch('/api/catalogos/aliados-salud', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+        .then(r => r.json()).then(setAliados).catch(() => {});
+      setLoading(false);
+    };
+    load();
   }, [grupoId]);
 
-  const cambiarEstado = async (id, estado) => {
-    try { await api.cambiarEstadoInscripcion(id, estado); const e = await api.getEscaladores({ grupoId: grupoId }); setEscaladores(e); }
-    catch (err) { alert(err.error || 'Error'); }
+  const cambiarEstado = async (escalador, nuevoEstado) => {
+    const inscripcionId = escalador.inscripcion_activa_id || escalador.id;
+    try {
+      await api.cambiarEstadoInscripcion(inscripcionId, nuevoEstado);
+      const e = await api.getEscaladores({ grupoId });
+      setEscaladores(e);
+    } catch (err) { alert(err.error || 'Error'); }
   };
 
   const filtrados = escaladores.filter(e => !buscar || `${e.nombre} ${e.apellido} ${e.email || ''}`.toLowerCase().includes(buscar.toLowerCase()));
@@ -247,26 +259,24 @@ function TabEscaladores({ grupoId, isAdmin }) {
                     background: e.estado === 'activo' ? 'rgba(34,197,94,0.1)' : e.estado === 'congelado' ? 'rgba(245,158,11,0.1)' : 'rgba(100,100,100,0.1)',
                     color: e.estado === 'activo' ? '#22c55e' : e.estado === 'congelado' ? '#f59e0b' : '#666',
                   }}>{e.estado}</span>
-                  {(isAdmin || true) && (
-                    <>
-                      {e.estado === 'activo' && (
-                        <button onClick={() => cambiarEstado(e.inscripciones?.[0]?.id || e.id, 'congelada')}
-                          style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
-                          Congelar
-                        </button>
-                      )}
-                      {e.estado === 'congelado' && (
-                        <button onClick={() => cambiarEstado(e.inscripciones?.[0]?.id || e.id, 'activa')}
-                          style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
-                          Reactivar
-                        </button>
-                      )}
-                      <button onClick={() => setShowRemitir(e)}
-                        style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${C.border}`, cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'transparent', color: C.text2 }}>
-                        Remitir
+                  <>
+                    {e.estado === 'activo' && (
+                      <button onClick={() => cambiarEstado(e, 'congelada')}
+                        style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+                        Congelar
                       </button>
-                    </>
-                  )}
+                    )}
+                    {e.estado === 'congelado' && (
+                      <button onClick={() => cambiarEstado(e, 'activa')}
+                        style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
+                        Reactivar
+                      </button>
+                    )}
+                    <button onClick={() => setShowRemitir(e)}
+                      style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${C.border}`, cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'transparent', color: C.text2 }}>
+                      Remitir
+                    </button>
+                  </>
                 </div>
               </div>
             </div>
