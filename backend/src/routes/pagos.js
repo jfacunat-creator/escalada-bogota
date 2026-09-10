@@ -1,6 +1,13 @@
 const express = require("express");
+const crypto = require("crypto");
 const { query: db } = require("../config/database");
 const { authenticate, authorize } = require("../middleware/auth");
+
+const WOMPI_BASE = process.env.WOMPI_ENV === "production"
+  ? "https://production.wompi.co/v1"
+  : "https://sandbox.wompi.co/v1";
+const WOMPI_PRIVATE_KEY = process.env.WOMPI_PRIVATE_KEY;
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const router = express.Router();
 router.use(authenticate);
@@ -33,7 +40,11 @@ router.get("/resumen", authorize("admin"), async (req, res) => {
 });
 
 // ─── GET /pagos ───────────────────────────────────────────
-router.get("/", authorize("admin"), async (req, res) => {
+// Admin: todos los pagos. Escalador: solo los suyos.
+router.get("/", async (req, res) => {
+  if (req.user.rol !== "admin" && req.user.rol !== "escalador") {
+    return res.status(403).json({ error: "Sin acceso" });
+  }
   try {
     const { estado, grupoId } = req.query;
     let sql = `
@@ -54,6 +65,12 @@ router.get("/", authorize("admin"), async (req, res) => {
 
     if (estado) { params.push(estado); sql += ` AND pg.estado = $${params.length}`; }
     if (grupoId) { params.push(grupoId); sql += ` AND i.grupo_id = $${params.length}`; }
+
+    // Escalador solo ve sus propios pagos
+    if (req.user.rol === "escalador") {
+      params.push(req.user.escalador.id);
+      sql += ` AND i.escalador_id = $${params.length}`;
+    }
 
     sql += " ORDER BY pg.created_at DESC";
     const result = await db(sql, params);
@@ -142,6 +159,69 @@ router.patch("/:id", authorize("admin"), async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Error:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── POST /pagos/:id/link-pago — Generar link de pago Wompi ──────────────────
+router.post("/:id/link-pago", async (req, res) => {
+  try {
+    if (!WOMPI_PRIVATE_KEY) {
+      return res.status(503).json({ error: "Pasarela de pago no configurada. Contacta al equipo." });
+    }
+
+    const pagoId = req.params.id;
+    const pago = await db(
+      `SELECT pa.id, pa.monto, pa.estado, pa.inscripcion_id,
+              i.escalador_id, e.nombre, e.apellido,
+              p.nombre AS programa, ci.codigo AS ciclo
+       FROM pago pa
+       JOIN inscripcion i ON pa.inscripcion_id = i.id
+       JOIN escalador e ON i.escalador_id = e.id
+       JOIN grupo g ON i.grupo_id = g.id
+       JOIN programa p ON g.programa_id = p.id
+       JOIN ciclo ci ON g.ciclo_id = ci.id
+       WHERE pa.id = $1`,
+      [pagoId]
+    );
+
+    if (pago.rows.length === 0) return res.status(404).json({ error: "Pago no encontrado" });
+    const p = pago.rows[0];
+
+    if (req.user.rol === "escalador" && req.user.escalador.id !== p.escalador_id) {
+      return res.status(403).json({ error: "Sin permiso sobre este pago" });
+    }
+    if (p.estado === "pagado") return res.status(400).json({ error: "Este pago ya fue procesado" });
+
+    const amountInCents = Math.round(parseFloat(p.monto) * 100);
+    const wompiRes = await fetch(`${WOMPI_BASE}/payment_links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${WOMPI_PRIVATE_KEY}` },
+      body: JSON.stringify({
+        name: `${p.programa} · ${p.ciclo}`,
+        description: `Mensualidad de ${p.nombre} ${p.apellido} — EscaladaBogotá`,
+        single_use: true,
+        collect_shipping: false,
+        currency: "COP",
+        amount_in_cents: amountInCents,
+        redirect_url: `${FRONTEND_URL}/app/mis-pagos?pago=${pagoId}&status=redirect`,
+        sku: pagoId,
+      }),
+    });
+
+    const wompiData = await wompiRes.json();
+    if (!wompiRes.ok) {
+      console.error("Error Wompi API:", wompiData);
+      return res.status(502).json({ error: "Error al generar el link de pago. Intenta de nuevo." });
+    }
+
+    const linkData = wompiData.data;
+    const paymentUrl = `https://checkout.wompi.co/l/${linkData.id}`;
+    await db("UPDATE pago SET referencia = $1 WHERE id = $2", [`wompi_link:${linkData.id}`, pagoId]);
+
+    res.json({ payment_url: paymentUrl, link_id: linkData.id, amount: parseFloat(p.monto) });
+  } catch (err) {
+    console.error("Error generando link de pago:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });

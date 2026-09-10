@@ -7,11 +7,29 @@ const router = express.Router();
 router.use(authenticate);
 
 // ─── GET /sesiones?grupoId=xxx ────────────────────────────
-router.get("/", authorize("entrenador", "admin"), async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { grupoId } = req.query;
     if (!grupoId) {
       return res.status(400).json({ error: "grupoId es requerido" });
+    }
+
+    // Escalador: solo puede ver sesiones de grupos donde tiene inscripción activa
+    if (req.user.rol === "escalador") {
+      const check = await db(
+        "SELECT id FROM inscripcion WHERE grupo_id=$1 AND escalador_id=$2 AND estado='activa'",
+        [grupoId, req.user.escalador.id]
+      );
+      if (!check.rows.length) return res.status(403).json({ error: "Sin inscripción activa en este grupo" });
+    }
+
+    // Entrenador: solo puede ver sesiones de sus grupos
+    if (req.user.rol === "entrenador") {
+      const check = await db(
+        "SELECT id FROM grupo WHERE id=$1 AND entrenador_id=$2",
+        [grupoId, req.user.entrenador?.id]
+      );
+      if (!check.rows.length) return res.status(403).json({ error: "Grupo no encontrado o sin acceso" });
     }
 
     const result = await db(

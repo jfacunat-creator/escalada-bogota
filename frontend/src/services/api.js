@@ -100,6 +100,7 @@ class ApiService {
   crearEvaluacion(data)             { return this.request('/evaluaciones', { method: 'POST', body: JSON.stringify(data) }); }
   getEvaluacion(id)                 { return this.request(`/evaluaciones/${id}`); }
   updateEvaluacion(id, data)        { return this.request(`/evaluaciones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  getProgreso(escaladorId)          { return this.request(`/evaluaciones/progreso/${escaladorId}`); }
 
   // Inscripciones
   getInscripciones(params)          { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/inscripciones${q}`); }
@@ -117,6 +118,7 @@ class ApiService {
   updatePago(id, data)              { return this.request(`/pagos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   deletePago(id)                    { return this.request(`/pagos/${id}`, { method: 'DELETE' }); }
   getLinkPago(id)                   { return this.request(`/pagos/${id}/link-pago`); }
+  generarLinkPago(id)               { return this.request(`/pagos/${id}/link-pago`, { method: 'POST' }); }
   cambiarEstadoInscripcion(id, est) { return this.request(`/inscripciones/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado: est }) }); }
 
   // RRHH

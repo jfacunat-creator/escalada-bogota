@@ -30,7 +30,10 @@ app.use("/api/entrenadores", require("./routes/entrenadores"));
 app.use("/api/inscripciones", require("./routes/inscripciones"));
 app.use("/api/pagos", require("./routes/pagos"));
 app.use("/api/sesiones", require("./routes/sesiones"));
-app.use("/api/asistencia", require("./routes/asistencia"));
+app.use("/api/asistencia",   require("./routes/asistencia"));
+app.use("/api/contenido",    require("./routes/contenido"));
+app.use("/api/evaluaciones", require("./routes/evaluaciones"));
+app.use("/api/webhooks",     require("./routes/webhooks"));
 
 // 404
 app.use((req, res) => {
