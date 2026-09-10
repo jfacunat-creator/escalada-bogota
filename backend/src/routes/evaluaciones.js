@@ -70,6 +70,111 @@ router.post("/", authorize("entrenador", "admin"), [
   }
 });
 
+// ─── GET /evaluaciones/progreso/:escaladorId — CURVA DE PROGRESO ──
+router.get("/progreso/:escaladorId", async (req, res) => {
+  try {
+    const { escaladorId } = req.params;
+
+    if (req.user.rol === "escalador" && req.user.escalador.id !== escaladorId) {
+      return res.status(403).json({ error: "Solo puedes ver tu propio progreso" });
+    }
+
+    const result = await db(
+      `SELECT rt.metrica, rt.valor, rt.unidad, rt.semaforo, rt.percentil,
+              ev.tipo as eval_tipo, ev.fecha as eval_fecha,
+              ci.codigo as ciclo, ci.trimestre, ci.anio,
+              p.nombre as programa
+       FROM resultado_test rt
+       JOIN evaluacion ev ON rt.evaluacion_id = ev.id
+       JOIN grupo g ON ev.grupo_id = g.id
+       JOIN ciclo ci ON g.ciclo_id = ci.id
+       JOIN programa p ON g.programa_id = p.id
+       WHERE ev.escalador_id = $1
+         AND ev.estado = 'realizada'
+       ORDER BY ci.fecha_inicio ASC, ev.tipo ASC`,
+      [escaladorId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ escaladorId, metricas: {}, evaluaciones: [], hayDatos: false });
+    }
+
+    const metricas = {};
+    const evaluaciones = [];
+    const evalSet = new Set();
+
+    for (const row of result.rows) {
+      if (!metricas[row.metrica]) {
+        metricas[row.metrica] = { unidad: row.unidad, puntos: [] };
+      }
+      metricas[row.metrica].puntos.push({
+        ciclo: row.ciclo,
+        tipo: row.eval_tipo,
+        valor: parseFloat(row.valor),
+        semaforo: row.semaforo,
+        fecha: row.eval_fecha,
+        percentil: row.percentil,
+      });
+
+      const evalKey = `${row.ciclo}-${row.eval_tipo}`;
+      if (!evalSet.has(evalKey)) {
+        evalSet.add(evalKey);
+        evaluaciones.push({ ciclo: row.ciclo, tipo: row.eval_tipo, fecha: row.eval_fecha, programa: row.programa });
+      }
+    }
+
+    for (const [, data] of Object.entries(metricas)) {
+      const puntos = data.puntos;
+      if (puntos.length >= 2) {
+        const primero = puntos[0].valor;
+        const ultimo = puntos[puntos.length - 1].valor;
+        const cambio = ultimo - primero;
+        const cambioPct = primero !== 0 ? Math.round((cambio / primero) * 100) : 0;
+        data.tendencia = { cambio, cambioPct, mejoro: cambio > 0 };
+      }
+    }
+
+    res.json({ escaladorId, metricas, evaluaciones, hayDatos: true, totalPuntos: result.rows.length });
+  } catch (err) {
+    console.error("Error obteniendo progreso:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── GET /evaluaciones/comparar/:cohorteId — Comparación de grupo
+router.get("/comparar/:cohorteId", authorize("entrenador", "admin"), async (req, res) => {
+  try {
+    const result = await db(
+      `SELECT e.nombre, e.apellido,
+              rt.metrica, rt.valor, rt.unidad, rt.semaforo,
+              ev.tipo as eval_tipo
+       FROM resultado_test rt
+       JOIN evaluacion ev ON rt.evaluacion_id = ev.id
+       JOIN escalador e ON ev.escalador_id = e.id
+       WHERE ev.grupo_id = $1 AND ev.estado = 'realizada'
+       ORDER BY e.nombre, rt.metrica, ev.tipo`,
+      [req.params.cohorteId]
+    );
+
+    const escaladores = {};
+    for (const row of result.rows) {
+      const key = `${row.nombre} ${row.apellido}`;
+      if (!escaladores[key]) escaladores[key] = {};
+      if (!escaladores[key][row.metrica]) escaladores[key][row.metrica] = {};
+      escaladores[key][row.metrica][row.eval_tipo] = {
+        valor: parseFloat(row.valor),
+        unidad: row.unidad,
+        semaforo: row.semaforo,
+      };
+    }
+
+    res.json(escaladores);
+  } catch (err) {
+    console.error("Error:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 // ─── GET /evaluaciones/:id — Detalle con resultados ──────
 router.get("/:id", async (req, res) => {
   try {
@@ -133,130 +238,6 @@ router.post("/:id/resultados", authorize("entrenador", "admin"), [
     res.status(201).json({ message: `${insertados} resultados registrados`, insertados });
   } catch (err) {
     console.error("Error registrando resultados:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
-});
-
-// ─── GET /evaluaciones/progreso/:escaladorId — CURVA DE PROGRESO ──
-// Este es el endpoint estrella: el dato que es el producto.
-// Retorna todas las métricas del escalador a lo largo de los ciclos.
-router.get("/progreso/:escaladorId", async (req, res) => {
-  try {
-    const { escaladorId } = req.params;
-
-    if (req.user.rol === "escalador" && req.user.escalador.id !== escaladorId) {
-      return res.status(403).json({ error: "Solo puedes ver tu propio progreso" });
-    }
-
-    // Obtener todos los resultados del escalador ordenados cronológicamente
-    const result = await db(
-      `SELECT rt.metrica, rt.valor, rt.unidad, rt.semaforo, rt.percentil,
-              ev.tipo as eval_tipo, ev.fecha as eval_fecha,
-              ci.codigo as ciclo, ci.trimestre, ci.anio,
-              p.nombre as programa
-       FROM resultado_test rt
-       JOIN evaluacion ev ON rt.evaluacion_id = ev.id
-       JOIN grupo g ON ev.grupo_id = g.id
-       JOIN ciclo ci ON g.ciclo_id = ci.id
-       JOIN programa p ON g.programa_id = p.id
-       WHERE ev.escalador_id = $1
-         AND ev.estado = 'realizada'
-       ORDER BY ci.fecha_inicio ASC, ev.tipo ASC`,
-      [escaladorId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.json({ escaladorId, metricas: {}, evaluaciones: [], hayDatos: false });
-    }
-
-    // Agrupar por métrica para las curvas
-    const metricas = {};
-    const evaluaciones = [];
-    const evalSet = new Set();
-
-    for (const row of result.rows) {
-      // Metricas agrupadas
-      if (!metricas[row.metrica]) {
-        metricas[row.metrica] = { unidad: row.unidad, puntos: [] };
-      }
-      metricas[row.metrica].puntos.push({
-        ciclo: row.ciclo,
-        tipo: row.eval_tipo,
-        valor: parseFloat(row.valor),
-        semaforo: row.semaforo,
-        fecha: row.eval_fecha,
-        percentil: row.percentil,
-      });
-
-      // Lista de evaluaciones únicas
-      const evalKey = `${row.ciclo}-${row.eval_tipo}`;
-      if (!evalSet.has(evalKey)) {
-        evalSet.add(evalKey);
-        evaluaciones.push({
-          ciclo: row.ciclo,
-          tipo: row.eval_tipo,
-          fecha: row.eval_fecha,
-          programa: row.programa,
-        });
-      }
-    }
-
-    // Calcular tendencias por métrica
-    for (const [key, data] of Object.entries(metricas)) {
-      const puntos = data.puntos;
-      if (puntos.length >= 2) {
-        const primero = puntos[0].valor;
-        const ultimo = puntos[puntos.length - 1].valor;
-        const cambio = ultimo - primero;
-        const cambioPct = primero !== 0 ? Math.round((cambio / primero) * 100) : 0;
-        data.tendencia = { cambio, cambioPct, mejoro: cambio > 0 };
-      }
-    }
-
-    res.json({
-      escaladorId,
-      metricas,
-      evaluaciones,
-      hayDatos: true,
-      totalPuntos: result.rows.length,
-    });
-  } catch (err) {
-    console.error("Error obteniendo progreso:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
-});
-
-// ─── GET /evaluaciones/comparar/:cohorteId — Comparación de cohorte
-router.get("/comparar/:cohorteId", authorize("entrenador", "admin"), async (req, res) => {
-  try {
-    const result = await db(
-      `SELECT e.nombre, e.apellido,
-              rt.metrica, rt.valor, rt.unidad, rt.semaforo,
-              ev.tipo as eval_tipo
-       FROM resultado_test rt
-       JOIN evaluacion ev ON rt.evaluacion_id = ev.id
-       JOIN escalador e ON ev.escalador_id = e.id
-       WHERE ev.grupo_id = $1 AND ev.estado = 'realizada'
-       ORDER BY e.nombre, rt.metrica, ev.tipo`,
-      [req.params.cohorteId]
-    );
-
-    // Agrupar por escalador
-    const escaladores = {};
-    for (const row of result.rows) {
-      const key = `${row.nombre} ${row.apellido}`;
-      if (!escaladores[key]) escaladores[key] = {};
-      if (!escaladores[key][row.metrica]) escaladores[key][row.metrica] = {};
-      escaladores[key][row.metrica][row.eval_tipo] = {
-        valor: parseFloat(row.valor),
-        unidad: row.unidad,
-        semaforo: row.semaforo,
-      };
-    }
-
-    res.json(escaladores);
-  } catch (err) {
-    console.error("Error:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
