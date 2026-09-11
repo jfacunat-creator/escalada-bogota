@@ -11,7 +11,7 @@ import { IconoPlanEntreno, IconoCronometro, IconoMuro, IconoRoca, IconoEscalador
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', accent2: '#9E721D', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-const NIVEL_LABEL = { iniciacion: 'Iniciación', intermedio: 'Intermedio', avanzado: 'Avanzado' };
+const NIVEL_LABEL = { iniciacion: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' };
 const NIVEL_COLOR = { iniciacion: '#22c55e', intermedio: C.accent, avanzado: '#ef4444' };
 
 function fmt(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0); }
@@ -102,7 +102,7 @@ function FilterBar({ filtro, setFiltro, ciclos, entrenadores }) {
       <select value={filtro.nivel || ''} onChange={e => setFiltro(f => ({ ...f, nivel: e.target.value }))}
         style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text2, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
         <option value="">Todos los niveles</option>
-        <option value="iniciacion">Iniciación</option>
+        <option value="iniciacion">Principiante</option>
         <option value="intermedio">Intermedio</option>
         <option value="avanzado">Avanzado</option>
       </select>
@@ -140,16 +140,23 @@ function FilterBar({ filtro, setFiltro, ciclos, entrenadores }) {
 }
 
 // ─── Modal asignar nivel ──────────────────────────────────────────────────────
-const NIVELES = [
-  { value: 'iniciacion', label: 'Iniciación', desc: 'Sin experiencia previa en escalada', color: '#22c55e' },
-  { value: 'intermedio', label: 'Intermedio', desc: 'Con experiencia básica, listo para progresar', color: C.accent },
-  { value: 'avanzado',   label: 'Avanzado',   desc: 'Escalador con técnica y condición establecida', color: '#ef4444' },
-];
+const NIVEL_META = {
+  iniciacion: { label: 'Principiante', desc: 'Sin experiencia previa en escalada', color: '#22c55e' },
+  intermedio: { label: 'Intermedio',   desc: 'Con experiencia básica, listo para progresar', color: C.accent },
+  avanzado:   { label: 'Avanzado',     desc: 'Escalador con técnica y condición establecida', color: '#ef4444' },
+};
 
 function ModalAsignarNivel({ escalador, onCerrar, onAsignado }) {
-  const [nivel, setNivel] = useState('iniciacion');
+  const [niveles, setNiveles] = useState([]);
+  const [nivel, setNivel] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.getNiveles()
+      .then(vals => { setNiveles(vals); if (vals.length) setNivel(vals[0]); })
+      .catch(() => setError('No se pudieron cargar los niveles'));
+  }, []);
 
   const confirmar = async () => {
     setLoading(true); setError(null);
@@ -185,20 +192,27 @@ function ModalAsignarNivel({ escalador, onCerrar, onAsignado }) {
           <div style={{ fontSize: '0.78rem', color: C.text2, marginBottom: '8px', fontFamily: 'Poppins' }}>
             Nivel del escalador
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {NIVELES.map(n => (
-              <label key={n.value} onClick={() => setNivel(n.value)}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', background: nivel === n.value ? n.color + '15' : '#252525', border: `1px solid ${nivel === n.value ? n.color + '60' : '#3e3e3e'}`, borderRadius: '8px', padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s' }}>
-                <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: `2px solid ${nivel === n.value ? n.color : '#555'}`, background: nivel === n.value ? n.color : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {nivel === n.value && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#121212' }} />}
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: nivel === n.value ? n.color : C.text, fontFamily: 'Poppins' }}>{n.label}</div>
-                  <div style={{ fontSize: '0.75rem', color: C.text3 }}>{n.desc}</div>
-                </div>
-              </label>
-            ))}
-          </div>
+          {niveles.length === 0 && !error ? (
+            <div style={{ color: C.text3, fontSize: '0.82rem' }}>Cargando niveles...</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {niveles.map(v => {
+                const meta = NIVEL_META[v] || { label: v, desc: '', color: C.accent };
+                return (
+                  <label key={v} onClick={() => setNivel(v)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '12px', background: nivel === v ? meta.color + '15' : '#252525', border: `1px solid ${nivel === v ? meta.color + '60' : '#3e3e3e'}`, borderRadius: '8px', padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: `2px solid ${nivel === v ? meta.color : '#555'}`, background: nivel === v ? meta.color : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {nivel === v && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#121212' }} />}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: nivel === v ? meta.color : C.text, fontFamily: 'Poppins' }}>{meta.label}</div>
+                      {meta.desc && <div style={{ fontSize: '0.75rem', color: C.text3 }}>{meta.desc}</div>}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div style={{ fontSize: '0.75rem', color: C.text3, background: '#252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '16px', lineHeight: 1.6 }}>
@@ -213,8 +227,8 @@ function ModalAsignarNivel({ escalador, onCerrar, onAsignado }) {
             style={{ flex: 1, padding: '11px', borderRadius: '8px', background: 'transparent', color: C.text2, border: '1px solid #2e2e2e', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'Poppins' }}>
             Cancelar
           </button>
-          <button onClick={confirmar} disabled={loading}
-            style={{ flex: 2, padding: '11px', borderRadius: '8px', background: loading ? '#3a3a2a' : C.accent, color: '#121212', border: 'none', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'Poppins', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <button onClick={confirmar} disabled={loading || !nivel}
+            style={{ flex: 2, padding: '11px', borderRadius: '8px', background: (loading || !nivel) ? '#3a3a2a' : C.accent, color: '#121212', border: 'none', fontSize: '0.9rem', fontWeight: 700, cursor: (loading || !nivel) ? 'not-allowed' : 'pointer', fontFamily: 'Poppins', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             {loading ? <><Loader2 size={14} className="animate-spin" /> Guardando...</> : 'Asignar nivel →'}
           </button>
         </div>

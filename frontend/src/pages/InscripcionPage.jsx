@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
 const NIVEL_LABEL = {
-  iniciacion: 'Iniciación',
+  iniciacion: 'Principiante',
   intermedio: 'Intermedio',
   avanzado:   'Avanzado',
 };
@@ -573,7 +573,7 @@ export default function InscripcionPage() {
       ) : (
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '24px' }}>
           <div style={{ display: 'flex', gap: '4px', background: '#1c1c1c', borderRadius: '8px', padding: '3px', border: '1px solid #2e2e2e' }}>
-            {[['todos', 'Todos los niveles'], ['iniciacion', 'Iniciación'], ['intermedio', 'Intermedio'], ['avanzado', 'Avanzado']].map(([val, label]) => (
+            {[['todos', 'Todos los niveles'], ['iniciacion', 'Principiante'], ['intermedio', 'Intermedio'], ['avanzado', 'Avanzado']].map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setFiltroNivel(val)}

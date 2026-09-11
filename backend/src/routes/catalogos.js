@@ -1,5 +1,6 @@
 const express = require("express");
 const { query: db } = require("../config/database");
+const { authenticate } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -74,6 +75,22 @@ router.get("/grupos", async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── GET /catalogos/niveles — Valores del enum NivelPrograma ─────────────────
+router.get("/niveles", authenticate, async (req, res) => {
+  try {
+    const result = await db(
+      `SELECT enumlabel AS valor
+       FROM pg_enum
+       WHERE enumtypid = 'NivelPrograma'::regtype
+       ORDER BY enumsortorder`
+    );
+    res.json(result.rows.map(r => r.valor));
+  } catch (err) {
+    console.error("Error GET /catalogos/niveles:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });

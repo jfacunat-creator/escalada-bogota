@@ -49,6 +49,7 @@ class ApiService {
 
   // Catálogos
   getProgramas(params)  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/programas${q}`); }
+  getNiveles()          { return this.request('/catalogos/niveles'); }
   getCiclos(params)     { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/ciclos${q}`); }
   getCicloActual()      { return this.request('/catalogos/ciclos/actual'); }
   crearCiclo(data)      { return this.request('/catalogos/ciclos', { method: 'POST', body: JSON.stringify(data) }); }

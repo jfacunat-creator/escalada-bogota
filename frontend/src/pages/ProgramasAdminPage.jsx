@@ -10,7 +10,7 @@ import { IconoPresa, IconoRoca, IconoEscalador } from '../components/Icons';
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 
 const NIVEL_COLOR = { iniciacion: '#22c55e', intermedio: '#D4AF37', avanzado: '#ef4444' };
-const NIVEL_LABEL = { iniciacion: 'Iniciación', intermedio: 'Intermedio', avanzado: 'Avanzado' };
+const NIVEL_LABEL = { iniciacion: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' };
 
 // Currículo detallado por nivel (fijo — estructura pedagógica del negocio)
 const CURRICULO = {
@@ -133,7 +133,7 @@ export default function ProgramasAdminPage() {
         </div>
 
         <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          {[['', 'Todos'], ['iniciacion', 'Iniciación'], ['intermedio', 'Intermedio'], ['avanzado', 'Avanzado']].map(([v, l]) => (
+          {[['', 'Todos'], ['iniciacion', 'Principiante'], ['intermedio', 'Intermedio'], ['avanzado', 'Avanzado']].map(([v, l]) => (
             <button key={v} onClick={() => setFiltro(v)} style={{ padding: '5px 14px', borderRadius: '20px', border: '1px solid', cursor: 'pointer', fontFamily: 'Poppins', fontSize: '0.8rem', fontWeight: 500, background: filtro === v ? C.accent : 'transparent', color: filtro === v ? '#121212' : C.text2, borderColor: filtro === v ? C.accent : C.border }}>{l}</button>
           ))}
         </div>

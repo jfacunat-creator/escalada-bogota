@@ -907,7 +907,7 @@ export default function PlanTrackerPage() {
   }
   if (!plan) return null;
 
-  const nivelLabel  = { iniciacion: "Iniciación", intermedio: "Intermedio", avanzado: "Avanzado" }[plan.nivel] || plan.nivel;
+  const nivelLabel  = { iniciacion: "Principiante", intermedio: "Intermedio", avanzado: "Avanzado" }[plan.nivel] || plan.nivel;
   const nivelColor  = NIVEL_COLOR[plan.nivel] || C.accent;
 
   return (
