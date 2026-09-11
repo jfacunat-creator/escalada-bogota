@@ -63,7 +63,7 @@ router.get("/grupos", async (req, res) => {
       FROM grupo g
       JOIN programa p ON g.programa_id = p.id
       JOIN ciclo ci ON g.ciclo_id = ci.id
-      JOIN muro_aliado m ON g.muro_id = m.id
+      LEFT JOIN muro_aliado m ON g.muro_id = m.id
       JOIN entrenador ent ON g.entrenador_id = ent.id
       WHERE 1=1`;
     const params = [];

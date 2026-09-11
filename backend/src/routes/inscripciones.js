@@ -32,7 +32,7 @@ router.get("/", async (req, res) => {
       JOIN grupo co ON i.grupo_id = co.id
       JOIN programa p ON co.programa_id = p.id
       JOIN ciclo ci ON co.ciclo_id = ci.id
-      JOIN muro_aliado m ON co.muro_id = m.id
+      LEFT JOIN muro_aliado m ON co.muro_id = m.id
       JOIN entrenador ent ON co.entrenador_id = ent.id
       WHERE 1=1
     `;

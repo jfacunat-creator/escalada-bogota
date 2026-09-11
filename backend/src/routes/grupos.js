@@ -22,7 +22,7 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
       FROM grupo g
       JOIN programa p ON g.programa_id = p.id
       JOIN ciclo ci ON g.ciclo_id = ci.id
-      JOIN muro_aliado m ON g.muro_id = m.id
+      LEFT JOIN muro_aliado m ON g.muro_id = m.id
       JOIN entrenador ent ON g.entrenador_id = ent.id
       WHERE 1=1`;
     const params = [];
@@ -58,7 +58,7 @@ router.get("/disponibles", async (req, res) => {
        FROM grupo g
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
-       JOIN muro_aliado m ON g.muro_id = m.id
+       LEFT JOIN muro_aliado m ON g.muro_id = m.id
        JOIN entrenador ent ON g.entrenador_id = ent.id
        WHERE g.estado IN ('abierta', 'en_curso')
        ORDER BY p.nombre`
@@ -83,7 +83,7 @@ router.get("/:id", async (req, res) => {
        FROM grupo g
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
-       JOIN muro_aliado m ON g.muro_id = m.id
+       LEFT JOIN muro_aliado m ON g.muro_id = m.id
        JOIN entrenador ent ON g.entrenador_id = ent.id
        WHERE g.id = $1`,
       [req.params.id]
@@ -112,10 +112,8 @@ router.get("/:id", async (req, res) => {
 router.post("/", authorize("admin"), [
   body("programaId").isUUID(),
   body("cicloId").isUUID(),
-  body("muroId").isUUID(),
   body("entrenadorId").isUUID(),
   body("modalidad").isIn(["autonomo", "acompanado"]),
-  body("horario").notEmpty(),
   body("cupoMaximo").isInt({ min: 1 }),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -123,11 +121,15 @@ router.post("/", authorize("admin"), [
 
   try {
     const { programaId, cicloId, muroId, entrenadorId, modalidad, horario, cupoMaximo, estado } = req.body;
+    const esAcompanado = modalidad === "acompanado";
+    if (esAcompanado && (!muroId || !horario)) {
+      return res.status(400).json({ error: "Los grupos acompañados requieren sede y horario." });
+    }
     const id = randomUUID();
     const result = await db(
-      `INSERT INTO grupo (id, programa_id, ciclo_id, muro_id, entrenador_id, modalidad, horario, cupo_maximo, estado)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [id, programaId, cicloId, muroId, entrenadorId, modalidad, horario, cupoMaximo, estado || "abierta"]
+      `INSERT INTO grupo (id, programa_id, ciclo_id, muro_id, entrenador_id, modalidad, horario, cupo_maximo, estado, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW()) RETURNING *`,
+      [id, programaId, cicloId, muroId || null, entrenadorId, modalidad, horario || null, cupoMaximo, estado || "abierta"]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

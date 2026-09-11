@@ -121,14 +121,23 @@ function GrupoRow({ grupo, onEstado, onDetalle, onDelete, onEdit }) {
 
       {/* Info */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem', color: C.text2, fontFamily: 'Poppins' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <IconoCronometro style={{ width: '13px', height: '13px', flexShrink: 0 }} />
-          {horarioLabel[grupo.horario] || grupo.horario}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <IconoMuro style={{ width: '13px', height: '13px', flexShrink: 0 }} />
-          {grupo.muro_nombre}
-        </div>
+        {grupo.horario ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <IconoCronometro style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+            {horarioLabel[grupo.horario] || grupo.horario}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: C.text3 }}>
+            <IconoCronometro style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+            Horario libre (autónomo)
+          </div>
+        )}
+        {grupo.muro_nombre && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <IconoMuro style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+            {grupo.muro_nombre}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <IconoCuerda style={{ width: '13px', height: '13px', flexShrink: 0 }} />
           {grupo.entrenador_nombre}
@@ -229,8 +238,13 @@ function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenado
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const handleSubmit = async () => {
-    if (!form.programaId || !form.cicloId || !form.entrenadorId || !form.muroId || !form.horario) {
+    const esAcompanado = form.modalidad === 'acompanado';
+    if (!form.programaId || !form.cicloId || !form.entrenadorId) {
       setError('Completa todos los campos obligatorios.');
+      return;
+    }
+    if (esAcompanado && (!form.muroId || !form.horario)) {
+      setError('Los grupos acompañados requieren sede y horario.');
       return;
     }
     setLoading(true);
@@ -289,13 +303,8 @@ function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenado
             {entrenadores.map(e => <option key={e.id} value={e.id}>{e.nombre} · Lic. {e.licencia_ley181 || '—'}</option>)}
           </SelectField>
 
-          <SelectField label="Muro aliado" value={form.muroId} onChange={e => set('muroId', e.target.value)} required>
-            <option value="">Seleccionar muro...</option>
-            {muros.map(m => <option key={m.id} value={m.id}>{m.nombre} · {m.zonas_disponibles} zonas</option>)}
-          </SelectField>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <SelectField label="Modalidad" value={form.modalidad} onChange={e => set('modalidad', e.target.value)} required>
+            <SelectField label="Modalidad" value={form.modalidad} onChange={e => { set('modalidad', e.target.value); if (e.target.value === 'autonomo') { set('muroId', ''); set('horario', ''); } }} required>
               <option value="acompanado">Acompañado</option>
               <option value="autonomo">Autónomo</option>
             </SelectField>
@@ -305,10 +314,19 @@ function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenado
               min={4} max={esMenu ? 6 : 12} required />
           </div>
 
-          <SelectField label="Horario" value={form.horario} onChange={e => set('horario', e.target.value)} required>
-            <option value="">Seleccionar horario...</option>
-            {HORARIOS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
-          </SelectField>
+          {form.modalidad === 'acompanado' && (
+            <>
+              <SelectField label="Muro aliado" value={form.muroId} onChange={e => set('muroId', e.target.value)} required>
+                <option value="">Seleccionar muro...</option>
+                {muros.map(m => <option key={m.id} value={m.id}>{m.nombre} · {m.zonas_disponibles} zonas</option>)}
+              </SelectField>
+
+              <SelectField label="Horario" value={form.horario} onChange={e => set('horario', e.target.value)} required>
+                <option value="">Seleccionar horario...</option>
+                {HORARIOS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+              </SelectField>
+            </>
+          )}
         </div>
 
         {error && (
