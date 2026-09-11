@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
 
     let sql = `
       SELECT ev.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo,
-             co.horario, m.nombre as muro_nombre,
+             g.horario, m.nombre as muro_nombre,
              (SELECT COUNT(*) FROM resultado_test rt WHERE rt.evaluacion_id = ev.id) as num_resultados
       FROM evaluacion ev
       JOIN grupo g ON ev.grupo_id = g.id
@@ -66,6 +66,66 @@ router.post("/", authorize("entrenador", "admin"), [
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("Error creando evaluación:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── POST /evaluaciones/mi-test — Escalador registra sus propios resultados ──
+// Permite al escalador ingresar resultados desde la sesión de test
+router.post("/mi-test", async (req, res) => {
+  if (!req.user.escalador) return res.status(403).json({ error: "Solo para escaladores" });
+
+  try {
+    const { sesionId, resultados } = req.body;
+    if (!sesionId || !Array.isArray(resultados) || resultados.length === 0) {
+      return res.status(400).json({ error: "sesionId y resultados son requeridos" });
+    }
+
+    // Verificar que la sesión existe, es de tipo test y pertenece al grupo del escalador
+    const sesion = await db(
+      `SELECT s.id, s.grupo_id, s.tipo, s.fecha, s.numero_sesion,
+              (SELECT COUNT(*) FROM sesion st WHERE st.grupo_id = s.grupo_id AND st.tipo = 'test' AND st.numero_sesion < s.numero_sesion) as tests_previos
+       FROM sesion s
+       JOIN inscripcion i ON i.grupo_id = s.grupo_id AND i.escalador_id = $1 AND i.estado = 'activa'
+       WHERE s.id = $2`,
+      [req.user.escalador.id, sesionId]
+    );
+    if (!sesion.rows.length) return res.status(404).json({ error: "Sesión no encontrada o sin acceso" });
+    if (sesion.rows[0].tipo !== 'test') return res.status(400).json({ error: "Solo se pueden registrar resultados en sesiones de tipo test" });
+
+    const { grupo_id, fecha, numero_sesion, tests_previos } = sesion.rows[0];
+    const tipo = parseInt(tests_previos) === 0 ? 'entrada' : 'salida';
+
+    // Verificar que no exista ya una evaluación para esta sesión
+    const existente = await db(
+      "SELECT id FROM evaluacion WHERE escalador_id=$1 AND grupo_id=$2 AND fecha=$3 AND tipo=$4",
+      [req.user.escalador.id, grupo_id, fecha, tipo]
+    );
+    if (existente.rows.length) {
+      return res.status(409).json({ error: "Ya existe una evaluación de este tipo para esta fecha. Contacta al entrenador para editarla." });
+    }
+
+    // Crear evaluacion
+    const ev = await db(
+      `INSERT INTO evaluacion (escalador_id, grupo_id, tipo, fecha, estado)
+       VALUES ($1, $2, $3, $4, 'realizada') RETURNING id`,
+      [req.user.escalador.id, grupo_id, tipo, fecha]
+    );
+    const evalId = ev.rows[0].id;
+
+    // Insertar resultados
+    for (const r of resultados) {
+      if (!r.metrica || r.valor === undefined || r.valor === null || r.valor === '') continue;
+      const sem = r.semaforo && ['verde','amarillo','rojo'].includes(r.semaforo) ? r.semaforo : 'verde';
+      await db(
+        "INSERT INTO resultado_test (evaluacion_id, metrica, valor, unidad, semaforo) VALUES ($1,$2,$3,$4,$5)",
+        [evalId, r.metrica, parseFloat(r.valor), r.unidad, sem]
+      );
+    }
+
+    res.status(201).json({ id: evalId, tipo, fecha, message: `Test de ${tipo} registrado` });
+  } catch (err) {
+    console.error("Error registrando test del escalador:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });

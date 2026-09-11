@@ -10,15 +10,15 @@ const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0
 const SEM_COLOR = { verde: '#22c55e', amarillo: '#f59e0b', rojo: '#ef4444' };
 
 const METRICAS_CFG = {
-  fuerza_dedos_bidigital_kg:  { label: 'Fuerza Bidigital',     sub: 'T2 · Fingerboard 2 dedos',   color: '#D4AF37' },
-  fuerza_dedos_cuatridital_kg:{ label: 'Fuerza Cuatridigital', sub: 'T4 · Fingerboard 4 dedos',   color: '#f59e0b' },
-  resistencia_rep:            { label: 'Resistencia (rep)',     sub: 'T5 · Repeticiones al fallo', color: '#60a5fa' },
-  resistencia_seg:            { label: 'Resistencia (seg)',     sub: 'T6 · Agarre continuo',       color: '#818cf8' },
-  movilidad_mov:              { label: 'Movilidad',             sub: 'T7 · Movimientos boulder',   color: '#34d399' },
-  grado_critico_un:           { label: 'Grado Crítico',         sub: 'T9 · Unidades de grado',     color: '#c084fc' },
-  powerslab_d_cm:             { label: 'Powerslab Derecho',     sub: 'Potencia brazo derecho',     color: '#f87171' },
-  powerslab_i_cm:             { label: 'Powerslab Izquierdo',   sub: 'Potencia brazo izquierdo',   color: '#fb923c' },
-  circuito_min:               { label: 'Circuito',              sub: 'Tiempo de circuito',         color: '#a3e635' },
+  barras_lastre_kg:          { label: 'Barras con máximo lastre',       sub: 'T2 · 1RM dominada con lastre',             color: '#D4AF37' },
+  suspensiones_20mm_kg:      { label: 'Suspensiones 20mm + lastre',     sub: 'T4 · Isométrica en regleta 20mm',          color: '#f59e0b' },
+  repeticiones_regleta_rep:  { label: 'Repeticiones en regleta',        sub: 'T5 · Reps al fallo en regleta',            color: '#60a5fa' },
+  resistencia_continua_seg:  { label: 'Resistencia continua',           sub: 'T6 · Suspensión isométrica máxima',        color: '#818cf8' },
+  campus_movimientos:        { label: 'Campus movimientos',             sub: 'T7 · Movimientos totales en tabla campus', color: '#34d399' },
+  grado_critico_un:          { label: 'Grado crítico',                  sub: 'T9 · Grado máximo encadenado al 70%',     color: '#c084fc' },
+  powerslab_d_cm:            { label: 'Powerslab Derecho',              sub: 'Alcance máximo brazo derecho',             color: '#f87171' },
+  powerslab_i_cm:            { label: 'Powerslab Izquierdo',            sub: 'Alcance máximo brazo izquierdo',           color: '#fb923c' },
+  circuito_min:              { label: 'Circuito estándar',              sub: 'Tiempo de completación del circuito',      color: '#a3e635' },
 };
 
 function cfg(metrica) {

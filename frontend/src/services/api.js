@@ -101,6 +101,7 @@ class ApiService {
   getEvaluacion(id)                 { return this.request(`/evaluaciones/${id}`); }
   updateEvaluacion(id, data)        { return this.request(`/evaluaciones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   getProgreso(escaladorId)          { return this.request(`/evaluaciones/progreso/${escaladorId}`); }
+  registrarMiTest(sesionId, resultados) { return this.request('/evaluaciones/mi-test', { method: 'POST', body: JSON.stringify({ sesionId, resultados }) }); }
 
   // Inscripciones
   getInscripciones(params)          { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/inscripciones${q}`); }
