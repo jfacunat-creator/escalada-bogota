@@ -86,19 +86,41 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
       sab_dom_11_13: { days: [6, 0], inicio: '11:00', fin: '13:00' },
     };
 
-    const info = HORARIO_MAP[horario];
-    if (!info) return res.status(400).json({ error: "Horario no reconocido: " + horario });
-
-    // Generar fechas dentro del rango del ciclo
     const fechas = [];
-    const cur = new Date(fecha_inicio);
-    cur.setUTCHours(0, 0, 0, 0);
-    const fin = new Date(fecha_fin);
-    while (cur <= fin) {
-      if (info.days.includes(cur.getUTCDay())) {
-        fechas.push(cur.toISOString().split('T')[0]);
+    let horaInicio, horaFin;
+
+    if (horario) {
+      const info = HORARIO_MAP[horario];
+      if (!info) return res.status(400).json({ error: "Horario no reconocido: " + horario });
+
+      horaInicio = info.inicio;
+      horaFin = info.fin;
+
+      const cur = new Date(fecha_inicio);
+      cur.setUTCHours(0, 0, 0, 0);
+      const finDate = new Date(fecha_fin);
+      while (cur <= finDate) {
+        if (info.days.includes(cur.getUTCDay())) {
+          fechas.push(cur.toISOString().split('T')[0]);
+        }
+        cur.setUTCDate(cur.getUTCDate() + 1);
       }
-      cur.setUTCDate(cur.getUTCDate() + 1);
+    } else {
+      // Grupo autónomo sin horario: distribuir sesiones uniformemente en el ciclo
+      horaInicio = '08:00';
+      horaFin = '20:00';
+      const TARGET = 26;
+      const msInicio = new Date(fecha_inicio).getTime();
+      const msFin = new Date(fecha_fin).getTime();
+      const totalDays = Math.floor((msFin - msInicio) / 86400000);
+      const step = Math.max(1, Math.floor(totalDays / TARGET));
+      const cur = new Date(fecha_inicio);
+      cur.setUTCHours(0, 0, 0, 0);
+      const finDate = new Date(fecha_fin);
+      while (cur <= finDate && fechas.length < TARGET) {
+        fechas.push(cur.toISOString().split('T')[0]);
+        cur.setUTCDate(cur.getUTCDate() + step);
+      }
     }
 
     if (fechas.length === 0) return res.status(400).json({ error: "No hay fechas válidas para este horario en el rango del ciclo" });
@@ -119,7 +141,7 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
     fechas.forEach((fecha, i) => {
       const b = i * 7;
       paramSets.push(`($${b+1}, $${b+2}, $${b+3}, $${b+4}, $${b+5}, $${b+6}, $${b+7})`);
-      vals.push(randomUUID(), grupoId, fecha, info.inicio, info.fin, i + 1, getTipo(i));
+      vals.push(randomUUID(), grupoId, fecha, horaInicio, horaFin, i + 1, getTipo(i));
     });
 
     await db(
@@ -144,7 +166,7 @@ router.get("/:id", async (req, res) => {
        JOIN grupo g ON s.grupo_id = g.id
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
-       JOIN muro_aliado m ON g.muro_id = m.id
+       LEFT JOIN muro_aliado m ON g.muro_id = m.id
        JOIN entrenador ent ON g.entrenador_id = ent.id
        WHERE s.id = $1`,
       [req.params.id]
@@ -171,7 +193,7 @@ router.get("/entrenador/:entrenadorId", authorize("entrenador", "admin"), async 
        FROM sesion s
        JOIN grupo g ON s.grupo_id = g.id
        JOIN programa p ON g.programa_id = p.id
-       JOIN muro_aliado m ON g.muro_id = m.id
+       LEFT JOIN muro_aliado m ON g.muro_id = m.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
        WHERE g.entrenador_id = $1
          AND g.estado IN ('abierta', 'en_curso')

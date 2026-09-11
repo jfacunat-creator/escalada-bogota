@@ -97,6 +97,18 @@ router.post("/", authorize("admin"), async (req, res) => {
        RETURNING *`,
       [inscripcionId, parseFloat(monto), metodo || "transferencia", referencia || null]
     );
+
+    // Activar escalador pendiente cuando se registra un pago como pagado
+    const escCheck = await db(
+      `SELECT e.id, e.estado FROM inscripcion i
+       JOIN escalador e ON i.escalador_id = e.id
+       WHERE i.id = $1`,
+      [inscripcionId]
+    );
+    if (escCheck.rows.length && escCheck.rows[0].estado === "pendiente") {
+      await db("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", [escCheck.rows[0].id]);
+    }
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("Error POST /pagos:", err);

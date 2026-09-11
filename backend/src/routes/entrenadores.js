@@ -98,7 +98,7 @@ router.get("/:id", async (req, res) => {
        FROM grupo g
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
-       JOIN muro_aliado m ON g.muro_id = m.id
+       LEFT JOIN muro_aliado m ON g.muro_id = m.id
        WHERE g.entrenador_id = $1
          AND g.estado IN ('abierta', 'en_curso')
        ORDER BY ci.fecha_inicio DESC`,

@@ -145,10 +145,10 @@ router.put("/:id", authorize("admin"), async (req, res) => {
     const sets = [], params = [];
 
     if (modalidad) { params.push(modalidad); sets.push(`modalidad = $${params.length}`); }
-    if (horario)   { params.push(horario);   sets.push(`horario = $${params.length}`); }
+    if ('horario' in req.body) { params.push(horario || null); sets.push(`horario = $${params.length}`); }
     if (cupoMaximo !== undefined) { params.push(cupoMaximo); sets.push(`cupo_maximo = $${params.length}`); }
     if (entrenadorId) { params.push(entrenadorId); sets.push(`entrenador_id = $${params.length}`); }
-    if (muroId)    { params.push(muroId);    sets.push(`muro_id = $${params.length}`); }
+    if ('muroId' in req.body)  { params.push(muroId || null);  sets.push(`muro_id = $${params.length}`); }
 
     if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
 
