@@ -15,18 +15,22 @@ function fmt(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', cur
 export default function EscaladoresAdminPage() {
   const { user } = useAuth();
   const isAdmin = user?.rol === 'admin';
+  const NIVEL_LABEL = { iniciacion: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' };
+  const NIVEL_COLOR = { iniciacion: '#22c55e', intermedio: '#D4AF37', avanzado: '#ef4444' };
+
   const [escaladores, setEscaladores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [buscar, setBuscar] = useState('');
   const [estado, setEstado] = useState('');
   const [rangoEtario, setRangoEtario] = useState('');
+  const [nivel, setNivel] = useState('');
   const [selected, setSelected] = useState(null);
   const [detalle, setDetalle] = useState(null);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => { load(); }, [buscar, estado, rangoEtario]);
+  useEffect(() => { load(); }, [buscar, estado, rangoEtario, nivel]);
 
   const load = async () => {
     setLoading(true);
@@ -35,6 +39,7 @@ export default function EscaladoresAdminPage() {
       if (buscar) params.buscar = buscar;
       if (estado) params.estado = estado;
       if (rangoEtario) params.rangoEtario = rangoEtario;
+      if (nivel) params.nivel = nivel;
       setEscaladores(await api.getEscaladores(params));
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -72,6 +77,7 @@ export default function EscaladoresAdminPage() {
   const activos = escaladores.filter(e => e.estado === 'activo').length;
   const conGrupo = escaladores.filter(e => parseInt(e.grupos_activos) > 0).length;
   const conPagoPendiente = escaladores.filter(e => parseInt(e.pagos_pendientes) > 0).length;
+  const conReserva = escaladores.filter(e => parseInt(e.reservas_pendientes) > 0).length;
 
   return (
     <div>
@@ -86,6 +92,7 @@ export default function EscaladoresAdminPage() {
           [total, 'Registrados', C.text2, IconoEscalador],
           [activos, 'Activos', '#22c55e', IconoPresa],
           [conGrupo, 'Con grupo', C.accent, IconoMuro],
+          [conReserva, 'Cupos reservados', conReserva > 0 ? '#D4AF37' : '#22c55e', IconoCronometro],
           [conPagoPendiente, 'Pago pendiente', conPagoPendiente > 0 ? '#f59e0b' : '#22c55e', IconoCronometro],
         ].map(([v, l, color, Icon]) => (
           <div key={l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -118,8 +125,14 @@ export default function EscaladoresAdminPage() {
           <option value="menor_10_12">Menor 10–12</option>
           <option value="menor_13_15">Menor 13–15</option>
         </select>
-        {(buscar || estado || rangoEtario) && (
-          <button onClick={() => { setBuscar(''); setEstado(''); setRangoEtario(''); }}
+        <select value={nivel} onChange={e => setNivel(e.target.value)} className="input-dark" style={{ width: 'auto', minWidth: '140px' }}>
+          <option value="">Todos los niveles</option>
+          <option value="iniciacion">Principiante</option>
+          <option value="intermedio">Intermedio</option>
+          <option value="avanzado">Avanzado</option>
+        </select>
+        {(buscar || estado || rangoEtario || nivel) && (
+          <button onClick={() => { setBuscar(''); setEstado(''); setRangoEtario(''); setNivel(''); }}
             style={{ background: 'none', border: `1px solid ${C.border}`, color: '#ef4444', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>✕ Limpiar</button>
         )}
       </div>
@@ -151,6 +164,18 @@ export default function EscaladoresAdminPage() {
                   <span style={{ fontSize: '0.75rem', color: C.accent, background: '#3a2e0a', padding: '2px 8px', borderRadius: '20px', fontWeight: 500, fontFamily: 'Poppins', flexShrink: 0 }}>
                     {e.rango_etario === 'adulto' ? 'Adulto' : e.rango_etario?.replace('menor_', 'M').replace('_', '–')}
                   </span>
+                  {/* Nivel */}
+                  {e.nivel && (
+                    <span style={{ fontSize: '0.72rem', color: NIVEL_COLOR[e.nivel] || C.accent, background: (NIVEL_COLOR[e.nivel] || C.accent) + '18', padding: '2px 8px', borderRadius: '20px', fontWeight: 600, fontFamily: 'Poppins', flexShrink: 0 }}>
+                      {NIVEL_LABEL[e.nivel] || e.nivel}
+                    </span>
+                  )}
+                  {/* Reserva pendiente */}
+                  {parseInt(e.reservas_pendientes) > 0 && (
+                    <span style={{ fontSize: '0.72rem', color: '#D4AF37', background: '#D4AF3720', padding: '2px 8px', borderRadius: '20px', fontFamily: 'Poppins', fontWeight: 600, flexShrink: 0 }}>
+                      Cupo reservado
+                    </span>
+                  )}
                   {/* Grupo */}
                   {parseInt(e.grupos_activos) > 0
                     ? <span style={{ fontSize: '0.72rem', color: '#22c55e', background: '#0b1910', padding: '2px 8px', borderRadius: '20px', fontFamily: 'Poppins', fontWeight: 600, flexShrink: 0 }}>
@@ -188,6 +213,7 @@ export default function EscaladoresAdminPage() {
                         <div>
                           <div style={{ fontSize: '0.7rem', color: C.text2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '10px', fontFamily: 'Poppins' }}>Datos personales</div>
                           {[
+                            ['Nivel', detalle.nivel ? (NIVEL_LABEL[detalle.nivel] || detalle.nivel) : '—'],
                             ['Teléfono', detalle.telefono || '—'],
                             ['Contacto emergencia', detalle.contacto_emergencia || '—'],
                             ['Peso', detalle.peso_kg ? `${detalle.peso_kg} kg` : '—'],
@@ -210,9 +236,9 @@ export default function EscaladoresAdminPage() {
                                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: C.text, fontFamily: 'Poppins' }}>{insc.programa}</span>
                                 <span style={{
                                   fontSize: '0.7rem', padding: '1px 7px', borderRadius: '20px', fontWeight: 600, fontFamily: 'Poppins',
-                                  background: insc.estado === 'activa' ? 'rgba(34,197,94,0.1)' : 'rgba(100,100,100,0.1)',
-                                  color: insc.estado === 'activa' ? '#22c55e' : '#666',
-                                }}>{insc.estado}</span>
+                                  background: insc.estado === 'activa' ? 'rgba(34,197,94,0.1)' : insc.estado === 'reservada' ? 'rgba(212,175,55,0.1)' : 'rgba(100,100,100,0.1)',
+                                  color: insc.estado === 'activa' ? '#22c55e' : insc.estado === 'reservada' ? '#D4AF37' : '#666',
+                                }}>{insc.estado === 'reservada' ? '⏳ Cupo reservado' : insc.estado}</span>
                               </div>
                               <div style={{ fontSize: '0.75rem', color: C.text2, fontFamily: 'Poppins' }}>
                                 {insc.ciclo} · {insc.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'} · {insc.muro}

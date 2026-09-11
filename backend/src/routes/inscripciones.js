@@ -25,7 +25,8 @@ router.get("/", async (req, res) => {
              ent.nombre as entrenador_nombre,
              (SELECT COALESCE(SUM(pa.monto) FILTER (WHERE pa.estado='pagado'),0) FROM pago pa WHERE pa.inscripcion_id=i.id) as total_pagado,
              (SELECT COALESCE(SUM(pa.monto) FILTER (WHERE pa.estado='pendiente'),0) FROM pago pa WHERE pa.inscripcion_id=i.id) as total_pendiente,
-             (SELECT COUNT(*) FROM pago pa WHERE pa.inscripcion_id=i.id AND pa.estado='pendiente') as pagos_pendientes
+             (SELECT COUNT(*) FROM pago pa WHERE pa.inscripcion_id=i.id AND pa.estado='pendiente') as pagos_pendientes,
+             (SELECT fecha_vencimiento FROM pago pa WHERE pa.inscripcion_id=i.id AND pa.estado='pendiente' ORDER BY fecha_vencimiento ASC LIMIT 1) as fecha_vencimiento_reserva
       FROM inscripcion i
       JOIN escalador e ON i.escalador_id = e.id
       JOIN usuario u ON e.usuario_id = u.id
@@ -163,16 +164,16 @@ router.post(
         return res.status(400).json({ error: `Este grupo es de nivel ${grupo.nivel}, pero tu nivel asignado es ${escNivel.rows[0].nivel}.` });
       }
 
-      // Máximo una grupo activa simultánea por escalador
+      // Máximo una inscripción activa o reservada por escalador
       const activas = await client.query(
         `SELECT COUNT(*) AS n FROM inscripcion
-         WHERE escalador_id = $1 AND estado = 'activa'`,
+         WHERE escalador_id = $1 AND estado IN ('activa', 'reservada')`,
         [escaladorId]
       );
       if (parseInt(activas.rows[0].n) > 0) {
         await client.query("ROLLBACK");
         return res.status(409).json({
-          error: "Ya tienes una inscripción activa. Finaliza o cancela el ciclo actual para inscribirte en otro.",
+          error: "Ya tienes una inscripción activa o un cupo reservado. Finaliza o cancela el ciclo actual para inscribirte en otro.",
         });
       }
 
@@ -182,30 +183,24 @@ router.post(
       const precioMensual = PRECIO_MENSUAL[nivel]?.[modalidad] ?? 150_000;
       const precioCiclo   = precioMensual * 3;
 
-      // Crear inscripción
+      // Crear inscripción en estado 'reservada' (espera pago en 24h)
       const ins = await client.query(
-        `INSERT INTO inscripcion (escalador_id, grupo_id, precio_ciclo)
-         VALUES ($1, $2, $3) RETURNING *`,
+        `INSERT INTO inscripcion (id, escalador_id, grupo_id, precio_ciclo, estado, updated_at)
+         VALUES (gen_random_uuid(), $1, $2, $3, 'reservada', NOW()) RETURNING *`,
         [escaladorId, grupoId, precioCiclo]
       );
 
-      // Actualizar contador
+      // Pago pendiente con 24h de ventana
       await client.query(
-        "UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id = $1",
-        [grupoId]
-      );
-
-      // Primer pago pendiente (mensualidad 1)
-      await client.query(
-        `INSERT INTO pago (inscripcion_id, monto, estado, fecha_vencimiento)
-         VALUES ($1, $2, 'pendiente', CURRENT_DATE + INTERVAL '7 days')`,
+        `INSERT INTO pago (id, inscripcion_id, monto, estado, fecha_vencimiento, updated_at)
+         VALUES (gen_random_uuid(), $1, $2, 'pendiente', CURRENT_DATE + 1, NOW())`,
         [ins.rows[0].id, precioMensual]
       );
 
       await client.query("COMMIT");
 
       res.status(201).json({
-        message: "Inscripción exitosa. Se generó tu primer pago pendiente.",
+        message: "Cupo reservado. Tienes 24 horas para enviar el soporte de pago. El equipo activará tu inscripción al confirmar el pago.",
         inscripcion: ins.rows[0],
       });
     } catch (err) {
@@ -222,7 +217,7 @@ router.post(
 
 // ─── PATCH /inscripciones/:id/estado — Cambiar estado ────
 router.patch("/:id/estado", authorize("admin", "entrenador"), [
-  body("estado").isIn(["activa", "congelada", "cancelada", "completada"]),
+  body("estado").isIn(["activa", "congelada", "cancelada", "completada", "reservada"]),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });

@@ -111,6 +111,7 @@ class ApiService {
   getInscripcion(id)                { return this.request(`/inscripciones/${id}`); }
   updateInscripcion(id, data)       { return this.request(`/inscripciones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   deleteInscripcion(id)             { return this.request(`/inscripciones/${id}`, { method: 'DELETE' }); }
+  autoInscribirse(grupoId)          { return this.request('/inscripciones/autoservicio', { method: 'POST', body: JSON.stringify({ grupoId }) }); }
 
   // Pagos
   getPagos(params)                  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos${q}`); }

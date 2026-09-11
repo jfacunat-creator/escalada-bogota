@@ -206,7 +206,7 @@ function GrupoCard({ grupo, onInscribirse, tieneInscripcionActiva }) {
             onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
             onMouseLeave={e => e.currentTarget.style.opacity = '1'}
           >
-            Inscribirme <ChevronRight size={16} />
+            Solicitar cupo <ChevronRight size={16} />
           </button>
         )}
       </div>
@@ -248,13 +248,11 @@ function ModalConfirmacion({ grupo, onConfirmar, onCerrar, loading, error, confi
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <CheckCircle2 size={52} style={{ color: '#22c55e', margin: '0 auto 16px' }} />
             <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.5rem', color: '#F0EDE8', marginBottom: '8px' }}>
-              ¡Inscripción confirmada!
+              ¡Cupo reservado!
             </div>
             <div style={{ fontSize: '0.85rem', color: '#A09A8C', lineHeight: 1.7, marginBottom: '24px' }}>
-              Tu primer pago está pendiente. Recibirás comunicación del equipo
-              con las instrucciones del ciclo.
-              <br /><br />
-              El ciclo inicia el <strong style={{ color: '#D4AF37' }}>{formatFecha(grupo.fecha_inicio)}</strong>.
+              Tienes <strong style={{ color: '#D4AF37' }}>24 horas</strong> para enviarnos el soporte de pago.
+              Tu inscripción se activará una vez el equipo confirme el pago.
             </div>
             <button
               onClick={onCerrar}
@@ -263,16 +261,16 @@ function ModalConfirmacion({ grupo, onConfirmar, onCerrar, loading, error, confi
                 color: '#121212', border: 'none', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
               }}
             >
-              Ver mi inscripción
+              Ver instrucciones
             </button>
           </div>
         ) : (
           <>
             <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#F0EDE8', marginBottom: '4px' }}>
-              Confirmar inscripción
+              Solicitar cupo
             </div>
             <div style={{ fontSize: '0.8rem', color: '#A09A8C', marginBottom: '20px' }}>
-              Revisa los detalles antes de confirmar
+              Tendrás <strong style={{ color: '#D4AF37' }}>24 horas</strong> para enviar el soporte de pago
             </div>
 
             <div style={{ background: '#252525', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px' }}>
@@ -329,7 +327,7 @@ function ModalConfirmacion({ grupo, onConfirmar, onCerrar, loading, error, confi
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                 }}
               >
-                {loading ? <><Loader2 size={15} className="animate-spin" /> Procesando...</> : 'Confirmar inscripción →'}
+                {loading ? <><Loader2 size={15} className="animate-spin" /> Procesando...</> : 'Reservar cupo →'}
               </button>
             </div>
           </>
@@ -375,6 +373,49 @@ function InscripcionActivaCard({ inscripcion }) {
             {parseInt(inscripcion.pagos_pendientes) > 0 ? 'Pago pendiente' : 'Al día'}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Pantalla: cupo reservado (esperando soporte de pago) ────────────────────
+function CupoReservado({ inscripcion }) {
+  const vencimiento = inscripcion.fecha_vencimiento_reserva ? new Date(inscripcion.fecha_vencimiento_reserva) : null;
+  const msLeft = vencimiento ? vencimiento - Date.now() : 0;
+  const horasLeft = msLeft > 0 ? Math.floor(msLeft / 3600000) : 0;
+  const minLeft   = msLeft > 0 ? Math.floor((msLeft % 3600000) / 60000) : 0;
+  const vencido   = msLeft <= 0;
+
+  return (
+    <div style={{ maxWidth: '500px', margin: '60px auto', textAlign: 'center', padding: '0 20px' }}>
+      <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#D4AF3718', border: '1px solid #D4AF3744', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+        <Hourglass size={28} style={{ color: '#D4AF37' }} />
+      </div>
+      <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.6rem', color: '#F0EDE8', marginBottom: '12px' }}>
+        Cupo reservado
+      </h2>
+      <p style={{ fontSize: '0.88rem', color: '#A09A8C', lineHeight: 1.7, marginBottom: '16px' }}>
+        Reservaste un cupo en <strong style={{ color: '#F0EDE8' }}>{inscripcion.programa}</strong> · {inscripcion.ciclo}.
+        {' '}Para activar tu inscripción, envía el soporte de pago al equipo de Escalada Bogotá.
+      </p>
+      {!vencido && vencimiento ? (
+        <div style={{ background: '#D4AF3712', border: '1px solid #D4AF3733', borderRadius: '10px', padding: '14px 18px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>Tiempo restante</div>
+          <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#D4AF37' }}>
+            {horasLeft}h {minLeft}m
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: '#ef444412', border: '1px solid #ef444433', borderRadius: '10px', padding: '14px 18px', marginBottom: '20px', color: '#fca5a5', fontSize: '0.85rem' }}>
+          El tiempo para enviar el soporte de pago ha vencido. Contacta al equipo para gestionar tu inscripción.
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <a href="https://wa.me/573001234567?text=Hola%2C+tengo+un+cupo+reservado+y+quiero+enviar+mi+soporte+de+pago."
+          target="_blank" rel="noopener noreferrer"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 18px', borderRadius: '8px', background: '#25D366', color: '#fff', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}>
+          📱 Enviar soporte por WhatsApp
+        </a>
       </div>
     </div>
   );
@@ -435,6 +476,8 @@ export default function InscripcionPage() {
   const [filtroModalidad, setFiltroModalidad] = useState('todos');
   const [filtroNivel, setFiltroNivel]         = useState('todos');
 
+  const [inscReservada, setInscReservada]             = useState(null);
+
   const [grupoSeleccionado, setGrupoSeleccionado] = useState(null);
   const [modalLoading, setModalLoading]               = useState(false);
   const [modalError, setModalError]                   = useState(null);
@@ -444,14 +487,16 @@ export default function InscripcionPage() {
     setLoading(true);
     setError(null);
     try {
-      const [gruposData, inscData] = await Promise.all([
+      const [gruposData, inscActivaData, inscReservadaData] = await Promise.all([
         api.getGruposDisponibles(),
         api.getInscripciones({ estado: 'activa' }),
+        api.getInscripciones({ estado: 'reservada' }),
       ]);
       setGrupos(gruposData);
-      setInscActiva(inscData?.[0] || null);
+      setInscActiva(inscActivaData?.[0] || null);
+      setInscReservada(inscReservadaData?.[0] || null);
     } catch {
-      setError('No se pudieron cargar las grupos disponibles. Intenta de nuevo.');
+      setError('No se pudieron cargar los grupos disponibles. Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -459,8 +504,8 @@ export default function InscripcionPage() {
 
   useEffect(() => { cargarDatos(); }, []);
 
-  // Escaladores pendientes con nivel: solo ven su nivel; escaladores activos usan filtros
-  const nivelFijo = user?.escalador?.estado === 'pendiente' ? user.escalador.nivel : null;
+  // Todos los escaladores con nivel asignado solo ven grupos de su nivel
+  const nivelFijo = user?.escalador?.nivel || null;
 
   const gruposFiltrados = grupos.filter(c => {
     if (nivelFijo) return c.nivel === nivelFijo;
@@ -482,13 +527,14 @@ export default function InscripcionPage() {
     try {
       await api.autoInscribirse(grupoSeleccionado.id);
       setConfirmado(true);
-      // Recargar para reflejar cambios
-      const [gruposData, inscData] = await Promise.all([
+      const [gruposData, inscActivaData, inscReservadaData] = await Promise.all([
         api.getGruposDisponibles(),
         api.getInscripciones({ estado: 'activa' }),
+        api.getInscripciones({ estado: 'reservada' }),
       ]);
       setGrupos(gruposData);
-      setInscActiva(inscData?.[0] || null);
+      setInscActiva(inscActivaData?.[0] || null);
+      setInscReservada(inscReservadaData?.[0] || null);
     } catch (err) {
       setModalError(err?.error || 'Ocurrió un error al procesar la inscripción.');
     } finally {
@@ -507,7 +553,12 @@ export default function InscripcionPage() {
     return <CuentaPendiente />;
   }
 
-  // Escalador pendiente con nivel + inscripción ya registrada → espera pago
+  // Escalador con cupo reservado → esperando confirmación de pago
+  if (!loading && inscReservada) {
+    return <CupoReservado inscripcion={inscReservada} />;
+  }
+
+  // Escalador pendiente con nivel + inscripción activa → espera pago
   if (user?.escalador?.estado === 'pendiente' && inscActiva) {
     return <InscripcionPendientePago inscripcion={inscActiva} />;
   }
@@ -558,16 +609,17 @@ export default function InscripcionPage() {
       {nivelFijo ? (
         <div style={{
           display: 'flex', alignItems: 'center', gap: '10px',
-          background: '#f59e0b12', border: '1px solid #f59e0b33', borderRadius: '10px',
-          padding: '12px 16px', marginBottom: '24px', fontSize: '0.85rem',
+          background: (NIVEL_COLOR[nivelFijo] || '#D4AF37') + '12',
+          border: `1px solid ${(NIVEL_COLOR[nivelFijo] || '#D4AF37')}33`,
+          borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', fontSize: '0.85rem',
         }}>
-          <Hourglass size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: NIVEL_COLOR[nivelFijo] || '#D4AF37', flexShrink: 0 }} />
           <span style={{ color: '#A09A8C' }}>
-            Tu nivel asignado es{' '}
+            Mostrando grupos de nivel{' '}
             <strong style={{ color: NIVEL_COLOR[nivelFijo] || '#D4AF37' }}>
               {NIVEL_LABEL[nivelFijo] || nivelFijo}
-            </strong>.
-            {' '}Selecciona un grupo para pre-inscribirte. Tu cuenta se activará cuando el equipo confirme el pago.
+            </strong>
+            {' '}— tu nivel asignado.
           </span>
         </div>
       ) : (

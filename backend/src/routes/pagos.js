@@ -92,21 +92,28 @@ router.post("/", authorize("admin"), async (req, res) => {
     if (!insc.rows.length) return res.status(404).json({ error: "Inscripción no encontrada" });
 
     const result = await db(
-      `INSERT INTO pago (inscripcion_id, monto, estado, metodo, referencia, fecha_pago, fecha_vencimiento)
-       VALUES ($1, $2, 'pagado', $3, $4, CURRENT_DATE, CURRENT_DATE)
+      `INSERT INTO pago (id, inscripcion_id, monto, estado, metodo, referencia, fecha_pago, fecha_vencimiento, updated_at)
+       VALUES (gen_random_uuid(), $1, $2, 'pagado', $3, $4, CURRENT_DATE, CURRENT_DATE, NOW())
        RETURNING *`,
       [inscripcionId, parseFloat(monto), metodo || "transferencia", referencia || null]
     );
 
-    // Activar escalador pendiente cuando se registra un pago como pagado
+    // Activar inscripción reservada → activa y escalador pendiente → activo
     const escCheck = await db(
-      `SELECT e.id, e.estado FROM inscripcion i
+      `SELECT e.id, e.estado, i.estado as insc_estado, i.grupo_id FROM inscripcion i
        JOIN escalador e ON i.escalador_id = e.id
        WHERE i.id = $1`,
       [inscripcionId]
     );
-    if (escCheck.rows.length && escCheck.rows[0].estado === "pendiente") {
-      await db("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", [escCheck.rows[0].id]);
+    if (escCheck.rows.length) {
+      const row = escCheck.rows[0];
+      if (row.insc_estado === "reservada") {
+        await db("UPDATE inscripcion SET estado='activa', updated_at=NOW() WHERE id=$1", [inscripcionId]);
+        await db("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [row.grupo_id]);
+      }
+      if (row.estado === "pendiente") {
+        await db("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", [row.id]);
+      }
     }
 
     res.status(201).json(result.rows[0]);
@@ -169,17 +176,24 @@ router.patch("/:id", authorize("admin"), async (req, res) => {
       params
     );
 
-    // Cuando se confirma el pago, activar el escalador si estaba pendiente
+    // Cuando se confirma el pago, activar inscripción reservada → activa y escalador pendiente → activo
     if (estado === "pagado") {
       const escCheck = await db(
-        `SELECT e.id, e.estado FROM pago p
+        `SELECT e.id, e.estado, i.id as insc_id, i.estado as insc_estado, i.grupo_id FROM pago p
          JOIN inscripcion i ON p.inscripcion_id = i.id
          JOIN escalador e ON i.escalador_id = e.id
          WHERE p.id = $1`,
         [req.params.id]
       );
-      if (escCheck.rows.length && escCheck.rows[0].estado === "pendiente") {
-        await db("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", [escCheck.rows[0].id]);
+      if (escCheck.rows.length) {
+        const row = escCheck.rows[0];
+        if (row.insc_estado === "reservada") {
+          await db("UPDATE inscripcion SET estado='activa', updated_at=NOW() WHERE id=$1", [row.insc_id]);
+          await db("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [row.grupo_id]);
+        }
+        if (row.estado === "pendiente") {
+          await db("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", [row.id]);
+        }
       }
     }
 

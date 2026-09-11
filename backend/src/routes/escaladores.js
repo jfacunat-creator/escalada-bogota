@@ -14,7 +14,7 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
       return res.status(403).json({ error: "Perfil de entrenador no encontrado" });
     }
 
-    const { estado, rangoEtario, buscar, grupoId } = req.query;
+    const { estado, rangoEtario, buscar, grupoId, nivel } = req.query;
     const params = [];
     const conditions = [];
     let inscripcionActivaSelect = "";
@@ -26,6 +26,10 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
     if (rangoEtario) {
       params.push(rangoEtario);
       conditions.push(`e.rango_etario = $${params.length}`);
+    }
+    if (nivel) {
+      params.push(nivel);
+      conditions.push(`e.nivel = $${params.length}`);
     }
     if (buscar) {
       params.push(`%${buscar}%`);
@@ -54,7 +58,12 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
     const where = conditions.length ? " AND " + conditions.join(" AND ") : "";
     const sql = `
       SELECT e.*, u.email, u.activo as usuario_activo,
-             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado = 'activa') as grupos_activos
+             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado = 'activa') as grupos_activos,
+             (SELECT COUNT(*) FROM inscripcion i WHERE i.escalador_id = e.id AND i.estado = 'reservada') as reservas_pendientes,
+             (SELECT COUNT(*) FROM pago pa JOIN inscripcion i2 ON pa.inscripcion_id = i2.id WHERE i2.escalador_id = e.id AND pa.estado = 'pendiente') as pagos_pendientes,
+             (SELECT COALESCE(SUM(pa.monto), 0) FROM pago pa JOIN inscripcion i2 ON pa.inscripcion_id = i2.id WHERE i2.escalador_id = e.id AND pa.estado = 'pagado') as total_pagado,
+             (SELECT p.nombre FROM inscripcion i2 JOIN grupo g2 ON i2.grupo_id = g2.id JOIN programa p ON g2.programa_id = p.id WHERE i2.escalador_id = e.id AND i2.estado = 'activa' LIMIT 1) as programa_activo,
+             (SELECT ent.nombre FROM inscripcion i2 JOIN grupo g2 ON i2.grupo_id = g2.id JOIN entrenador ent ON g2.entrenador_id = ent.id WHERE i2.escalador_id = e.id AND i2.estado = 'activa' LIMIT 1) as entrenador_activo
              ${inscripcionActivaSelect}
       FROM escalador e
       JOIN usuario u ON e.usuario_id = u.id
@@ -96,7 +105,7 @@ router.get("/:id", async (req, res) => {
        JOIN grupo g ON i.grupo_id = g.id
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
-       JOIN muro_aliado m ON g.muro_id = m.id
+       LEFT JOIN muro_aliado m ON g.muro_id = m.id
        JOIN entrenador ent ON g.entrenador_id = ent.id
        WHERE i.escalador_id = $1
        ORDER BY i.created_at DESC`,
