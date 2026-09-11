@@ -68,6 +68,7 @@ class ApiService {
   getEscalador(id)       { return this.request(`/escaladores/${id}`); }
   updateEscalador(id, data) { return this.request(`/escaladores/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   deleteEscalador(id)    { return this.request(`/escaladores/${id}`, { method: 'DELETE' }); }
+  asignarNivel(id, nivel) { return this.request(`/escaladores/${id}/nivel`, { method: 'PATCH', body: JSON.stringify({ nivel }) }); }
 
   // Entrenadores
   getEntrenadores()              { return this.request('/entrenadores'); }

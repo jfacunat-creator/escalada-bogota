@@ -1,6 +1,6 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { query: db } = require("../config/database");
+const { query: db, pool } = require("../config/database");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
@@ -180,7 +180,35 @@ router.delete("/:id", authorize("admin"), async (req, res) => {
   }
 });
 
-// ─── PATCH /escaladores/:id/estado ────────────────────────
+// ─── PATCH /escaladores/:id/nivel — Admin asigna nivel al escalador ──────────
+router.patch(
+  "/:id/nivel",
+  authorize("admin"),
+  [body("nivel").isIn(["iniciacion", "intermedio", "avanzado"])],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    try {
+      const { id } = req.params;
+      const { nivel } = req.body;
+
+      const check = await db("SELECT id, estado FROM escalador WHERE id=$1", [id]);
+      if (!check.rows.length) return res.status(404).json({ error: "Escalador no encontrado" });
+
+      const result = await db(
+        "UPDATE escalador SET nivel=$1, updated_at=NOW() WHERE id=$2 RETURNING *",
+        [nivel, id]
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error("Error PATCH /escaladores/:id/nivel:", err);
+      res.status(500).json({ error: "Error interno" });
+    }
+  }
+);
+
+// ─── PATCH /escaladores/:id/estado ─────────────────────────
 router.patch(
   "/:id/estado",
   authorize("admin"),

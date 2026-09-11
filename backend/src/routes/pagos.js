@@ -142,8 +142,8 @@ router.patch("/:id", authorize("admin"), async (req, res) => {
       }
       params.push(estado);
       sets.push(`estado = $${params.length}`);
-      if (estado === "confirmado" && !req.body.fecha_pago) {
-        sets.push(`fecha_pago = NOW()`);
+      if (estado === "pagado") {
+        sets.push(`fecha_pago = CURRENT_DATE`);
       }
     }
     if (referencia) { params.push(referencia); sets.push(`referencia = $${params.length}`); }
@@ -156,6 +156,21 @@ router.patch("/:id", authorize("admin"), async (req, res) => {
       `UPDATE pago SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
       params
     );
+
+    // Cuando se confirma el pago, activar el escalador si estaba pendiente
+    if (estado === "pagado") {
+      const escCheck = await db(
+        `SELECT e.id, e.estado FROM pago p
+         JOIN inscripcion i ON p.inscripcion_id = i.id
+         JOIN escalador e ON i.escalador_id = e.id
+         WHERE p.id = $1`,
+        [req.params.id]
+      );
+      if (escCheck.rows.length && escCheck.rows[0].estado === "pendiente") {
+        await db("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", [escCheck.rows[0].id]);
+      }
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Error:", err);

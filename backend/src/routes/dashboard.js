@@ -167,17 +167,13 @@ router.get("/", authorize("admin"), async (req, res) => {
           AND inscritos_actual::float / cupo_maximo >= 0.85
       `),
 
-      // 11. Escaladores sin inscripción activa (pendientes de asignación)
+      // 11. Escaladores pendientes de activación (nuevos registros)
       db(`
         SELECT e.id, e.nombre, e.apellido, e.rango_etario,
                e.telefono, e.contacto_emergencia, u.email, u.created_at
         FROM escalador e
         JOIN usuario u ON e.usuario_id = u.id
-        WHERE e.estado = 'activo'
-          AND NOT EXISTS (
-            SELECT 1 FROM inscripcion i
-            WHERE i.escalador_id = e.id AND i.estado = 'activa'
-          )
+        WHERE e.estado = 'pendiente'
         ORDER BY u.created_at DESC
         LIMIT 30
       `),

@@ -139,12 +139,97 @@ function FilterBar({ filtro, setFiltro, ciclos, entrenadores }) {
   );
 }
 
+// ─── Modal asignar nivel ──────────────────────────────────────────────────────
+const NIVELES = [
+  { value: 'iniciacion', label: 'Iniciación', desc: 'Sin experiencia previa en escalada', color: '#22c55e' },
+  { value: 'intermedio', label: 'Intermedio', desc: 'Con experiencia básica, listo para progresar', color: C.accent },
+  { value: 'avanzado',   label: 'Avanzado',   desc: 'Escalador con técnica y condición establecida', color: '#ef4444' },
+];
+
+function ModalAsignarNivel({ escalador, onCerrar, onAsignado }) {
+  const [nivel, setNivel] = useState('iniciacion');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const confirmar = async () => {
+    setLoading(true); setError(null);
+    try {
+      await api.asignarNivel(escalador.id, nivel);
+      onAsignado(escalador.id);
+    } catch (e) {
+      setError(e?.error || 'Error al asignar nivel');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onCerrar()}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '14px', padding: '28px', maxWidth: '460px', width: '100%' }}>
+        <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.3rem', color: C.text, marginBottom: '4px' }}>Asignar nivel</div>
+        <div style={{ fontSize: '0.82rem', color: C.text2, marginBottom: '20px' }}>
+          {escalador.nombre} {escalador.apellido} · {escalador.email}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: '#252525', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '0.82rem' }}>
+          {[['Teléfono', escalador.telefono || '—'], ['Emergencia', escalador.contacto_emergencia || '—'], ['Rango', escalador.rango_etario === 'adulto' ? 'Adulto' : (escalador.rango_etario || '—').replace('menor_', 'Menor ')], ['Registro', new Date(escalador.created_at).toLocaleDateString('es-CO')]].map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '4px 0', borderBottom: '1px solid #2e2e2e' }}>
+              <span style={{ color: C.text2 }}>{k}</span>
+              <span style={{ color: C.text, fontWeight: 600 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '0.78rem', color: C.text2, marginBottom: '8px', fontFamily: 'Poppins' }}>
+            Nivel del escalador
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {NIVELES.map(n => (
+              <label key={n.value} onClick={() => setNivel(n.value)}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', background: nivel === n.value ? n.color + '15' : '#252525', border: `1px solid ${nivel === n.value ? n.color + '60' : '#3e3e3e'}`, borderRadius: '8px', padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: `2px solid ${nivel === n.value ? n.color : '#555'}`, background: nivel === n.value ? n.color : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {nivel === n.value && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#121212' }} />}
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: nivel === n.value ? n.color : C.text, fontFamily: 'Poppins' }}>{n.label}</div>
+                  <div style={{ fontSize: '0.75rem', color: C.text3 }}>{n.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ fontSize: '0.75rem', color: C.text3, background: '#252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '16px', lineHeight: 1.6 }}>
+          Al asignar el nivel, el escalador podrá ver los grupos disponibles y elegir uno para inscribirse.
+          Su cuenta se activará cuando el equipo registre el primer pago.
+        </div>
+
+        {error && <div style={{ background: '#ef444415', border: '1px solid #ef444433', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', fontSize: '0.82rem', color: '#fca5a5' }}>{error}</div>}
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={onCerrar} disabled={loading}
+            style={{ flex: 1, padding: '11px', borderRadius: '8px', background: 'transparent', color: C.text2, border: '1px solid #2e2e2e', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'Poppins' }}>
+            Cancelar
+          </button>
+          <button onClick={confirmar} disabled={loading}
+            style={{ flex: 2, padding: '11px', borderRadius: '8px', background: loading ? '#3a3a2a' : C.accent, color: '#121212', border: 'none', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'Poppins', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            {loading ? <><Loader2 size={14} className="animate-spin" /> Guardando...</> : 'Asignar nivel →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filtro, setFiltro] = useState({ cicloId: '', nivel: '', modalidad: '', entrenadorId: '', rangoEtario: '' });
+  const [escaladorActivar, setEscaladorActivar] = useState(null);
 
   const fetchData = () => {
     setLoading(true);
@@ -174,7 +259,9 @@ export default function AdminDashboard() {
 
   const ciclos = data._ciclos || [];
   const entrenadores = data._entrenadores || [];
-  const pendientes = data.pendientes || [];
+  const [pendientes, setPendientes] = useState(data.pendientes || []);
+
+  useEffect(() => { setPendientes(data?.pendientes || []); }, [data]);
 
   return (
     <div>
@@ -278,11 +365,11 @@ export default function AdminDashboard() {
       </div>
 
       {/* ── ALERTAS ────────────────────── */}
-      {/* ── Pendientes de asignación ── */}
+      {/* ── Pendientes: sin nivel asignado ── */}
       {pendientes.length > 0 && (
         <div style={{ marginTop: '8px' }}>
           <SectionTitle color="#f59e0b">
-            Cuentas nuevas · pendientes de asignación · {pendientes.length}
+            Nuevos registros · sin nivel asignado · {pendientes.length}
           </SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {pendientes.map(e => (
@@ -304,9 +391,9 @@ export default function AdminDashboard() {
                   Registro: {new Date(e.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </div>
                 <button
-                  onClick={() => navigate('/app/escaladores')}
+                  onClick={() => setEscaladorActivar(e)}
                   style={{ padding: '6px 14px', borderRadius: '8px', background: '#f59e0b20', border: '1px solid #f59e0b60', color: '#f59e0b', fontFamily: 'Poppins', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  Asignar grupo →
+                  Asignar nivel →
                 </button>
               </div>
             ))}
@@ -336,6 +423,17 @@ export default function AdminDashboard() {
             )}
           </div>
         </>
+      )}
+
+      {escaladorActivar && (
+        <ModalAsignarNivel
+          escalador={escaladorActivar}
+          onCerrar={() => setEscaladorActivar(null)}
+          onAsignado={id => {
+            setPendientes(prev => prev.filter(e => e.id !== id));
+            setEscaladorActivar(null);
+          }}
+        />
       )}
     </div>
   );

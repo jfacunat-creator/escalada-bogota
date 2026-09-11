@@ -8,7 +8,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Loader2, MapPin, Clock, Calendar, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, MapPin, Clock, Calendar, ChevronRight, CheckCircle2, AlertCircle, Hourglass } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
 const NIVEL_LABEL = {
@@ -379,8 +380,53 @@ function InscripcionActivaCard({ inscripcion }) {
   );
 }
 
+// ─── Pantalla: cuenta en revisión (sin nivel aún) ────────────────────────────
+function CuentaPendiente() {
+  return (
+    <div style={{ maxWidth: '500px', margin: '60px auto', textAlign: 'center', padding: '0 20px' }}>
+      <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#f59e0b18', border: '1px solid #f59e0b44', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+        <Hourglass size={28} style={{ color: '#f59e0b' }} />
+      </div>
+      <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.6rem', color: '#F0EDE8', marginBottom: '12px' }}>
+        Tu cuenta está en revisión
+      </h2>
+      <p style={{ fontSize: '0.88rem', color: '#A09A8C', lineHeight: 1.7, marginBottom: '24px' }}>
+        Gracias por registrarte en Escalada Bogotá. Un entrenador se pondrá en contacto contigo
+        en los próximos días hábiles para coordinar tu evaluación inicial y asignarte al nivel
+        que mejor se adapte a tu experiencia.
+      </p>
+      <div style={{ background: '#f59e0b12', border: '1px solid #f59e0b33', borderRadius: '10px', padding: '14px 18px', fontSize: '0.83rem', color: '#fbbf24', lineHeight: 1.6 }}>
+        Una vez que el equipo te asigne un nivel, podrás elegir un grupo y comenzar tu entrenamiento.
+      </div>
+    </div>
+  );
+}
+
+// ─── Pantalla: inscripción pendiente de pago ──────────────────────────────────
+function InscripcionPendientePago({ inscripcion }) {
+  return (
+    <div style={{ maxWidth: '500px', margin: '60px auto', textAlign: 'center', padding: '0 20px' }}>
+      <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#22c55e18', border: '1px solid #22c55e44', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+        <CheckCircle2 size={28} style={{ color: '#22c55e' }} />
+      </div>
+      <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.6rem', color: '#F0EDE8', marginBottom: '12px' }}>
+        ¡Inscripción confirmada!
+      </h2>
+      <p style={{ fontSize: '0.88rem', color: '#A09A8C', lineHeight: 1.7, marginBottom: '24px' }}>
+        Quedaste inscrito en <strong style={{ color: '#F0EDE8' }}>{inscripcion.programa}</strong>.
+        Tu cuenta se activará en cuanto el equipo registre tu primer pago.
+      </p>
+      <div style={{ background: '#f59e0b12', border: '1px solid #f59e0b33', borderRadius: '10px', padding: '14px 18px', fontSize: '0.83rem', color: '#fbbf24', lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 700, marginBottom: '6px' }}>Pendiente de pago</div>
+        Un miembro del equipo se pondrá en contacto para coordinar tu primer pago y confirmar el inicio del ciclo.
+      </div>
+    </div>
+  );
+}
+
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────
 export default function InscripcionPage() {
+  const { user } = useAuth();
   const [grupos, setGrupos]           = useState([]);
   const [inscActiva, setInscActiva]       = useState(null);
   const [loading, setLoading]             = useState(true);
@@ -413,7 +459,11 @@ export default function InscripcionPage() {
 
   useEffect(() => { cargarDatos(); }, []);
 
+  // Escaladores pendientes con nivel: solo ven su nivel; escaladores activos usan filtros
+  const nivelFijo = user?.escalador?.estado === 'pendiente' ? user.escalador.nivel : null;
+
   const gruposFiltrados = grupos.filter(c => {
+    if (nivelFijo) return c.nivel === nivelFijo;
     if (filtroModalidad !== 'todos' && c.modalidad !== filtroModalidad) return false;
     if (filtroNivel !== 'todos' && c.nivel !== filtroNivel) return false;
     return true;
@@ -452,6 +502,16 @@ export default function InscripcionPage() {
     if (confirmado) setConfirmado(false);
   };
 
+  // Escalador pendiente sin nivel → esperando contacto del equipo
+  if (user?.escalador?.estado === 'pendiente' && !user?.escalador?.nivel) {
+    return <CuentaPendiente />;
+  }
+
+  // Escalador pendiente con nivel + inscripción ya registrada → espera pago
+  if (user?.escalador?.estado === 'pendiente' && inscActiva) {
+    return <InscripcionPendientePago inscripcion={inscActiva} />;
+  }
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '80px' }}>
@@ -487,51 +547,68 @@ export default function InscripcionPage() {
           Grupos disponibles
         </div>
         <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8', marginBottom: '4px' }}>
-          Inscríbete en el próximo ciclo
+          {nivelFijo ? 'Elige tu grupo' : 'Inscríbete en el próximo ciclo'}
         </h1>
         <p style={{ fontSize: '0.85rem', color: '#A09A8C' }}>
-          {grupos.filter(c => c.cupos_disponibles > 0).length} grupos con cupos disponibles
+          {gruposFiltrados.filter(c => c.inscritos_actual < c.cupo_maximo).length} grupos con cupos disponibles
         </p>
       </div>
 
-      {/* Filtros */}
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', gap: '4px', background: '#1c1c1c', borderRadius: '8px', padding: '3px', border: '1px solid #2e2e2e' }}>
-          {[['todos', 'Todos los niveles'], ['iniciacion', 'Iniciación'], ['intermedio', 'Intermedio'], ['avanzado', 'Avanzado']].map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setFiltroNivel(val)}
-              style={{
-                padding: '6px 12px', borderRadius: '6px', border: 'none',
-                fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-                background: filtroNivel === val ? '#D4AF37' : 'transparent',
-                color: filtroNivel === val ? '#121212' : '#A09A8C',
-                transition: 'all 0.15s',
-              }}
-            >
-              {label}
-            </button>
-          ))}
+      {/* Banner de nivel asignado (pendiente) O filtros normales (activo) */}
+      {nivelFijo ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          background: '#f59e0b12', border: '1px solid #f59e0b33', borderRadius: '10px',
+          padding: '12px 16px', marginBottom: '24px', fontSize: '0.85rem',
+        }}>
+          <Hourglass size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <span style={{ color: '#A09A8C' }}>
+            Tu nivel asignado es{' '}
+            <strong style={{ color: NIVEL_COLOR[nivelFijo] || '#D4AF37' }}>
+              {NIVEL_LABEL[nivelFijo] || nivelFijo}
+            </strong>.
+            {' '}Selecciona un grupo para pre-inscribirte. Tu cuenta se activará cuando el equipo confirme el pago.
+          </span>
         </div>
+      ) : (
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', gap: '4px', background: '#1c1c1c', borderRadius: '8px', padding: '3px', border: '1px solid #2e2e2e' }}>
+            {[['todos', 'Todos los niveles'], ['iniciacion', 'Iniciación'], ['intermedio', 'Intermedio'], ['avanzado', 'Avanzado']].map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setFiltroNivel(val)}
+                style={{
+                  padding: '6px 12px', borderRadius: '6px', border: 'none',
+                  fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                  background: filtroNivel === val ? '#D4AF37' : 'transparent',
+                  color: filtroNivel === val ? '#121212' : '#A09A8C',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-        <div style={{ display: 'flex', gap: '4px', background: '#1c1c1c', borderRadius: '8px', padding: '3px', border: '1px solid #2e2e2e' }}>
-          {[['todos', 'Todos'], ['acompanado', 'Acompañado'], ['autonomo', 'Autónomo']].map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setFiltroModalidad(val)}
-              style={{
-                padding: '6px 12px', borderRadius: '6px', border: 'none',
-                fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-                background: filtroModalidad === val ? '#4A2F0F' : 'transparent',
-                color: filtroModalidad === val ? '#D4AF37' : '#A09A8C',
-                transition: 'all 0.15s',
-              }}
-            >
-              {label}
-            </button>
-          ))}
+          <div style={{ display: 'flex', gap: '4px', background: '#1c1c1c', borderRadius: '8px', padding: '3px', border: '1px solid #2e2e2e' }}>
+            {[['todos', 'Todos'], ['acompanado', 'Acompañado'], ['autonomo', 'Autónomo']].map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setFiltroModalidad(val)}
+                style={{
+                  padding: '6px 12px', borderRadius: '6px', border: 'none',
+                  fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                  background: filtroModalidad === val ? '#4A2F0F' : 'transparent',
+                  color: filtroModalidad === val ? '#D4AF37' : '#A09A8C',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {gruposFiltrados.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280', fontSize: '0.9rem' }}>

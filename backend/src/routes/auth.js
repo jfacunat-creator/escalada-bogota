@@ -92,7 +92,7 @@ router.post(
         `INSERT INTO escalador
            (id, usuario_id, nombre, apellido, fecha_nacimiento, rango_etario,
             peso_kg, telefono, contacto_emergencia, estado, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'activo', NOW())
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', NOW())
          RETURNING id, nombre, apellido, rango_etario, estado, created_at`,
         [
           usuario.id,

@@ -152,6 +152,17 @@ router.post(
         return res.status(400).json({ error: "Solo puedes inscribirte en programas adultos" });
       }
 
+      // Validar nivel asignado
+      const escNivel = await client.query("SELECT nivel FROM escalador WHERE id=$1", [escaladorId]);
+      if (!escNivel.rows[0]?.nivel) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({ error: "El equipo aún no te ha asignado un nivel. Espera a ser contactado." });
+      }
+      if (escNivel.rows[0].nivel !== grupo.nivel) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: `Este grupo es de nivel ${grupo.nivel}, pero tu nivel asignado es ${escNivel.rows[0].nivel}.` });
+      }
+
       // Máximo una grupo activa simultánea por escalador
       const activas = await client.query(
         `SELECT COUNT(*) AS n FROM inscripcion
