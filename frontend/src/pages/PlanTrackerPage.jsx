@@ -480,33 +480,77 @@ function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange
   );
 }
 
+// ─── PRUEBAS DEL PROTOCOLO ────────────────────────────────
+const PRUEBAS_TEST = [
+  { id: 'barras_lastre_kg',         label: 'T2 · Barras con máximo lastre',     unidad: 'kg',  desc: '1RM dominada con lastre adicional' },
+  { id: 'suspensiones_20mm_kg',     label: 'T4 · Suspensiones en regleta 20mm', unidad: 'kg',  desc: 'Isométrica 5 seg con máximo lastre' },
+  { id: 'repeticiones_regleta_rep', label: 'T5 · Repeticiones en regleta',      unidad: 'rep', desc: 'Máximo de repeticiones al fallo' },
+  { id: 'resistencia_continua_seg', label: 'T6 · Resistencia continua',         unidad: 'seg', desc: 'Suspensión isométrica máxima' },
+  { id: 'campus_movimientos',       label: 'T7 · Campus movimientos',            unidad: 'mov', desc: 'Total de movimientos en tabla campus' },
+  { id: 'grado_critico_un',         label: 'T9 · Grado crítico',                unidad: 'un',  desc: 'Grado de vía encadenado al 70%' },
+  { id: 'powerslab_d_cm',           label: 'Powerslab Derecho',                 unidad: 'cm',  desc: 'Alcance máximo brazo derecho' },
+  { id: 'powerslab_i_cm',           label: 'Powerslab Izquierdo',               unidad: 'cm',  desc: 'Alcance máximo brazo izquierdo' },
+  { id: 'circuito_min',             label: 'Circuito estándar',                 unidad: 'min', desc: 'Tiempo de completación del circuito' },
+];
+const SEM_TEST = [
+  { v: 'verde',    label: 'Óptimo',     bg: '#052010', border: '#22c55e60', color: '#22c55e' },
+  { v: 'amarillo', label: 'Regular',    bg: '#1a1200', border: '#f59e0b60', color: '#f59e0b' },
+  { v: 'rojo',     label: 'Por mejorar',bg: '#200505', border: '#ef444460', color: '#ef4444' },
+];
+
 // ─── REGISTRO TAB ─────────────────────────────────────────
-function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
+function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSesiones }) {
   const ZONES = ["Dedos D", "Dedos I", "Codo D", "Codo I", "Hombro D", "Hombro I", "Espalda"];
   const logKey = `${week}_${session}`;
   const wd = semanas.find(w => w.id === week);
   const sd = wd?.sesiones.find(s => s.num === session);
+
+  // Detectar si es sesión de test
+  const testSesion = testSesiones?.find(t => t.semanaCode === week) || null;
+  const esTest = testSesion !== null && session === 1;
+
   const initDraft = {
     pse: "", notas: "", regleta: "", tiempo: "", completed: false,
-    ...ZONES.reduce((a, z) => ({ ...a, [`p_${z}`]: "0" }), {})
+    ...ZONES.reduce((a, z) => ({ ...a, [`p_${z}`]: "0" }), {}),
+    ...PRUEBAS_TEST.reduce((a, p) => ({ ...a, [`t_${p.id}`]: '', [`tsem_${p.id}`]: 'verde' }), {})
   };
   const [draft, setDraft] = useState(initDraft);
   const [saved, setSaved] = useState("");
+  const [testError, setTestError] = useState('');
 
   useEffect(() => {
     const stored = logs[logKey];
     setDraft(stored ? { ...initDraft, ...stored } : initDraft);
   }, [logKey]);
 
-  const save = () => {
+  const save = async () => {
     const entry = { ...draft, date: new Date().toLocaleDateString("es-CO"), week, session };
     const all = { ...logs, [logKey]: entry };
     setLogs(all);
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(all));
+    setTestError('');
+    try { localStorage.setItem(storageKey, JSON.stringify(all)); } catch {}
+
+    // Si es sesión de test, enviar resultados al backend
+    if (esTest && testSesion?.id) {
+      const resultados = PRUEBAS_TEST
+        .filter(p => draft[`t_${p.id}`] !== '' && !isNaN(parseFloat(draft[`t_${p.id}`])))
+        .map(p => ({ metrica: p.id, valor: parseFloat(draft[`t_${p.id}`]), unidad: p.unidad, semaforo: draft[`tsem_${p.id}`] || 'verde' }));
+
+      if (resultados.length > 0) {
+        try {
+          await api.registrarMiTest(testSesion.id, resultados);
+          setSaved("✓ Test y registro guardados");
+        } catch (e) {
+          if (e.status === 409) setSaved("✓ Registro guardado · test ya registrado");
+          else { setTestError(e.error || 'Error al guardar test. Intenta de nuevo.'); setSaved(''); return; }
+        }
+      } else {
+        setSaved("✓ Guardado");
+      }
+    } else {
       setSaved("✓ Guardado");
-    } catch { setSaved("Error al guardar"); }
-    setTimeout(() => setSaved(""), 2500);
+    }
+    setTimeout(() => setSaved(""), 3000);
   };
 
   const history = Object.entries(logs).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 10);
@@ -583,8 +627,68 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
         </div>
       </div>
 
-      {/* Hangboard */}
-      <div style={{ background: C.card, borderRadius: 11, padding: "12px", marginBottom: 9 }}>
+      {/* Resultados del test — solo en semanas S0/S12 sesión 1 */}
+      {esTest && (
+        <div style={{ background: '#130e00', border: '1px solid #f59e0b30', borderRadius: 11, padding: "12px", marginBottom: 9 }}>
+          <div style={{ color: '#f59e0b', fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+            letterSpacing: 0.5, marginBottom: 4, fontFamily: "Poppins" }}>
+            Resultados del test · Protocolo Hörst
+          </div>
+          <div style={{ color: C.sub, fontSize: 10, fontFamily: "Poppins", marginBottom: 10 }}>
+            Ingresa los valores que obtuviste. Deja en blanco los que no realizaste.
+          </div>
+          {PRUEBAS_TEST.map(p => (
+            <div key={p.id} style={{ background: C.cardAlt, borderRadius: 8, padding: "9px 10px", marginBottom: 7 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: C.text, fontSize: 11, fontWeight: 600, fontFamily: "Poppins" }}>{p.label}</div>
+                  <div style={{ color: C.muted, fontSize: 9, fontFamily: "Poppins", marginTop: 1 }}>{p.desc}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                  <input
+                    type="number" step="0.1" min="0" placeholder="—"
+                    value={draft[`t_${p.id}`]}
+                    onChange={e => setDraft(d => ({ ...d, [`t_${p.id}`]: e.target.value }))}
+                    style={{ width: 68, padding: "5px 7px", background: '#111', border: `1px solid ${C.border}`,
+                      borderRadius: 6, color: C.text, fontFamily: "Antonio", fontSize: 14, textAlign: "right",
+                      outline: "none" }}
+                  />
+                  <span style={{ color: C.muted, fontSize: 10, fontFamily: "Poppins", width: 24 }}>{p.unidad}</span>
+                </div>
+              </div>
+              {draft[`t_${p.id}`] !== '' && (
+                <div style={{ display: "flex", gap: 5, marginTop: 6 }}>
+                  {SEM_TEST.map(s => (
+                    <button key={s.v} onClick={() => setDraft(d => ({ ...d, [`tsem_${p.id}`]: s.v }))}
+                      style={{ flex: 1, padding: "3px 5px", borderRadius: 5,
+                        border: `1px solid ${draft[`tsem_${p.id}`] === s.v ? s.border : C.border}`,
+                        background: draft[`tsem_${p.id}`] === s.v ? s.bg : 'transparent',
+                        color: draft[`tsem_${p.id}`] === s.v ? s.color : C.muted,
+                        fontFamily: "Poppins", fontSize: 9, fontWeight: draft[`tsem_${p.id}`] === s.v ? 700 : 400,
+                        cursor: "pointer" }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {testError && (
+            <div style={{ padding: "7px 10px", background: "#200505", border: "1px solid #ef444440",
+              borderRadius: 7, color: "#ef4444", fontSize: 11, fontFamily: "Poppins", marginTop: 6 }}>
+              {testError}
+            </div>
+          )}
+          {!testSesion?.id && (
+            <div style={{ color: C.muted, fontSize: 10, fontFamily: "Poppins", marginTop: 4 }}>
+              ℹ️ Conéctate con tu grupo activo para guardar los resultados en el sistema.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Hangboard (solo si no es sesión de test) */}
+      {!esTest && <div style={{ background: C.card, borderRadius: 11, padding: "12px", marginBottom: 9 }}>
         <div style={{ color: C.sub, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
           letterSpacing: 0.5, marginBottom: 8, fontFamily: "Poppins" }}>Hangboard (si aplica)</div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -599,7 +703,7 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey }) {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Notas */}
       <div style={{ background: C.card, borderRadius: 11, padding: "12px", marginBottom: 9 }}>
@@ -850,7 +954,7 @@ export default function PlanTrackerPage() {
       )}
       {tab === "registro" && week && (
         <RegistroTab week={week} session={session} semanas={plan.semanas}
-          logs={logs} setLogs={setLogs} storageKey={storageKey} />
+          logs={logs} setLogs={setLogs} storageKey={storageKey} testSesiones={plan.testSesiones} />
       )}
       {tab === "movilidad" && (
         <MovilidadTab nivel={plan.nivel} />

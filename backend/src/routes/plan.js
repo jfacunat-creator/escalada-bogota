@@ -77,11 +77,31 @@ router.get("/my", authenticate, async (req, res) => {
       });
     }
 
+    // Obtener sesiones de test del grupo activo del escalador
+    const testSesionesRes = await db(
+      `SELECT s.id, s.tipo, s.fecha, s.numero_sesion
+       FROM sesion s
+       JOIN inscripcion i ON i.grupo_id = s.grupo_id AND i.escalador_id = (
+         SELECT id FROM escalador WHERE usuario_id = $1 LIMIT 1
+       ) AND i.estado = 'activa'
+       WHERE s.tipo = 'test'
+       ORDER BY s.numero_sesion ASC`,
+      [req.user.id]
+    ).catch(() => ({ rows: [] }));
+
+    const testSesiones = testSesionesRes.rows.map((s, idx) => ({
+      id:         s.id,
+      tipo:       idx === 0 ? 'entrada' : 'salida',
+      fecha:      s.fecha,
+      semanaCode: idx === 0 ? 'S0' : 'S12',
+    }));
+
     return res.json({
       trimestre,
       nivel,
       nombre: esc.nombre,
       semanas: planRes.rows[0].semanas,
+      testSesiones,
     });
 
   } catch (err) {
