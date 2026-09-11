@@ -212,7 +212,7 @@ router.get(
       const userRes = await db(
         `SELECT u.id, u.email, u.rol,
                 e.id as esc_id, e.nombre, e.apellido, e.rango_etario,
-                e.estado as esc_estado, e.telefono, e.contacto_emergencia,
+                e.estado as esc_estado, e.nivel as esc_nivel, e.telefono, e.contacto_emergencia,
                 e.created_at as esc_created,
                 t.id as ent_id, t.nombre as ent_nombre, t.licencia_ley181, t.max_grupos
          FROM usuario u
@@ -308,6 +308,7 @@ router.get(
           apellido: row.apellido,
           rangoEtario: row.rango_etario,
           estado: row.esc_estado,
+          nivel: row.esc_nivel || null,
           telefono: row.telefono,
           contactoEmergencia: row.contacto_emergencia,
           createdAt: row.esc_created,

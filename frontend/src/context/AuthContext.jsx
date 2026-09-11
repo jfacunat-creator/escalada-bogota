@@ -23,16 +23,18 @@ export function AuthProvider({ children }) {
     const data = await api.login(email, password);
     api.setToken(data.accessToken);
     localStorage.setItem('refreshToken', data.refreshToken);
-    setUser(data.usuario);
-    return data.usuario;
+    const perfil = await api.getMe();
+    setUser(perfil);
+    return perfil;
   };
 
   const register = async (formData) => {
     const data = await api.register(formData);
     api.setToken(data.accessToken);
     localStorage.setItem('refreshToken', data.refreshToken);
-    setUser(data.usuario);
-    return data.usuario;
+    const perfil = await api.getMe();
+    setUser(perfil);
+    return perfil;
   };
 
   const logout = () => {

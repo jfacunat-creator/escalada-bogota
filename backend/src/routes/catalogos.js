@@ -85,7 +85,7 @@ router.get("/niveles", authenticate, async (req, res) => {
     const result = await db(
       `SELECT enumlabel AS valor
        FROM pg_enum
-       WHERE enumtypid = 'NivelPrograma'::regtype
+       WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'NivelPrograma')
        ORDER BY enumsortorder`
     );
     res.json(result.rows.map(r => r.valor));

@@ -244,6 +244,9 @@ export default function AdminDashboard() {
   const [error, setError] = useState(null);
   const [filtro, setFiltro] = useState({ cicloId: '', nivel: '', modalidad: '', entrenadorId: '', rangoEtario: '' });
   const [escaladorActivar, setEscaladorActivar] = useState(null);
+  const [pendientes, setPendientes] = useState([]);
+
+  useEffect(() => { setPendientes(data?.pendientes || []); }, [data]);
 
   const fetchData = () => {
     setLoading(true);
@@ -273,9 +276,6 @@ export default function AdminDashboard() {
 
   const ciclos = data._ciclos || [];
   const entrenadores = data._entrenadores || [];
-  const [pendientes, setPendientes] = useState(data.pendientes || []);
-
-  useEffect(() => { setPendientes(data?.pendientes || []); }, [data]);
 
   return (
     <div>
