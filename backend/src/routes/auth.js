@@ -240,7 +240,7 @@ router.get(
            JOIN grupo g     ON i.grupo_id      = g.id
            JOIN programa p  ON g.programa_id   = p.id
            JOIN ciclo ci    ON g.ciclo_id      = ci.id
-           JOIN muro_aliado m ON g.muro_id     = m.id
+           LEFT JOIN muro_aliado m ON g.muro_id     = m.id
            JOIN entrenador ent ON g.entrenador_id = ent.id
            WHERE i.escalador_id = $1
            ORDER BY i.fecha_inscripcion DESC`,
@@ -297,7 +297,7 @@ router.get(
               fechaFin: r.fecha_fin,
               semanaEmpalme: r.semana_empalme,
             },
-            muro: { id: r.muro_id, nombre: r.muro_nombre, direccion: r.muro_dir },
+            muro: r.muro_id ? { id: r.muro_id, nombre: r.muro_nombre, direccion: r.muro_dir } : null,
             entrenador: { id: r.entrenador_id, nombre: r.entrenador_nombre },
           },
         }));

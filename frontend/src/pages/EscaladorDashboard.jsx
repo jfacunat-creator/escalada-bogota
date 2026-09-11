@@ -49,7 +49,7 @@ export default function EscaladorDashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '28px' }}>
         <Stat icon={IconoPresa} label="Estado plataforma" value={estadoLabel[esc?.estado] || 'Activo'} color={esc?.estado === 'activo' ? '#22c55e' : esc?.estado === 'pendiente' ? '#f59e0b' : '#666'} />
-        <Stat icon={IconoRoca} label="Nivel" value={esc?.rangoEtario === 'adulto' ? 'Adulto' : esc?.rangoEtario?.replace('menor_', 'Menor ')} />
+        <Stat icon={IconoRoca} label="Nivel" value={{ iniciacion: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' }[esc?.nivel] || (esc?.nivel ? esc.nivel : '—')} />
         <Stat icon={IconoMuro} label="Grupo activo" value={activa ? activa.cohorte?.programa?.nombre?.split(' ')[0] || 'Sí' : 'Sin grupo'} color={activa ? '#22c55e' : '#A09A8C'} />
         <Stat icon={IconoCronometro} label="Ciclo" value={activa?.cohorte?.ciclo?.codigo || '—'} />
         <Stat icon={IconoRoca} label="Miembro desde" value={esc?.createdAt ? new Date(esc.createdAt).toLocaleDateString('es-CO', { month: 'short', year: 'numeric' }) : '—'} color='#A09A8C' />
