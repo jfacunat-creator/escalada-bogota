@@ -1,12 +1,12 @@
 const express = require("express");
 const { randomUUID } = require("crypto");
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(authenticate);
 
-// ─── GET /sesiones?grupoId=xxx ────────────────────────────
+// ─── GET /sesiones ────────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
     const { grupoId } = req.query;
@@ -14,25 +14,23 @@ router.get("/", async (req, res) => {
       return res.status(400).json({ error: "grupoId es requerido" });
     }
 
-    // Escalador: solo puede ver sesiones de grupos donde tiene inscripción activa
     if (req.user.rol === "escalador") {
-      const check = await db(
+      const check = await prisma.$queryRawUnsafe(
         "SELECT id FROM inscripcion WHERE grupo_id=$1 AND escalador_id=$2 AND estado='activa'",
-        [grupoId, req.user.escalador.id]
+        grupoId, req.user.escalador.id
       );
-      if (!check.rows.length) return res.status(403).json({ error: "Sin inscripción activa en este grupo" });
+      if (!check.length) return res.status(403).json({ error: "Sin inscripción activa en este grupo" });
     }
 
-    // Entrenador: solo puede ver sesiones de sus grupos
     if (req.user.rol === "entrenador") {
-      const check = await db(
+      const check = await prisma.$queryRawUnsafe(
         "SELECT id FROM grupo WHERE id=$1 AND entrenador_id=$2",
-        [grupoId, req.user.entrenador?.id]
+        grupoId, req.user.entrenador?.id
       );
-      if (!check.rows.length) return res.status(403).json({ error: "Grupo no encontrado o sin acceso" });
+      if (!check.length) return res.status(403).json({ error: "Grupo no encontrado o sin acceso" });
     }
 
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT s.*, g.modalidad, p.nombre AS programa,
               (SELECT COUNT(*) FROM asistencia a WHERE a.sesion_id = s.id) AS total_asistencias
        FROM sesion s
@@ -40,24 +38,23 @@ router.get("/", async (req, res) => {
        JOIN programa p ON g.programa_id = p.id
        WHERE s.grupo_id = $1
        ORDER BY s.fecha ASC, s.hora_inicio ASC`,
-      [grupoId]
+      grupoId
     );
 
-    res.json(result.rows);
+    res.json(result);
   } catch (err) {
     console.error("Error GET /sesiones:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /sesiones/generar — Generar sesiones para un grupo ─────────────────
-// Debe ir ANTES de /:id para que Express no lo interprete como un UUID
+// ─── POST /sesiones/generar ───────────────────────────────
 router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
   const { grupoId } = req.body;
   if (!grupoId) return res.status(400).json({ error: "grupoId requerido" });
 
   try {
-    const grupoRes = await db(
+    const grupoRes = await prisma.$queryRawUnsafe(
       `SELECT g.horario, g.estado,
               ci.fecha_inicio, ci.fecha_fin,
               p.nivel
@@ -65,16 +62,19 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
        JOIN ciclo ci ON g.ciclo_id = ci.id
        JOIN programa p ON g.programa_id = p.id
        WHERE g.id = $1`,
-      [grupoId]
+      grupoId
     );
-    if (!grupoRes.rows.length) return res.status(404).json({ error: "Grupo no encontrado" });
+    if (!grupoRes.length) return res.status(404).json({ error: "Grupo no encontrado" });
 
-    const existentes = await db("SELECT COUNT(*) AS n FROM sesion WHERE grupo_id = $1", [grupoId]);
-    if (parseInt(existentes.rows[0].n) > 0) {
+    const existentes = await prisma.$queryRawUnsafe(
+      "SELECT COUNT(*) AS n FROM sesion WHERE grupo_id = $1",
+      grupoId
+    );
+    if (Number(existentes[0].n) > 0) {
       return res.status(409).json({ error: "Este grupo ya tiene sesiones generadas" });
     }
 
-    const { horario, fecha_inicio, fecha_fin, nivel } = grupoRes.rows[0];
+    const { horario, fecha_inicio, fecha_fin, nivel } = grupoRes[0];
 
     const HORARIO_MAP = {
       lun_mie_18_20: { days: [1, 3], inicio: '18:00', fin: '20:00' },
@@ -106,7 +106,6 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
     } else {
-      // Grupo autónomo sin horario: distribuir sesiones uniformemente en el ciclo
       horaInicio = '08:00';
       horaFin = '20:00';
       const TARGET = 26;
@@ -125,7 +124,6 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
 
     if (fechas.length === 0) return res.status(400).json({ error: "No hay fechas válidas para este horario en el rango del ciclo" });
 
-    // Tipo por posición: test de entrada (1ª), test de salida (última), juego al ~60%, checkpoint_fest avanzado al ~30%
     const total = fechas.length;
     const getTipo = (i) => {
       if (i === 0) return 'test';
@@ -135,7 +133,6 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
       return 'regular';
     };
 
-    // INSERT en bulk — Prisma no pone DEFAULT uuid en la DB, hay que generarlo en app
     const paramSets = [];
     const vals = [];
     fechas.forEach((fecha, i) => {
@@ -144,9 +141,9 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
       vals.push(randomUUID(), grupoId, fecha, horaInicio, horaFin, i + 1, getTipo(i));
     });
 
-    await db(
+    await prisma.$executeRawUnsafe(
       `INSERT INTO sesion (id, grupo_id, fecha, hora_inicio, hora_fin, numero_sesion, tipo) VALUES ${paramSets.join(', ')}`,
-      vals
+      ...vals
     );
 
     res.status(201).json({ message: `${total} sesiones generadas`, total });
@@ -159,7 +156,7 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
 // ─── GET /sesiones/:id ────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT s.*, g.modalidad, g.horario, p.nombre AS programa,
               ci.codigo AS ciclo, m.nombre AS muro, ent.nombre AS entrenador
        FROM sesion s
@@ -169,24 +166,24 @@ router.get("/:id", async (req, res) => {
        LEFT JOIN muro_aliado m ON g.muro_id = m.id
        JOIN entrenador ent ON g.entrenador_id = ent.id
        WHERE s.id = $1`,
-      [req.params.id]
+      req.params.id
     );
 
-    if (!result.rows.length) {
+    if (!result.length) {
       return res.status(404).json({ error: "Sesión no encontrada" });
     }
 
-    res.json(result.rows[0]);
+    res.json(result[0]);
   } catch (err) {
     console.error("Error GET /sesiones/:id:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── GET /sesiones/entrenador/:entrenadorId ────────────────
+// ─── GET /sesiones/entrenador/:entrenadorId ───────────────
 router.get("/entrenador/:entrenadorId", authorize("entrenador", "admin"), async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT s.*, g.modalidad, g.horario, p.nombre AS programa,
               m.nombre AS muro, ci.codigo AS ciclo,
               g.id AS grupo_id
@@ -198,10 +195,10 @@ router.get("/entrenador/:entrenadorId", authorize("entrenador", "admin"), async 
        WHERE g.entrenador_id = $1
          AND g.estado IN ('abierta', 'en_curso')
        ORDER BY s.fecha ASC`,
-      [req.params.entrenadorId]
+      req.params.entrenadorId
     );
 
-    res.json(result.rows);
+    res.json(result);
   } catch (err) {
     console.error("Error:", err);
     res.status(500).json({ error: "Error interno" });

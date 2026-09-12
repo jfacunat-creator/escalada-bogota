@@ -1,28 +1,15 @@
-/**
- * backend/src/routes/plan.js
- *
- * INTEGRACIÓN en backend/src/index.js:
- *   app.use("/api/plan", require("./routes/plan"));
- */
-
 const express = require("express");
 const router = express.Router();
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate } = require("../middleware/auth");
 
-/**
- * GET /api/plan/my
- * Devuelve el plan del escalador autenticado según su inscripción activa.
- * Controla acceso: solo si escalador.estado === 'activo'.
- */
 router.get("/my", authenticate, async (req, res) => {
   if (req.user.rol !== "escalador") {
     return res.status(403).json({ error: "Solo escaladores tienen planes de entrenamiento" });
   }
 
   try {
-    // Buscar escalador + inscripción activa + programa + ciclo
-    const { rows } = await db(
+    const rows = await prisma.$queryRawUnsafe(
       `SELECT
          e.nombre,
          e.estado,
@@ -36,7 +23,7 @@ router.get("/my", authenticate, async (req, res) => {
        WHERE e.usuario_id = $1
        ORDER BY i.created_at DESC
        LIMIT 1`,
-      [req.user.id]
+      req.user.id
     );
 
     if (!rows.length) {
@@ -45,7 +32,6 @@ router.get("/my", authenticate, async (req, res) => {
 
     const esc = rows[0];
 
-    // Gate de acceso
     if (esc.estado !== "activo") {
       return res.status(403).json({
         error: "Acceso inactivo",
@@ -62,23 +48,22 @@ router.get("/my", authenticate, async (req, res) => {
     }
 
     const trimestre = `T${esc.trimestre}`;
-    const nivel     = esc.nivel; // iniciacion | intermedio | avanzado
+    const nivel     = esc.nivel;
 
-    const planRes = await db(
+    const planRes = await prisma.$queryRawUnsafe(
       `SELECT trimestre, nivel, semanas
        FROM plan_contenido
        WHERE trimestre = $1 AND nivel = $2`,
-      [trimestre, nivel]
+      trimestre, nivel
     );
 
-    if (!planRes.rows.length) {
+    if (!planRes.length) {
       return res.status(404).json({
         error: `Plan ${trimestre} ${nivel} no encontrado en la base de datos`,
       });
     }
 
-    // Obtener sesiones de test del grupo activo del escalador
-    const testSesionesRes = await db(
+    const testSesionesRes = await prisma.$queryRawUnsafe(
       `SELECT s.id, s.tipo, s.fecha, s.numero_sesion
        FROM sesion s
        JOIN inscripcion i ON i.grupo_id = s.grupo_id AND i.escalador_id = (
@@ -86,10 +71,10 @@ router.get("/my", authenticate, async (req, res) => {
        ) AND i.estado = 'activa'
        WHERE s.tipo = 'test'
        ORDER BY s.numero_sesion ASC`,
-      [req.user.id]
-    ).catch(() => ({ rows: [] }));
+      req.user.id
+    ).catch(() => []);
 
-    const testSesiones = testSesionesRes.rows.map((s, idx) => ({
+    const testSesiones = testSesionesRes.map((s, idx) => ({
       id:         s.id,
       tipo:       idx === 0 ? 'entrada' : 'salida',
       fecha:      s.fecha,
@@ -100,7 +85,7 @@ router.get("/my", authenticate, async (req, res) => {
       trimestre,
       nivel,
       nombre: esc.nombre,
-      semanas: planRes.rows[0].semanas,
+      semanas: planRes[0].semanas,
       testSesiones,
     });
 

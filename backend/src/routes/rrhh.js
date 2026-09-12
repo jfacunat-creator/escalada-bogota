@@ -1,30 +1,21 @@
 /**
- * rrhh.js
- * Gestión de contratos, parafiscales y ausencias de entrenadores.
- *
- * Normativa colombiana aplicada:
- *   Salud:   8.5% empleador (Art. 204 Ley 100/1993)
- *   Pensión: 12% empleador (Art. 20 Ley 797/2003)
- *   ARL:     6.96% clase V — riesgo máximo (Decreto 1607/2002, actividad deportiva)
- *   Caja:    4% (Art. 7 Ley 21/1982)
- *   Factor prestacional total: ≈ 1.54× salario base
+ * rrhh.js — Gestión de contratos, parafiscales y ausencias de entrenadores.
  */
 
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(authenticate);
 router.use(authorize("admin"));
 
-// Tasas de ley (empleador)
 const TASAS = {
-  salud:   0.085,   // 8.5%
-  pension: 0.12,    // 12%
-  arl:     0.0696,  // 6.96% clase V
-  caja:    0.04,    // 4%
+  salud:   0.085,
+  pension: 0.12,
+  arl:     0.0696,
+  caja:    0.04,
 };
 
 function calcularParafiscales(salarioBase) {
@@ -37,10 +28,6 @@ function calcularParafiscales(salarioBase) {
     total:   Math.round(base * (TASAS.salud + TASAS.pension + TASAS.arl + TASAS.caja)),
   };
 }
-
-// ═══════════════════════════════════════════════════════════
-// CONTRATOS
-// ═══════════════════════════════════════════════════════════
 
 // ─── GET /rrhh/contratos ─────────────────────────────────
 router.get("/contratos", async (req, res) => {
@@ -58,8 +45,8 @@ router.get("/contratos", async (req, res) => {
     if (estado) { params.push(estado); sql += ` AND c.estado = $${params.length}`; }
     sql += " ORDER BY c.created_at DESC";
 
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Error interno" });
   }
@@ -80,22 +67,21 @@ router.post("/contratos", [
   try {
     const { entrenadorId, tipo, fechaInicio, fechaFin, salarioBase, notas } = req.body;
 
-    // Verificar que el entrenador no tenga contrato activo
-    const activo = await db(
+    const activo = await prisma.$queryRawUnsafe(
       "SELECT id FROM contrato_entrenador WHERE entrenador_id = $1 AND estado = 'activo'",
-      [entrenadorId]
+      entrenadorId
     );
-    if (activo.rows.length > 0) {
+    if (activo.length > 0) {
       return res.status(409).json({ error: "El entrenador ya tiene un contrato activo. Termínalo primero." });
     }
 
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `INSERT INTO contrato_entrenador (entrenador_id, tipo, fecha_inicio, fecha_fin, salario_base, notas)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [entrenadorId, tipo, fechaInicio, fechaFin || null, salarioBase, notas || null]
+      entrenadorId, tipo, fechaInicio, fechaFin || null, salarioBase, notas || null
     );
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(result[0]);
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Error interno" });
   }
@@ -110,20 +96,21 @@ router.patch("/contratos/:id/estado", [
 
   try {
     const { estado } = req.body;
-    const c = await db("SELECT id FROM contrato_entrenador WHERE id = $1", [req.params.id]);
-    if (c.rows.length === 0) return res.status(404).json({ error: "Contrato no encontrado" });
+    const c = await prisma.$queryRawUnsafe(
+      "SELECT id FROM contrato_entrenador WHERE id = $1",
+      req.params.id
+    );
+    if (c.length === 0) return res.status(404).json({ error: "Contrato no encontrado" });
 
-    await db("UPDATE contrato_entrenador SET estado = $1, updated_at = NOW() WHERE id = $2",
-      [estado, req.params.id]);
+    await prisma.$executeRawUnsafe(
+      "UPDATE contrato_entrenador SET estado = $1, updated_at = NOW() WHERE id = $2",
+      estado, req.params.id
+    );
     res.json({ message: `Contrato marcado como ${estado}` });
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Error interno" });
   }
 });
-
-// ═══════════════════════════════════════════════════════════
-// PARAFISCALES
-// ═══════════════════════════════════════════════════════════
 
 // ─── GET /rrhh/parafiscales ──────────────────────────────
 router.get("/parafiscales", async (req, res) => {
@@ -142,15 +129,14 @@ router.get("/parafiscales", async (req, res) => {
     if (estadoPago) { params.push(estadoPago); sql += ` AND p.estado_pago = $${params.length}`; }
     sql += " ORDER BY p.anio DESC, p.mes DESC";
 
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /rrhh/parafiscales/generar — Generar parafiscales de un mes ────
-// Calcula automáticamente sobre el salario base de cada contrato activo.
+// ─── POST /rrhh/parafiscales/generar ────────────────────
 router.post("/parafiscales/generar", [
   body("mes").isInt({ min: 1, max: 12 }),
   body("anio").isInt({ min: 2025, max: 2030 }),
@@ -161,39 +147,37 @@ router.post("/parafiscales/generar", [
   try {
     const { mes, anio } = req.body;
 
-    // Obtener contratos activos
-    const contratos = await db(
+    const contratos = await prisma.$queryRawUnsafe(
       `SELECT c.id, c.salario_base, e.nombre AS entrenador_nombre
        FROM contrato_entrenador c
        JOIN entrenador e ON c.entrenador_id = e.id
        WHERE c.estado = 'activo'`
     );
 
-    if (contratos.rows.length === 0) {
+    if (contratos.length === 0) {
       return res.status(400).json({ error: "No hay contratos activos para generar parafiscales" });
     }
 
     const generados = [];
     const omitidos = [];
 
-    for (const contrato of contratos.rows) {
-      // Verificar si ya existe para este periodo
-      const existe = await db(
+    for (const contrato of contratos) {
+      const existe = await prisma.$queryRawUnsafe(
         "SELECT id FROM parafiscal WHERE contrato_id = $1 AND mes = $2 AND anio = $3",
-        [contrato.id, mes, anio]
+        contrato.id, mes, anio
       );
 
-      if (existe.rows.length > 0) {
+      if (existe.length > 0) {
         omitidos.push(contrato.entrenador_nombre);
         continue;
       }
 
       const p = calcularParafiscales(contrato.salario_base);
 
-      await db(
+      await prisma.$executeRawUnsafe(
         `INSERT INTO parafiscal (contrato_id, mes, anio, salario_base, salud, pension, arl, caja)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [contrato.id, mes, anio, contrato.salario_base, p.salud, p.pension, p.arl, p.caja]
+        contrato.id, mes, anio, contrato.salario_base, p.salud, p.pension, p.arl, p.caja
       );
 
       generados.push({
@@ -214,15 +198,18 @@ router.post("/parafiscales/generar", [
   }
 });
 
-// ─── PATCH /rrhh/parafiscales/:id/pagar — Marcar como pagado ─────────────
+// ─── PATCH /rrhh/parafiscales/:id/pagar ─────────────────
 router.patch("/parafiscales/:id/pagar", async (req, res) => {
   try {
-    const p = await db("SELECT id, estado_pago FROM parafiscal WHERE id = $1", [req.params.id]);
-    if (p.rows.length === 0) return res.status(404).json({ error: "Registro no encontrado" });
+    const p = await prisma.$queryRawUnsafe(
+      "SELECT id, estado_pago FROM parafiscal WHERE id = $1",
+      req.params.id
+    );
+    if (p.length === 0) return res.status(404).json({ error: "Registro no encontrado" });
 
-    await db(
+    await prisma.$executeRawUnsafe(
       "UPDATE parafiscal SET estado_pago = 'pagado', fecha_pago = CURRENT_DATE WHERE id = $1",
-      [req.params.id]
+      req.params.id
     );
     res.json({ message: "Parafiscal marcado como pagado" });
   } catch (err) {
@@ -230,10 +217,10 @@ router.patch("/parafiscales/:id/pagar", async (req, res) => {
   }
 });
 
-// ─── GET /rrhh/resumen — Dashboard RRHH ──────────────────
+// ─── GET /rrhh/resumen ────────────────────────────────────
 router.get("/resumen", async (req, res) => {
   try {
-    const contratos = await db(`
+    const contratos = await prisma.$queryRawUnsafe(`
       SELECT
         COUNT(*) FILTER (WHERE estado = 'activo') AS contratos_activos,
         COUNT(*) AS contratos_total,
@@ -241,7 +228,7 @@ router.get("/resumen", async (req, res) => {
       FROM contrato_entrenador
     `);
 
-    const parafiscales = await db(`
+    const parafiscales = await prisma.$queryRawUnsafe(`
       SELECT
         COALESCE(SUM(salud + pension + arl + caja) FILTER (WHERE estado_pago = 'pendiente'), 0) AS parafiscales_pendientes,
         COALESCE(SUM(salud + pension + arl + caja) FILTER (WHERE estado_pago = 'pagado'), 0) AS parafiscales_pagados,
@@ -249,14 +236,17 @@ router.get("/resumen", async (req, res) => {
       FROM parafiscal
     `);
 
-    const c = contratos.rows[0];
-    const p = parafiscales.rows[0];
-    const nominaMensual = parseFloat(c.nomina_mensual);
-    const costoTotal = nominaMensual * 1.54; // Factor prestacional completo
+    const c = contratos[0];
+    const p = parafiscales[0];
+    const nominaMensual = Number(c.nomina_mensual);
+    const costoTotal = nominaMensual * 1.54;
 
     res.json({
-      ...c,
-      ...p,
+      contratos_activos: Number(c.contratos_activos),
+      contratos_total: Number(c.contratos_total),
+      parafiscales_pendientes: Number(p.parafiscales_pendientes),
+      parafiscales_pagados: Number(p.parafiscales_pagados),
+      periodos_pendientes: Number(p.periodos_pendientes),
       nomina_mensual: nominaMensual,
       costo_total_mensual: Math.round(costoTotal),
       factor_prestacional: 1.54,
@@ -265,10 +255,6 @@ router.get("/resumen", async (req, res) => {
     console.error(err); res.status(500).json({ error: "Error interno" });
   }
 });
-
-// ═══════════════════════════════════════════════════════════
-// AUSENCIAS
-// ═══════════════════════════════════════════════════════════
 
 // ─── GET /rrhh/ausencias ─────────────────────────────────
 router.get("/ausencias", async (req, res) => {
@@ -286,8 +272,8 @@ router.get("/ausencias", async (req, res) => {
     if (entrenadorId) { params.push(entrenadorId); sql += ` AND a.entrenador_id = $${params.length}`; }
     sql += " ORDER BY a.fecha DESC";
 
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Error interno" });
   }
@@ -306,18 +292,18 @@ router.post("/ausencias", [
 
   try {
     const { entrenadorId, fecha, tipo, reemplazadoPor, observaciones } = req.body;
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `INSERT INTO ausencia_entrenador (entrenador_id, fecha, tipo, reemplazado_por, observaciones)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [entrenadorId, fecha, tipo, reemplazadoPor || null, observaciones || null]
+      entrenadorId, fecha, tipo, reemplazadoPor || null, observaciones || null
     );
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(result[0]);
   } catch (err) {
     console.error(err); res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── GET /rrhh/simulador — Simula costo total de un salario ──────────────
+// ─── GET /rrhh/simulador ──────────────────────────────────
 router.get("/simulador", async (req, res) => {
   const salario = parseFloat(req.query.salario) || 0;
   if (salario <= 0) return res.status(400).json({ error: "Salario inválido" });

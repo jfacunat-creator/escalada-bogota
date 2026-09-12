@@ -2,25 +2,25 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
-const { pool, query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { generateTokens } = require("../utils/jwt");
 
 const router = express.Router();
 
-// ─── POST /auth/reset-escaladores — Endpoint temporal ────
+// ─── POST /auth/reset-escaladores ────────────────────────
 router.post("/reset-escaladores", async (req, res) => {
   const { adminSecret, nuevaPassword } = req.body;
   if (adminSecret !== process.env.JWT_SECRET)
     return res.status(403).json({ error: "No autorizado" });
   try {
     const hash = await bcrypt.hash(nuevaPassword || "escalador2026", 12);
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       "UPDATE usuario SET password_hash = $1 WHERE rol = 'escalador' RETURNING email",
-      [hash]
+      hash
     );
     res.json({
-      message: `${result.rows.length} escaladores actualizados`,
-      emails: result.rows.map((r) => r.email),
+      message: `${result.length} escaladores actualizados`,
+      emails: result.map((r) => r.email),
     });
   } catch (err) {
     console.error(err);
@@ -46,7 +46,6 @@ router.post(
 
     const { email, password, nombre, apellido, fechaNacimiento, pesoKg, telefono, contactoEmergencia } = req.body;
 
-    // Calcular rango etario
     const nacimiento = new Date(fechaNacimiento);
     const hoy = new Date();
     const edad =
@@ -59,64 +58,46 @@ router.post(
     else if (edad < 13) rangoEtario = "menor_10_12";
     else if (edad < 16) rangoEtario = "menor_13_15";
 
-    // FIX: usar transacción para que usuario + escalador sean atómicos.
-    // Si falla el INSERT de escalador, el usuario no queda huérfano en la BD.
-    const client = await pool.connect();
     try {
-      await client.query("BEGIN");
+      const { usuario, escalador } = await prisma.$transaction(async (tx) => {
+        const existe = await tx.$queryRawUnsafe(
+          "SELECT id FROM usuario WHERE email = $1",
+          email
+        );
+        if (existe.length > 0)
+          throw Object.assign(new Error("Este email ya está registrado"), { status: 409 });
 
-      // Verificar email duplicado
-      const existe = await client.query(
-        "SELECT id FROM usuario WHERE email = $1",
-        [email]
-      );
-      if (existe.rows.length > 0) {
-        await client.query("ROLLBACK");
-        return res.status(409).json({ error: "Este email ya está registrado" });
-      }
+        const passwordHash = await bcrypt.hash(password, 12);
 
-      const passwordHash = await bcrypt.hash(password, 12);
+        const userResult = await tx.$queryRawUnsafe(
+          `INSERT INTO usuario (id, email, password_hash, rol, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, 'escalador', NOW())
+           RETURNING id, email, rol`,
+          email, passwordHash
+        );
+        const usuario = userResult[0];
 
-      // FIX: incluir updated_at = NOW() por si la columna no tiene DEFAULT
-      // en el esquema SQL (Prisma maneja @updatedAt en el cliente, no en la DB).
-      const userResult = await client.query(
-        `INSERT INTO usuario (id, email, password_hash, rol, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, 'escalador', NOW())
-         RETURNING id, email, rol`,
-        [email, passwordHash]
-      );
-      const usuario = userResult.rows[0];
+        const escResult = await tx.$queryRawUnsafe(
+          `INSERT INTO escalador
+             (id, usuario_id, nombre, apellido, fecha_nacimiento, rango_etario,
+              peso_kg, telefono, contacto_emergencia, estado, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', NOW())
+           RETURNING id, nombre, apellido, rango_etario, estado, created_at`,
+          usuario.id, nombre, apellido, nacimiento, rangoEtario,
+          pesoKg || null, telefono || null, contactoEmergencia
+        );
 
-      // FIX: incluir updated_at = NOW() en escalador también
-      const escResult = await client.query(
-        `INSERT INTO escalador
-           (id, usuario_id, nombre, apellido, fecha_nacimiento, rango_etario,
-            peso_kg, telefono, contacto_emergencia, estado, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', NOW())
-         RETURNING id, nombre, apellido, rango_etario, estado, created_at`,
-        [
-          usuario.id,
-          nombre,
-          apellido,
-          nacimiento,
-          rangoEtario,
-          pesoKg || null,
-          telefono || null,
-          contactoEmergencia,
-        ]
-      );
-
-      await client.query("COMMIT");
+        return { usuario, escalador: escResult[0] };
+      });
 
       const tokens = generateTokens(usuario);
       res.status(201).json({
         message: "Registro exitoso",
-        usuario: { ...usuario, escalador: escResult.rows[0] },
+        usuario: { ...usuario, escalador },
         ...tokens,
       });
     } catch (err) {
-      await client.query("ROLLBACK");
-      // Log detallado en servidor para diagnóstico
+      if (err.status) return res.status(err.status).json({ error: err.message });
       console.error("Error en registro — detalle:", {
         message: err.message,
         code: err.code,
@@ -125,10 +106,7 @@ router.post(
         column: err.column,
         constraint: err.constraint,
       });
-      // En desarrollo exponer el mensaje real; en producción respuesta genérica
       res.status(500).json({ error: "Error interno del servidor" });
-    } finally {
-      client.release();
     }
   }
 );
@@ -143,7 +121,7 @@ router.post(
       return res.status(400).json({ errors: errors.array() });
     try {
       const { email, password } = req.body;
-      const result = await db(
+      const result = await prisma.$queryRawUnsafe(
         `SELECT u.*, e.id as esc_id, e.nombre as esc_nombre, e.apellido as esc_apellido,
                 e.rango_etario, e.estado as esc_estado,
                 t.id as ent_id, t.nombre as ent_nombre, t.licencia_ley181
@@ -151,11 +129,11 @@ router.post(
          LEFT JOIN escalador e ON e.usuario_id = u.id
          LEFT JOIN entrenador t ON t.usuario_id = u.id
          WHERE u.email = $1`,
-        [email]
+        email
       );
-      if (result.rows.length === 0)
+      if (!result.length)
         return res.status(401).json({ error: "Credenciales inválidas" });
-      const row = result.rows[0];
+      const row = result[0];
       if (!row.activo)
         return res.status(403).json({ error: "Cuenta desactivada" });
       if (!(await bcrypt.compare(password, row.password_hash)))
@@ -191,13 +169,13 @@ router.post("/refresh", async (req, res) => {
     return res.status(400).json({ error: "Refresh token requerido" });
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       "SELECT id, email, rol, activo FROM usuario WHERE id = $1",
-      [decoded.id]
+      decoded.id
     );
-    if (result.rows.length === 0 || !result.rows[0].activo)
+    if (!result.length || !result[0].activo)
       return res.status(401).json({ error: "Usuario no válido" });
-    res.json(generateTokens(result.rows[0]));
+    res.json(generateTokens(result[0]));
   } catch {
     res.status(401).json({ error: "Refresh token inválido o expirado" });
   }
@@ -209,7 +187,7 @@ router.get(
   require("../middleware/auth").authenticate,
   async (req, res) => {
     try {
-      const userRes = await db(
+      const userRes = await prisma.$queryRawUnsafe(
         `SELECT u.id, u.email, u.rol,
                 e.id as esc_id, e.nombre, e.apellido, e.rango_etario,
                 e.estado as esc_estado, e.nivel as esc_nivel, e.telefono, e.contacto_emergencia,
@@ -219,13 +197,13 @@ router.get(
          LEFT JOIN escalador e ON e.usuario_id = u.id
          LEFT JOIN entrenador t ON t.usuario_id = u.id
          WHERE u.id = $1`,
-        [req.user.id]
+        req.user.id
       );
-      const row = userRes.rows[0];
+      const row = userRes[0];
       const perfil = { id: row.id, email: row.email, rol: row.rol };
 
       if (row.esc_id) {
-        const inscRes = await db(
+        const inscRes = await prisma.$queryRawUnsafe(
           `SELECT
              i.id, i.estado, i.fecha_inscripcion, i.precio_ciclo, i.descuento_aplicado,
              g.id   AS grupo_id,    g.modalidad,     g.horario,
@@ -244,19 +222,19 @@ router.get(
            JOIN entrenador ent ON g.entrenador_id = ent.id
            WHERE i.escalador_id = $1
            ORDER BY i.fecha_inscripcion DESC`,
-          [row.esc_id]
+          row.esc_id
         );
-        const pagosRes = await db(
+        const pagosRes = await prisma.$queryRawUnsafe(
           `SELECT pa.id, pa.inscripcion_id, pa.monto, pa.fecha_pago,
                   pa.fecha_vencimiento, pa.metodo, pa.estado, pa.referencia
            FROM pago pa
            JOIN inscripcion i ON pa.inscripcion_id = i.id
            WHERE i.escalador_id = $1
            ORDER BY pa.created_at DESC`,
-          [row.esc_id]
+          row.esc_id
         );
         const pagosByInsc = {};
-        for (const p of pagosRes.rows) {
+        for (const p of pagosRes) {
           if (!pagosByInsc[p.inscripcion_id]) pagosByInsc[p.inscripcion_id] = [];
           pagosByInsc[p.inscripcion_id].push({
             id: p.id,
@@ -268,7 +246,7 @@ router.get(
             referencia: p.referencia,
           });
         }
-        const inscripciones = inscRes.rows.map((r) => ({
+        const inscripciones = inscRes.map((r) => ({
           id: r.id,
           estado: r.estado,
           fechaInscripcion: r.fecha_inscripcion,

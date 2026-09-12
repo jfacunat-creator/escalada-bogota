@@ -1,13 +1,12 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { query: db, pool } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(authenticate);
 
 // ─── GET /escaladores ─────────────────────────────────────
-// Admin y entrenadores ven la lista de escaladores
 router.get("/", authorize("admin", "entrenador"), async (req, res) => {
   try {
     if (req.user.rol === "entrenador" && !req.user.entrenador?.id) {
@@ -43,7 +42,6 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
       inscripcionActivaSelect = `, (SELECT id FROM inscripcion i2 WHERE i2.escalador_id = e.id AND i2.grupo_id = $${p} AND i2.estado = 'activa' LIMIT 1) as inscripcion_activa_id`;
     }
 
-    // Entrenador solo ve SUS escaladores (los de sus grupos)
     if (req.user.rol === "entrenador") {
       params.push(req.user.entrenador.id);
       conditions.push(`EXISTS (
@@ -70,8 +68,8 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
       WHERE 1=1${where}
       ORDER BY e.nombre, e.apellido`;
 
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error("Error GET /escaladores:", err);
     res.status(500).json({ error: "Error interno" });
@@ -83,21 +81,19 @@ router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Escalador solo puede ver su propio perfil
     if (req.user.rol === "escalador" && req.user.escalador?.id !== id) {
       return res.status(403).json({ error: "Solo puedes ver tu propio perfil" });
     }
 
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT e.*, u.email FROM escalador e JOIN usuario u ON e.usuario_id = u.id WHERE e.id = $1`,
-      [id]
+      id
     );
-    if (!result.rows.length) {
+    if (!result.length) {
       return res.status(404).json({ error: "Escalador no encontrado" });
     }
 
-    // Inscripciones con datos completos del grupo
-    const inscripciones = await db(
+    const inscripciones = await prisma.$queryRawUnsafe(
       `SELECT i.*, p.nombre AS programa, ci.codigo AS ciclo,
               m.nombre AS muro, g.horario, g.modalidad,
               ent.nombre AS entrenador
@@ -109,10 +105,10 @@ router.get("/:id", async (req, res) => {
        JOIN entrenador ent ON g.entrenador_id = ent.id
        WHERE i.escalador_id = $1
        ORDER BY i.created_at DESC`,
-      [id]
+      id
     );
 
-    res.json({ ...result.rows[0], inscripciones: inscripciones.rows });
+    res.json({ ...result[0], inscripciones });
   } catch (err) {
     console.error("Error GET /escaladores/:id:", err);
     res.status(500).json({ error: "Error interno" });
@@ -149,11 +145,11 @@ router.put(
       if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
 
       params.push(id);
-      const result = await db(
+      const result = await prisma.$queryRawUnsafe(
         `UPDATE escalador SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
-        params
+        ...params
       );
-      res.json(result.rows[0]);
+      res.json(result[0]);
     } catch (err) {
       console.error("Error PUT /escaladores/:id:", err);
       res.status(500).json({ error: "Error interno" });
@@ -165,22 +161,21 @@ router.put(
 router.delete("/:id", authorize("admin"), async (req, res) => {
   const escaladorId = req.params.id;
   try {
-    const check = await db("SELECT usuario_id FROM escalador WHERE id = $1", [escaladorId]);
-    if (!check.rows.length) return res.status(404).json({ error: "Escalador no encontrado" });
-    const usuarioId = check.rows[0].usuario_id;
+    const check = await prisma.$queryRawUnsafe("SELECT usuario_id FROM escalador WHERE id = $1", escaladorId);
+    if (!check.length) return res.status(404).json({ error: "Escalador no encontrado" });
+    const usuarioId = check[0].usuario_id;
 
-    // Cascade: asistencia → pago → inscripcion → escalador → usuario
-    await db("DELETE FROM asistencia WHERE escalador_id = $1", [escaladorId]);
-    const inscs = await db("SELECT id, grupo_id, estado FROM inscripcion WHERE escalador_id = $1", [escaladorId]);
-    for (const insc of inscs.rows) {
-      await db("DELETE FROM pago WHERE inscripcion_id = $1", [insc.id]);
+    await prisma.$executeRawUnsafe("DELETE FROM asistencia WHERE escalador_id = $1", escaladorId);
+    const inscs = await prisma.$queryRawUnsafe("SELECT id, grupo_id, estado FROM inscripcion WHERE escalador_id = $1", escaladorId);
+    for (const insc of inscs) {
+      await prisma.$executeRawUnsafe("DELETE FROM pago WHERE inscripcion_id = $1", insc.id);
       if (insc.estado === "activa") {
-        await db("UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id = $1", [insc.grupo_id]);
+        await prisma.$executeRawUnsafe("UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id = $1", insc.grupo_id);
       }
     }
-    await db("DELETE FROM inscripcion WHERE escalador_id = $1", [escaladorId]);
-    await db("DELETE FROM escalador WHERE id = $1", [escaladorId]);
-    await db("DELETE FROM usuario WHERE id = $1", [usuarioId]);
+    await prisma.$executeRawUnsafe("DELETE FROM inscripcion WHERE escalador_id = $1", escaladorId);
+    await prisma.$executeRawUnsafe("DELETE FROM escalador WHERE id = $1", escaladorId);
+    await prisma.$executeRawUnsafe("DELETE FROM usuario WHERE id = $1", usuarioId);
 
     res.json({ message: "Escalador eliminado" });
   } catch (err) {
@@ -189,7 +184,7 @@ router.delete("/:id", authorize("admin"), async (req, res) => {
   }
 });
 
-// ─── PATCH /escaladores/:id/nivel — Admin asigna nivel al escalador ──────────
+// ─── PATCH /escaladores/:id/nivel ────────────────────────
 router.patch(
   "/:id/nivel",
   authorize("admin"),
@@ -202,14 +197,14 @@ router.patch(
       const { id } = req.params;
       const { nivel } = req.body;
 
-      const check = await db("SELECT id, estado FROM escalador WHERE id=$1", [id]);
-      if (!check.rows.length) return res.status(404).json({ error: "Escalador no encontrado" });
+      const check = await prisma.$queryRawUnsafe("SELECT id, estado FROM escalador WHERE id=$1", id);
+      if (!check.length) return res.status(404).json({ error: "Escalador no encontrado" });
 
-      const result = await db(
+      const result = await prisma.$queryRawUnsafe(
         "UPDATE escalador SET nivel=$1, updated_at=NOW() WHERE id=$2 RETURNING *",
-        [nivel, id]
+        nivel, id
       );
-      res.json(result.rows[0]);
+      res.json(result[0]);
     } catch (err) {
       console.error("Error PATCH /escaladores/:id/nivel:", err);
       res.status(500).json({ error: "Error interno" });
@@ -217,7 +212,7 @@ router.patch(
   }
 );
 
-// ─── PATCH /escaladores/:id/estado ─────────────────────────
+// ─── PATCH /escaladores/:id/estado ──────────────────────
 router.patch(
   "/:id/estado",
   authorize("admin"),
@@ -227,7 +222,7 @@ router.patch(
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     try {
-      await db("UPDATE escalador SET estado = $1 WHERE id = $2", [req.body.estado, req.params.id]);
+      await prisma.$executeRawUnsafe("UPDATE escalador SET estado = $1 WHERE id = $2", req.body.estado, req.params.id);
       res.json({ message: `Estado cambiado a ${req.body.estado}` });
     } catch (err) {
       console.error("Error PATCH estado:", err);

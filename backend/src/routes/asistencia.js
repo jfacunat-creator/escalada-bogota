@@ -1,6 +1,6 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
@@ -9,15 +9,15 @@ router.use(authenticate);
 // ─── GET /asistencia/sesion/:sesionId ─────────────────────
 router.get("/sesion/:sesionId", authorize("entrenador", "admin"), async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT a.*, e.nombre, e.apellido
        FROM asistencia a
        JOIN escalador e ON a.escalador_id = e.id
        WHERE a.sesion_id = $1
        ORDER BY e.nombre`,
-      [req.params.sesionId]
+      req.params.sesionId
     );
-    res.json(result.rows);
+    res.json(result);
   } catch (err) {
     console.error("Error:", err);
     res.status(500).json({ error: "Error interno" });
@@ -42,12 +42,12 @@ router.post(
       const { sesionId, registros } = req.body;
 
       for (const reg of registros) {
-        await db(
+        await prisma.$executeRawUnsafe(
           `INSERT INTO asistencia (sesion_id, escalador_id, asistio, observaciones)
            VALUES ($1, $2, $3, $4)
            ON CONFLICT (sesion_id, escalador_id)
            DO UPDATE SET asistio = $3, observaciones = $4`,
-          [sesionId, reg.escaladorId, reg.asistio, reg.observaciones || null]
+          sesionId, reg.escaladorId, reg.asistio, reg.observaciones || null
         );
       }
 
@@ -68,7 +68,7 @@ router.get("/escalador/:escaladorId", async (req, res) => {
       return res.status(403).json({ error: "Solo puedes ver tu propia asistencia" });
     }
 
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT a.*, s.fecha, s.numero_sesion, s.tipo,
               g.modalidad, p.nombre AS programa
        FROM asistencia a
@@ -77,15 +77,15 @@ router.get("/escalador/:escaladorId", async (req, res) => {
        JOIN programa p ON g.programa_id = p.id
        WHERE a.escalador_id = $1
        ORDER BY s.fecha DESC`,
-      [escaladorId]
+      escaladorId
     );
 
-    const total = result.rows.length;
-    const asistencias = result.rows.filter((r) => r.asistio).length;
+    const total = result.length;
+    const asistencias = result.filter((r) => r.asistio).length;
     const porcentaje = total > 0 ? Math.round((asistencias / total) * 100) : 0;
 
     res.json({
-      registros: result.rows,
+      registros: result,
       resumen: {
         total,
         asistencias,
@@ -103,7 +103,7 @@ router.get("/escalador/:escaladorId", async (req, res) => {
 // ─── GET /asistencia/grupo/:grupoId/resumen ───────────────
 router.get("/grupo/:grupoId/resumen", authorize("entrenador", "admin"), async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT e.id, e.nombre, e.apellido,
               COUNT(a.id) AS total_sesiones,
               COUNT(a.id) FILTER (WHERE a.asistio = true) AS asistencias,
@@ -115,10 +115,10 @@ router.get("/grupo/:grupoId/resumen", authorize("entrenador", "admin"), async (r
        WHERE i.grupo_id = $1 AND i.estado = 'activa'
        GROUP BY e.id
        ORDER BY e.nombre`,
-      [req.params.grupoId]
+      req.params.grupoId
     );
 
-    res.json(result.rows);
+    res.json(result);
   } catch (err) {
     console.error("Error:", err);
     res.status(500).json({ error: "Error interno" });

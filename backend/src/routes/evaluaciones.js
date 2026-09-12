@@ -1,12 +1,12 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(authenticate);
 
-// ─── GET /evaluaciones?escaladorId=x&cohorteId=y ─────────
+// ─── GET /evaluaciones ───────────────────────────────────
 router.get("/", async (req, res) => {
   try {
     const { escaladorId, cohorteId, tipo } = req.query;
@@ -38,15 +38,15 @@ router.get("/", async (req, res) => {
     }
 
     sql += " ORDER BY ev.fecha DESC";
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error("Error listando evaluaciones:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /evaluaciones — Crear evaluación ──────────────
+// ─── POST /evaluaciones ──────────────────────────────────
 router.post("/", authorize("entrenador", "admin"), [
   body("escaladorId").isUUID(),
   body("cohorteId").isUUID(),
@@ -58,20 +58,19 @@ router.post("/", authorize("entrenador", "admin"), [
 
   try {
     const { escaladorId, cohorteId, tipo, fecha, notas } = req.body;
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `INSERT INTO evaluacion (escalador_id, grupo_id, tipo, fecha, notas)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [escaladorId, cohorteId, tipo, fecha, notas || null]
+      escaladorId, cohorteId, tipo, fecha, notas || null
     );
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(result[0]);
   } catch (err) {
     console.error("Error creando evaluación:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /evaluaciones/mi-test — Escalador registra sus propios resultados ──
-// Permite al escalador ingresar resultados desde la sesión de test
+// ─── POST /evaluaciones/mi-test ──────────────────────────
 router.post("/mi-test", async (req, res) => {
   if (!req.user.escalador) return res.status(403).json({ error: "Solo para escaladores" });
 
@@ -81,45 +80,41 @@ router.post("/mi-test", async (req, res) => {
       return res.status(400).json({ error: "sesionId y resultados son requeridos" });
     }
 
-    // Verificar que la sesión existe, es de tipo test y pertenece al grupo del escalador
-    const sesion = await db(
+    const sesion = await prisma.$queryRawUnsafe(
       `SELECT s.id, s.grupo_id, s.tipo, s.fecha, s.numero_sesion,
               (SELECT COUNT(*) FROM sesion st WHERE st.grupo_id = s.grupo_id AND st.tipo = 'test' AND st.numero_sesion < s.numero_sesion) as tests_previos
        FROM sesion s
        JOIN inscripcion i ON i.grupo_id = s.grupo_id AND i.escalador_id = $1 AND i.estado = 'activa'
        WHERE s.id = $2`,
-      [req.user.escalador.id, sesionId]
+      req.user.escalador.id, sesionId
     );
-    if (!sesion.rows.length) return res.status(404).json({ error: "Sesión no encontrada o sin acceso" });
-    if (sesion.rows[0].tipo !== 'test') return res.status(400).json({ error: "Solo se pueden registrar resultados en sesiones de tipo test" });
+    if (!sesion.length) return res.status(404).json({ error: "Sesión no encontrada o sin acceso" });
+    if (sesion[0].tipo !== 'test') return res.status(400).json({ error: "Solo se pueden registrar resultados en sesiones de tipo test" });
 
-    const { grupo_id, fecha, numero_sesion, tests_previos } = sesion.rows[0];
-    const tipo = parseInt(tests_previos) === 0 ? 'entrada' : 'salida';
+    const { grupo_id, fecha, numero_sesion, tests_previos } = sesion[0];
+    const tipo = Number(tests_previos) === 0 ? 'entrada' : 'salida';
 
-    // Verificar que no exista ya una evaluación para esta sesión
-    const existente = await db(
+    const existente = await prisma.$queryRawUnsafe(
       "SELECT id FROM evaluacion WHERE escalador_id=$1 AND grupo_id=$2 AND fecha=$3 AND tipo=$4",
-      [req.user.escalador.id, grupo_id, fecha, tipo]
+      req.user.escalador.id, grupo_id, fecha, tipo
     );
-    if (existente.rows.length) {
+    if (existente.length) {
       return res.status(409).json({ error: "Ya existe una evaluación de este tipo para esta fecha. Contacta al entrenador para editarla." });
     }
 
-    // Crear evaluacion
-    const ev = await db(
+    const ev = await prisma.$queryRawUnsafe(
       `INSERT INTO evaluacion (escalador_id, grupo_id, tipo, fecha, estado)
        VALUES ($1, $2, $3, $4, 'realizada') RETURNING id`,
-      [req.user.escalador.id, grupo_id, tipo, fecha]
+      req.user.escalador.id, grupo_id, tipo, fecha
     );
-    const evalId = ev.rows[0].id;
+    const evalId = ev[0].id;
 
-    // Insertar resultados
     for (const r of resultados) {
       if (!r.metrica || r.valor === undefined || r.valor === null || r.valor === '') continue;
       const sem = r.semaforo && ['verde','amarillo','rojo'].includes(r.semaforo) ? r.semaforo : 'verde';
-      await db(
+      await prisma.$executeRawUnsafe(
         "INSERT INTO resultado_test (evaluacion_id, metrica, valor, unidad, semaforo) VALUES ($1,$2,$3,$4,$5)",
-        [evalId, r.metrica, parseFloat(r.valor), r.unidad, sem]
+        evalId, r.metrica, parseFloat(r.valor), r.unidad, sem
       );
     }
 
@@ -130,7 +125,7 @@ router.post("/mi-test", async (req, res) => {
   }
 });
 
-// ─── GET /evaluaciones/progreso/:escaladorId — CURVA DE PROGRESO ──
+// ─── GET /evaluaciones/progreso/:escaladorId ─────────────
 router.get("/progreso/:escaladorId", async (req, res) => {
   try {
     const { escaladorId } = req.params;
@@ -139,7 +134,7 @@ router.get("/progreso/:escaladorId", async (req, res) => {
       return res.status(403).json({ error: "Solo puedes ver tu propio progreso" });
     }
 
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT rt.metrica, rt.valor, rt.unidad, rt.semaforo, rt.percentil,
               ev.tipo as eval_tipo, ev.fecha as eval_fecha,
               ci.codigo as ciclo, ci.trimestre, ci.anio,
@@ -152,10 +147,10 @@ router.get("/progreso/:escaladorId", async (req, res) => {
        WHERE ev.escalador_id = $1
          AND ev.estado = 'realizada'
        ORDER BY ci.fecha_inicio ASC, ev.tipo ASC`,
-      [escaladorId]
+      escaladorId
     );
 
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       return res.json({ escaladorId, metricas: {}, evaluaciones: [], hayDatos: false });
     }
 
@@ -163,7 +158,7 @@ router.get("/progreso/:escaladorId", async (req, res) => {
     const evaluaciones = [];
     const evalSet = new Set();
 
-    for (const row of result.rows) {
+    for (const row of result) {
       if (!metricas[row.metrica]) {
         metricas[row.metrica] = { unidad: row.unidad, puntos: [] };
       }
@@ -194,17 +189,17 @@ router.get("/progreso/:escaladorId", async (req, res) => {
       }
     }
 
-    res.json({ escaladorId, metricas, evaluaciones, hayDatos: true, totalPuntos: result.rows.length });
+    res.json({ escaladorId, metricas, evaluaciones, hayDatos: true, totalPuntos: result.length });
   } catch (err) {
     console.error("Error obteniendo progreso:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── GET /evaluaciones/comparar/:cohorteId — Comparación de grupo
+// ─── GET /evaluaciones/comparar/:cohorteId ───────────────
 router.get("/comparar/:cohorteId", authorize("entrenador", "admin"), async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT e.nombre, e.apellido,
               rt.metrica, rt.valor, rt.unidad, rt.semaforo,
               ev.tipo as eval_tipo
@@ -213,11 +208,11 @@ router.get("/comparar/:cohorteId", authorize("entrenador", "admin"), async (req,
        JOIN escalador e ON ev.escalador_id = e.id
        WHERE ev.grupo_id = $1 AND ev.estado = 'realizada'
        ORDER BY e.nombre, rt.metrica, ev.tipo`,
-      [req.params.cohorteId]
+      req.params.cohorteId
     );
 
     const escaladores = {};
-    for (const row of result.rows) {
+    for (const row of result) {
       const key = `${row.nombre} ${row.apellido}`;
       if (!escaladores[key]) escaladores[key] = {};
       if (!escaladores[key][row.metrica]) escaladores[key][row.metrica] = {};
@@ -235,10 +230,10 @@ router.get("/comparar/:cohorteId", authorize("entrenador", "admin"), async (req,
   }
 });
 
-// ─── GET /evaluaciones/:id — Detalle con resultados ──────
+// ─── GET /evaluaciones/:id ───────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
-    const ev = await db(
+    const ev = await prisma.$queryRawUnsafe(
       `SELECT ev.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo,
               e.nombre as escalador_nombre, e.apellido as escalador_apellido
        FROM evaluacion ev
@@ -247,23 +242,23 @@ router.get("/:id", async (req, res) => {
        JOIN ciclo ci ON g.ciclo_id = ci.id
        JOIN escalador e ON ev.escalador_id = e.id
        WHERE ev.id = $1`,
-      [req.params.id]
+      req.params.id
     );
-    if (ev.rows.length === 0) return res.status(404).json({ error: "Evaluación no encontrada" });
+    if (ev.length === 0) return res.status(404).json({ error: "Evaluación no encontrada" });
 
-    const resultados = await db(
+    const resultados = await prisma.$queryRawUnsafe(
       "SELECT * FROM resultado_test WHERE evaluacion_id = $1 ORDER BY metrica",
-      [req.params.id]
+      req.params.id
     );
 
-    res.json({ ...ev.rows[0], resultados: resultados.rows });
+    res.json({ ...ev[0], resultados });
   } catch (err) {
     console.error("Error:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /evaluaciones/:id/resultados — Registrar resultados batch
+// ─── POST /evaluaciones/:id/resultados ───────────────────
 router.post("/:id/resultados", authorize("entrenador", "admin"), [
   body("resultados").isArray({ min: 1 }),
   body("resultados.*.metrica").isString().trim().notEmpty(),
@@ -278,22 +273,20 @@ router.post("/:id/resultados", authorize("entrenador", "admin"), [
     const evalId = req.params.id;
     const { resultados } = req.body;
 
-    // Verificar que la evaluación existe
-    const ev = await db("SELECT id FROM evaluacion WHERE id = $1", [evalId]);
-    if (ev.rows.length === 0) return res.status(404).json({ error: "Evaluación no encontrada" });
+    const ev = await prisma.$queryRawUnsafe("SELECT id FROM evaluacion WHERE id = $1", evalId);
+    if (ev.length === 0) return res.status(404).json({ error: "Evaluación no encontrada" });
 
     let insertados = 0;
     for (const r of resultados) {
-      await db(
+      await prisma.$executeRawUnsafe(
         `INSERT INTO resultado_test (evaluacion_id, metrica, valor, unidad, semaforo, percentil)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [evalId, r.metrica, r.valor, r.unidad, r.semaforo, r.percentil || null]
+        evalId, r.metrica, r.valor, r.unidad, r.semaforo, r.percentil || null
       );
       insertados++;
     }
 
-    // Marcar evaluación como realizada
-    await db("UPDATE evaluacion SET estado = 'realizada' WHERE id = $1", [evalId]);
+    await prisma.$executeRawUnsafe("UPDATE evaluacion SET estado = 'realizada' WHERE id = $1", evalId);
 
     res.status(201).json({ message: `${insertados} resultados registrados`, insertados });
   } catch (err) {

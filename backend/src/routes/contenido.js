@@ -1,20 +1,17 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(authenticate);
 
-// ─── GET /contenido?cicloId=xxx — Lista contenido accesible ─
-// Escalador: solo ve contenido de ciclos donde tiene inscripción activa
-// Entrenador/Admin: ve todo
+// ─── GET /contenido ───────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
     const { cicloId, tipo, programaId } = req.query;
 
     if (req.user.rol === "escalador") {
-      // Acceso controlado: solo con suscripción activa
       let sql = `
         SELECT cc.*, p.nombre as programa_nombre,
                pc.visto, pc.progreso_pct
@@ -34,11 +31,10 @@ router.get("/", async (req, res) => {
       if (tipo) { params.push(tipo); sql += ` AND cc.tipo = $${params.length}`; }
       sql += " ORDER BY cc.orden, cc.created_at";
 
-      const result = await db(sql, params);
-      return res.json(result.rows);
+      const result = await prisma.$queryRawUnsafe(sql, ...params);
+      return res.json(result);
     }
 
-    // Entrenador / Admin: ve todo
     let sql = `
       SELECT cc.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo
       FROM contenido_ciclo cc
@@ -52,15 +48,15 @@ router.get("/", async (req, res) => {
     if (programaId) { params.push(programaId); sql += ` AND cc.programa_id = $${params.length}`; }
     sql += " ORDER BY cc.orden, cc.created_at";
 
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error("Error listando contenido:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /contenido — Crear contenido (admin/entrenador) ──
+// ─── POST /contenido ──────────────────────────────────────
 router.post(
   "/",
   authorize("admin", "entrenador"),
@@ -82,14 +78,14 @@ router.post(
 
     try {
       const d = req.body;
-      const result = await db(
+      const result = await prisma.$queryRawUnsafe(
         `INSERT INTO contenido_ciclo (ciclo_id, programa_id, tipo, titulo, descripcion, archivo_url, mime_type, tamano_bytes, duracion_seg, orden)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [d.cicloId, d.programaId || null, d.tipo, d.titulo, d.descripcion || null,
-         d.archivoUrl, d.mimeType, d.tamanoBytes || null, d.duracionSeg || null, d.orden || 0]
+        d.cicloId, d.programaId || null, d.tipo, d.titulo, d.descripcion || null,
+        d.archivoUrl, d.mimeType, d.tamanoBytes || null, d.duracionSeg || null, d.orden || 0
       );
 
-      res.status(201).json(result.rows[0]);
+      res.status(201).json(result[0]);
     } catch (err) {
       console.error("Error creando contenido:", err);
       res.status(500).json({ error: "Error interno" });
@@ -97,7 +93,7 @@ router.post(
   }
 );
 
-// ─── PUT /contenido/:id/progreso — Registrar progreso del escalador
+// ─── PUT /contenido/:id/progreso ──────────────────────────
 router.put("/:id/progreso", authorize("escalador"), async (req, res) => {
   try {
     const { id } = req.params;
@@ -105,32 +101,30 @@ router.put("/:id/progreso", authorize("escalador"), async (req, res) => {
     const escaladorId = req.user.escalador.id;
     const visto = (progresoPct || 0) >= 90;
 
-    // Verificar acceso
-    const access = await db(
+    const access = await prisma.$queryRawUnsafe(
       `SELECT cc.id FROM contenido_ciclo cc
        JOIN grupo g ON g.ciclo_id = cc.ciclo_id
        JOIN inscripcion i ON i.grupo_id = g.id
        WHERE cc.id = $1 AND i.escalador_id = $2 AND i.estado = 'activa'`,
-      [id, escaladorId]
+      id, escaladorId
     );
-    if (access.rows.length === 0) return res.status(403).json({ error: "Sin acceso a este contenido" });
+    if (access.length === 0) return res.status(403).json({ error: "Sin acceso a este contenido" });
 
-    // Upsert progreso
-    const existing = await db(
+    const existing = await prisma.$queryRawUnsafe(
       "SELECT id FROM progreso_contenido WHERE escalador_id = $1 AND contenido_id = $2",
-      [escaladorId, id]
+      escaladorId, id
     );
 
-    if (existing.rows.length > 0) {
-      await db(
+    if (existing.length > 0) {
+      await prisma.$executeRawUnsafe(
         "UPDATE progreso_contenido SET progreso_pct = $1, visto = $2, ultimo_acceso = NOW() WHERE id = $3",
-        [progresoPct, visto, existing.rows[0].id]
+        progresoPct, visto, existing[0].id
       );
     } else {
-      await db(
+      await prisma.$executeRawUnsafe(
         `INSERT INTO progreso_contenido (escalador_id, contenido_id, progreso_pct, visto, ultimo_acceso)
          VALUES ($1, $2, $3, $4, NOW())`,
-        [escaladorId, id, progresoPct, visto]
+        escaladorId, id, progresoPct, visto
       );
     }
 
@@ -141,10 +135,10 @@ router.put("/:id/progreso", authorize("escalador"), async (req, res) => {
   }
 });
 
-// ─── DELETE /contenido/:id — Ocultar (no borrar) ────────────
+// ─── DELETE /contenido/:id ────────────────────────────────
 router.delete("/:id", authorize("admin"), async (req, res) => {
   try {
-    await db("UPDATE contenido_ciclo SET visible = false WHERE id = $1", [req.params.id]);
+    await prisma.$executeRawUnsafe("UPDATE contenido_ciclo SET visible = false WHERE id = $1", req.params.id);
     res.json({ message: "Contenido ocultado" });
   } catch (err) {
     console.error("Error:", err);
@@ -152,10 +146,10 @@ router.delete("/:id", authorize("admin"), async (req, res) => {
   }
 });
 
-// ─── GET /contenido/stats/:cicloId — Stats de consumo (entrenador/admin)
+// ─── GET /contenido/stats/:cicloId ────────────────────────
 router.get("/stats/:cicloId", authorize("entrenador", "admin"), async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT cc.id, cc.titulo, cc.tipo,
               COUNT(pc.id) as veces_accedido,
               COUNT(pc.id) FILTER (WHERE pc.visto = true) as completados,
@@ -165,9 +159,9 @@ router.get("/stats/:cicloId", authorize("entrenador", "admin"), async (req, res)
        WHERE cc.ciclo_id = $1 AND cc.visible = true
        GROUP BY cc.id
        ORDER BY cc.orden`,
-      [req.params.cicloId]
+      req.params.cicloId
     );
-    res.json(result.rows);
+    res.json(result);
   } catch (err) {
     console.error("Error:", err);
     res.status(500).json({ error: "Error interno" });

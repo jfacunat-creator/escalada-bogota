@@ -1,5 +1,5 @@
 const express = require("express");
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate } = require("../middleware/auth");
 
 const router = express.Router();
@@ -13,8 +13,8 @@ router.get("/programas", async (req, res) => {
     if (poblacion) { params.push(poblacion); sql += ` AND poblacion = $${params.length}`; }
     if (nivel) { params.push(nivel); sql += ` AND nivel = $${params.length}`; }
     sql += " ORDER BY poblacion, nivel, nombre";
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error interno" });
@@ -29,8 +29,8 @@ router.get("/ciclos", async (req, res) => {
     const params = [];
     if (anio) { params.push(parseInt(anio)); sql += ` WHERE anio = $${params.length}`; }
     sql += " ORDER BY anio DESC, trimestre DESC";
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error interno" });
@@ -40,10 +40,10 @@ router.get("/ciclos", async (req, res) => {
 // ─── GET /catalogos/muros ─────────────────────────────────
 router.get("/muros", async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       "SELECT * FROM muro_aliado WHERE convenio_activo = true ORDER BY nombre"
     );
-    res.json(result.rows);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error interno" });
@@ -51,7 +51,6 @@ router.get("/muros", async (req, res) => {
 });
 
 // ─── GET /catalogos/grupos ────────────────────────────────
-// Grupos disponibles con datos completos (para catálogo de inscripción)
 router.get("/grupos", async (req, res) => {
   try {
     const { estado, cicloId, programaId } = req.query;
@@ -71,8 +70,8 @@ router.get("/grupos", async (req, res) => {
     if (cicloId) { params.push(cicloId); sql += ` AND g.ciclo_id = $${params.length}`; }
     if (programaId) { params.push(programaId); sql += ` AND g.programa_id = $${params.length}`; }
     sql += " ORDER BY ci.anio DESC, ci.trimestre DESC, p.nombre";
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error interno" });
@@ -82,13 +81,13 @@ router.get("/grupos", async (req, res) => {
 // ─── GET /catalogos/niveles — Valores del enum NivelPrograma ─────────────────
 router.get("/niveles", authenticate, async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT enumlabel AS valor
        FROM pg_enum
        WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'NivelPrograma')
        ORDER BY enumsortorder`
     );
-    res.json(result.rows.map(r => r.valor));
+    res.json(result.map(r => r.valor));
   } catch (err) {
     console.error("Error GET /catalogos/niveles:", err);
     res.status(500).json({ error: "Error interno" });

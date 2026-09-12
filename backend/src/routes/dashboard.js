@@ -1,5 +1,5 @@
 const express = require("express");
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
@@ -10,7 +10,6 @@ router.get("/", authorize("admin"), async (req, res) => {
   try {
     const { cicloId, nivel, modalidad, entrenadorId, rangoEtario } = req.query;
 
-    // Builds parameterized WHERE conditions for queries with inscripcion+grupo+programa+escalador joins
     function buildInscFilter(params) {
       const conds = [];
       if (cicloId)      { params.push(cicloId);      conds.push(`g.ciclo_id = $${params.length}`); }
@@ -21,7 +20,6 @@ router.get("/", authorize("admin"), async (req, res) => {
       return conds.length ? " AND " + conds.join(" AND ") : "";
     }
 
-    // Builds WHERE conditions for queries with only grupo+programa joins (no escalador)
     function buildGrupoFilter(params) {
       const conds = [];
       if (cicloId)      { params.push(cicloId);      conds.push(`g.ciclo_id = $${params.length}`); }
@@ -48,7 +46,7 @@ router.get("/", authorize("admin"), async (req, res) => {
     ] = await Promise.all([
 
       // 1. Métricas financieras
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT
           COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS ingresos_recibidos,
           COUNT(p.id) FILTER (WHERE p.estado = 'pendiente') AS pagos_pendientes,
@@ -59,19 +57,18 @@ router.get("/", authorize("admin"), async (req, res) => {
         JOIN programa pr ON g.programa_id = pr.id
         JOIN escalador e ON i.escalador_id = e.id
         WHERE i.estado = 'activa'${w1}
-      `, p1),
+      `, ...p1),
 
-      // 2. Gastos entrenadores (desde contratos activos × factor prestacional)
-      // Tabla contrato_entrenador puede no existir en todas las instalaciones
-      db(`
+      // 2. Gastos entrenadores (tabla puede no existir en todas las instalaciones)
+      prisma.$queryRawUnsafe(`
         SELECT
           COALESCE(SUM(salario_base) * 1.54, 0) AS gastos_entrenadores_estimado,
           COUNT(*) AS n_entrenadores
         FROM contrato_entrenador WHERE estado = 'activo'
-      `).catch(() => ({ rows: [{ gastos_entrenadores_estimado: 0, n_entrenadores: 0 }] })),
+      `).catch(() => [{ gastos_entrenadores_estimado: 0, n_entrenadores: 0 }]),
 
       // 3. Ingresos por nivel
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT pr.nivel, g.modalidad,
                COUNT(DISTINCT i.id) AS inscripciones,
                COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS recaudado
@@ -83,10 +80,10 @@ router.get("/", authorize("admin"), async (req, res) => {
         WHERE i.estado = 'activa'${w2}
         GROUP BY pr.nivel, g.modalidad
         ORDER BY pr.nivel, g.modalidad
-      `, p2),
+      `, ...p2),
 
       // 4. Ingresos por entrenador
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT ent.nombre AS entrenador,
                COUNT(DISTINCT i.id) AS inscripciones,
                COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS recaudado
@@ -99,10 +96,10 @@ router.get("/", authorize("admin"), async (req, res) => {
         WHERE i.estado = 'activa'${w3}
         GROUP BY ent.id, ent.nombre
         ORDER BY recaudado DESC
-      `, p3),
+      `, ...p3),
 
       // 5. Stats inscripciones
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT
           COUNT(*) FILTER (WHERE i.estado = 'activa') AS inscripciones_activas,
           COUNT(*) AS inscripciones_total
@@ -111,10 +108,10 @@ router.get("/", authorize("admin"), async (req, res) => {
         JOIN programa pr ON g.programa_id = pr.id
         JOIN escalador e ON i.escalador_id = e.id
         WHERE 1=1${w4}
-      `, p4),
+      `, ...p4),
 
       // 6. Stats grupos
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT
           COUNT(*) FILTER (WHERE g.estado = 'abierta') AS grupos_abiertos,
           COUNT(*) FILTER (WHERE g.estado = 'en_curso') AS grupos_en_curso,
@@ -123,10 +120,10 @@ router.get("/", authorize("admin"), async (req, res) => {
         FROM grupo g
         JOIN programa pr ON g.programa_id = pr.id
         WHERE 1=1${w5}
-      `, p5),
+      `, ...p5),
 
       // 7. Distribución etaria
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT e.rango_etario, COUNT(*) AS n
         FROM inscripcion i
         JOIN escalador e ON i.escalador_id = e.id
@@ -135,10 +132,10 @@ router.get("/", authorize("admin"), async (req, res) => {
         WHERE i.estado = 'activa'${w6}
         GROUP BY e.rango_etario
         ORDER BY n DESC
-      `, p6),
+      `, ...p6),
 
       // 8. Carga por entrenador
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT ent.nombre,
                COUNT(DISTINCT g.id) AS grupos,
                COUNT(DISTINCT i.id) AS escaladores
@@ -149,17 +146,17 @@ router.get("/", authorize("admin"), async (req, res) => {
         WHERE g.estado IN ('abierta','en_curso')${w7}
         GROUP BY ent.id, ent.nombre
         ORDER BY grupos DESC
-      `, p7),
+      `, ...p7),
 
       // 9. Alertas: pagos vencidos
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT COUNT(*) AS pagos_vencidos,
                COALESCE(SUM(monto), 0) AS monto_vencido
         FROM pago WHERE estado = 'vencido'
       `),
 
       // 10. Alertas: grupos casi llenos (≥ 85%)
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT COUNT(*) AS grupos_casi_llenos
         FROM grupo
         WHERE estado IN ('abierta','en_curso')
@@ -167,8 +164,8 @@ router.get("/", authorize("admin"), async (req, res) => {
           AND inscritos_actual::float / cupo_maximo >= 0.85
       `),
 
-      // 11. Escaladores pendientes de activación (nuevos registros)
-      db(`
+      // 11. Escaladores pendientes de activación
+      prisma.$queryRawUnsafe(`
         SELECT e.id, e.nombre, e.apellido, e.rango_etario,
                e.telefono, e.contacto_emergencia, u.email, u.created_at
         FROM escalador e
@@ -178,8 +175,8 @@ router.get("/", authorize("admin"), async (req, res) => {
         LIMIT 30
       `),
 
-      // 12. Totales de escaladores (siempre global, sin filtro de grupo)
-      db(`
+      // 12. Totales de escaladores (siempre global)
+      prisma.$queryRawUnsafe(`
         SELECT
           COUNT(*) FILTER (WHERE e.estado = 'activo') AS escaladores_activos,
           COUNT(*) AS escaladores_total,
@@ -189,7 +186,7 @@ router.get("/", authorize("admin"), async (req, res) => {
       `),
 
       // 13. Ingresos últimos 6 meses
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT TO_CHAR(fecha_pago, 'YYYY-MM') AS periodo,
                COALESCE(SUM(monto), 0) AS total
         FROM pago
@@ -200,7 +197,7 @@ router.get("/", authorize("admin"), async (req, res) => {
       `),
 
       // 14. Escaladores con 2+ ciclos (renovación)
-      db(`
+      prisma.$queryRawUnsafe(`
         SELECT COUNT(DISTINCT escalador_id) AS escaladores_renovados
         FROM (
           SELECT escalador_id FROM inscripcion GROUP BY escalador_id HAVING COUNT(*) >= 2
@@ -208,23 +205,23 @@ router.get("/", authorize("admin"), async (req, res) => {
       `),
 
       // 15. Opciones de filtro: ciclos
-      db(`SELECT id, codigo FROM ciclo ORDER BY anio DESC, trimestre DESC`),
+      prisma.$queryRawUnsafe(`SELECT id, codigo FROM ciclo ORDER BY anio DESC, trimestre DESC`),
 
       // 16. Opciones de filtro: entrenadores
-      db(`SELECT id, nombre FROM entrenador ORDER BY nombre`),
+      prisma.$queryRawUnsafe(`SELECT id, nombre FROM entrenador ORDER BY nombre`),
     ]);
 
-    const f  = finanzas.rows[0];
-    const g  = gastos.rows[0];
-    const gs = gruposStats.rows[0];
-    const es = escaladoresStats.rows[0];
-    const is = inscStats.rows[0];
-    const er = escaladoresRenovados.rows[0];
+    const f  = finanzas[0];
+    const g  = gastos[0];
+    const gs = gruposStats[0];
+    const es = escaladoresStats[0];
+    const is = inscStats[0];
+    const er = escaladoresRenovados[0];
 
     const ingresosRecibidos    = parseFloat(f.ingresos_recibidos) || 0;
     const gastosEntrenadores   = parseFloat(g.gastos_entrenadores_estimado) || 0;
-    const capacidadTotal       = parseInt(gs.capacidad_total) || 0;
-    const totalInscritos       = parseInt(gs.total_inscritos) || 0;
+    const capacidadTotal       = Number(gs.capacidad_total) || 0;
+    const totalInscritos       = Number(gs.total_inscritos) || 0;
     const ocupacionPct         = capacidadTotal > 0
       ? Math.round((totalInscritos / capacidadTotal) * 100) : 0;
 
@@ -232,47 +229,47 @@ router.get("/", authorize("admin"), async (req, res) => {
       // Financiero
       ingresos_recibidos:            ingresosRecibidos,
       gastos_entrenadores_estimado:  gastosEntrenadores,
-      n_entrenadores:                parseInt(g.n_entrenadores) || 0,
+      n_entrenadores:                Number(g.n_entrenadores) || 0,
       margen_estimado:               ingresosRecibidos - gastosEntrenadores,
-      pagos_pendientes:              parseInt(f.pagos_pendientes) || 0,
+      pagos_pendientes:              Number(f.pagos_pendientes) || 0,
       ingresos_vencidos:             parseFloat(f.ingresos_vencidos) || 0,
 
       // Distribuciones financieras
-      ingresos_por_nivel:       porNivel.rows,
-      ingresos_por_entrenador:  porEntrenador.rows,
-      ingresos_por_mes:         porMes.rows,
+      ingresos_por_nivel:       porNivel,
+      ingresos_por_entrenador:  porEntrenador,
+      ingresos_por_mes:         porMes,
 
       // Operación
-      escaladores_activos:    parseInt(es.escaladores_activos) || 0,
-      escaladores_total:      parseInt(es.escaladores_total) || 0,
-      adultos:                parseInt(es.adultos) || 0,
-      menores:                parseInt(es.menores) || 0,
-      inscripciones_activas:  parseInt(is.inscripciones_activas) || 0,
-      inscripciones_total:    parseInt(is.inscripciones_total) || 0,
-      grupos_abiertos:        parseInt(gs.grupos_abiertos) || 0,
-      grupos_en_curso:        parseInt(gs.grupos_en_curso) || 0,
+      escaladores_activos:    Number(es.escaladores_activos) || 0,
+      escaladores_total:      Number(es.escaladores_total) || 0,
+      adultos:                Number(es.adultos) || 0,
+      menores:                Number(es.menores) || 0,
+      inscripciones_activas:  Number(is.inscripciones_activas) || 0,
+      inscripciones_total:    Number(is.inscripciones_total) || 0,
+      grupos_abiertos:        Number(gs.grupos_abiertos) || 0,
+      grupos_en_curso:        Number(gs.grupos_en_curso) || 0,
       total_inscritos:        totalInscritos,
       capacidad_total:        capacidadTotal,
       ocupacion_pct:          ocupacionPct,
-      escaladores_renovados:  parseInt(er.escaladores_renovados) || 0,
+      escaladores_renovados:  Number(er.escaladores_renovados) || 0,
 
       // Distribuciones operativas
-      distribucion_etario:     distEtario.rows,
-      distribucion_entrenador: distEntrenador.rows,
+      distribucion_etario:     distEtario,
+      distribucion_entrenador: distEntrenador,
 
       // Alertas
       alertas: {
-        pagos_vencidos:     parseInt(alertasPagos.rows[0].pagos_vencidos) || 0,
-        monto_vencido:      parseFloat(alertasPagos.rows[0].monto_vencido) || 0,
-        grupos_casi_llenos: parseInt(alertasGrupos.rows[0].grupos_casi_llenos) || 0,
+        pagos_vencidos:     Number(alertasPagos[0].pagos_vencidos) || 0,
+        monto_vencido:      parseFloat(alertasPagos[0].monto_vencido) || 0,
+        grupos_casi_llenos: Number(alertasGrupos[0].grupos_casi_llenos) || 0,
       },
 
       // Escaladores sin grupo asignado
-      pendientes: pendientes.rows,
+      pendientes,
 
       // Opciones para filtros del frontend
-      _ciclos:       ciclos.rows,
-      _entrenadores: entrenadores.rows,
+      _ciclos:       ciclos,
+      _entrenadores: entrenadores,
     });
   } catch (err) {
     console.error("Error GET /dashboard:", err);

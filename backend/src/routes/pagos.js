@@ -1,6 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
-const { query: db } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const WOMPI_BASE = process.env.WOMPI_ENV === "production"
@@ -15,7 +15,7 @@ router.use(authenticate);
 // ─── GET /pagos/resumen ───────────────────────────────────
 router.get("/resumen", authorize("admin"), async (req, res) => {
   try {
-    const result = await db(`
+    const result = await prisma.$queryRawUnsafe(`
       SELECT
         COUNT(*) FILTER (WHERE i.estado = 'activa') AS activas,
         COALESCE(SUM(p.monto), 0) AS ingresos_esperados,
@@ -32,7 +32,7 @@ router.get("/resumen", authorize("admin"), async (req, res) => {
       FROM inscripcion i
       LEFT JOIN pago p ON p.inscripcion_id = i.id
     `);
-    res.json(result.rows[0]);
+    res.json(result[0]);
   } catch (err) {
     console.error("Error GET /pagos/resumen:", err);
     res.status(500).json({ error: "Error interno" });
@@ -40,7 +40,6 @@ router.get("/resumen", authorize("admin"), async (req, res) => {
 });
 
 // ─── GET /pagos ───────────────────────────────────────────
-// Admin: todos los pagos. Escalador: solo los suyos.
 router.get("/", async (req, res) => {
   if (req.user.rol !== "admin" && req.user.rol !== "escalador") {
     return res.status(403).json({ error: "Sin acceso" });
@@ -66,57 +65,55 @@ router.get("/", async (req, res) => {
     if (estado) { params.push(estado); sql += ` AND pg.estado = $${params.length}`; }
     if (grupoId) { params.push(grupoId); sql += ` AND i.grupo_id = $${params.length}`; }
 
-    // Escalador solo ve sus propios pagos
     if (req.user.rol === "escalador") {
       params.push(req.user.escalador.id);
       sql += ` AND i.escalador_id = $${params.length}`;
     }
 
     sql += " ORDER BY pg.created_at DESC";
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
     console.error("Error GET /pagos:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /pagos — Registrar un pago adicional ────────────
+// ─── POST /pagos ──────────────────────────────────────────
 router.post("/", authorize("admin"), async (req, res) => {
   try {
     const { inscripcionId, monto, metodo, referencia } = req.body;
     if (!inscripcionId || !monto || parseFloat(monto) <= 0) {
       return res.status(400).json({ error: "inscripcionId y monto son requeridos" });
     }
-    const insc = await db("SELECT id FROM inscripcion WHERE id = $1", [inscripcionId]);
-    if (!insc.rows.length) return res.status(404).json({ error: "Inscripción no encontrada" });
+    const insc = await prisma.$queryRawUnsafe("SELECT id FROM inscripcion WHERE id = $1", inscripcionId);
+    if (!insc.length) return res.status(404).json({ error: "Inscripción no encontrada" });
 
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `INSERT INTO pago (id, inscripcion_id, monto, estado, metodo, referencia, fecha_pago, fecha_vencimiento, updated_at)
        VALUES (gen_random_uuid(), $1, $2, 'pagado', $3, $4, CURRENT_DATE, CURRENT_DATE, NOW())
        RETURNING *`,
-      [inscripcionId, parseFloat(monto), metodo || "transferencia", referencia || null]
+      inscripcionId, parseFloat(monto), metodo || "transferencia", referencia || null
     );
 
-    // Activar inscripción reservada → activa y escalador pendiente → activo
-    const escCheck = await db(
+    const escCheck = await prisma.$queryRawUnsafe(
       `SELECT e.id, e.estado, i.estado as insc_estado, i.grupo_id FROM inscripcion i
        JOIN escalador e ON i.escalador_id = e.id
        WHERE i.id = $1`,
-      [inscripcionId]
+      inscripcionId
     );
-    if (escCheck.rows.length) {
-      const row = escCheck.rows[0];
+    if (escCheck.length) {
+      const row = escCheck[0];
       if (row.insc_estado === "reservada") {
-        await db("UPDATE inscripcion SET estado='activa', updated_at=NOW() WHERE id=$1", [inscripcionId]);
-        await db("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [row.grupo_id]);
+        await prisma.$executeRawUnsafe("UPDATE inscripcion SET estado='activa', updated_at=NOW() WHERE id=$1", inscripcionId);
+        await prisma.$executeRawUnsafe("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", row.grupo_id);
       }
       if (row.estado === "pendiente") {
-        await db("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", [row.id]);
+        await prisma.$executeRawUnsafe("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", row.id);
       }
     }
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(result[0]);
   } catch (err) {
     console.error("Error POST /pagos:", err);
     res.status(500).json({ error: "Error interno" });
@@ -126,7 +123,7 @@ router.post("/", authorize("admin"), async (req, res) => {
 // ─── GET /pagos/:id ───────────────────────────────────────
 router.get("/:id", authorize("admin"), async (req, res) => {
   try {
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `SELECT pg.*,
               e.nombre || ' ' || e.apellido AS escalador_nombre,
               p.nombre AS programa, ci.codigo AS ciclo,
@@ -139,10 +136,10 @@ router.get("/:id", authorize("admin"), async (req, res) => {
        JOIN ciclo ci ON g.ciclo_id = ci.id
        JOIN muro_aliado m ON g.muro_id = m.id
        WHERE pg.id = $1`,
-      [req.params.id]
+      req.params.id
     );
-    if (!result.rows.length) return res.status(404).json({ error: "Pago no encontrado" });
-    res.json(result.rows[0]);
+    if (!result.length) return res.status(404).json({ error: "Pago no encontrado" });
+    res.json(result[0]);
   } catch (err) {
     console.error("Error:", err);
     res.status(500).json({ error: "Error interno" });
@@ -171,40 +168,39 @@ router.patch("/:id", authorize("admin"), async (req, res) => {
     if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
 
     params.push(req.params.id);
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `UPDATE pago SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
-      params
+      ...params
     );
 
-    // Cuando se confirma el pago, activar inscripción reservada → activa y escalador pendiente → activo
     if (estado === "pagado") {
-      const escCheck = await db(
+      const escCheck = await prisma.$queryRawUnsafe(
         `SELECT e.id, e.estado, i.id as insc_id, i.estado as insc_estado, i.grupo_id FROM pago p
          JOIN inscripcion i ON p.inscripcion_id = i.id
          JOIN escalador e ON i.escalador_id = e.id
          WHERE p.id = $1`,
-        [req.params.id]
+        req.params.id
       );
-      if (escCheck.rows.length) {
-        const row = escCheck.rows[0];
+      if (escCheck.length) {
+        const row = escCheck[0];
         if (row.insc_estado === "reservada") {
-          await db("UPDATE inscripcion SET estado='activa', updated_at=NOW() WHERE id=$1", [row.insc_id]);
-          await db("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [row.grupo_id]);
+          await prisma.$executeRawUnsafe("UPDATE inscripcion SET estado='activa', updated_at=NOW() WHERE id=$1", row.insc_id);
+          await prisma.$executeRawUnsafe("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", row.grupo_id);
         }
         if (row.estado === "pendiente") {
-          await db("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", [row.id]);
+          await prisma.$executeRawUnsafe("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", row.id);
         }
       }
     }
 
-    res.json(result.rows[0]);
+    res.json(result[0]);
   } catch (err) {
     console.error("Error:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /pagos/:id/link-pago — Generar link de pago Wompi ──────────────────
+// ─── POST /pagos/:id/link-pago ────────────────────────────
 router.post("/:id/link-pago", async (req, res) => {
   try {
     if (!WOMPI_PRIVATE_KEY) {
@@ -212,7 +208,7 @@ router.post("/:id/link-pago", async (req, res) => {
     }
 
     const pagoId = req.params.id;
-    const pago = await db(
+    const pago = await prisma.$queryRawUnsafe(
       `SELECT pa.id, pa.monto, pa.estado, pa.inscripcion_id,
               i.escalador_id, e.nombre, e.apellido,
               p.nombre AS programa, ci.codigo AS ciclo
@@ -223,11 +219,11 @@ router.post("/:id/link-pago", async (req, res) => {
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
        WHERE pa.id = $1`,
-      [pagoId]
+      pagoId
     );
 
-    if (pago.rows.length === 0) return res.status(404).json({ error: "Pago no encontrado" });
-    const p = pago.rows[0];
+    if (!pago.length) return res.status(404).json({ error: "Pago no encontrado" });
+    const p = pago[0];
 
     if (req.user.rol === "escalador" && req.user.escalador.id !== p.escalador_id) {
       return res.status(403).json({ error: "Sin permiso sobre este pago" });
@@ -258,7 +254,10 @@ router.post("/:id/link-pago", async (req, res) => {
 
     const linkData = wompiData.data;
     const paymentUrl = `https://checkout.wompi.co/l/${linkData.id}`;
-    await db("UPDATE pago SET referencia = $1 WHERE id = $2", [`wompi_link:${linkData.id}`, pagoId]);
+    await prisma.$executeRawUnsafe(
+      "UPDATE pago SET referencia = $1 WHERE id = $2",
+      `wompi_link:${linkData.id}`, pagoId
+    );
 
     res.json({ payment_url: paymentUrl, link_id: linkData.id, amount: parseFloat(p.monto) });
   } catch (err) {
@@ -270,10 +269,10 @@ router.post("/:id/link-pago", async (req, res) => {
 // ─── DELETE /pagos/:id ────────────────────────────────────
 router.delete("/:id", authorize("admin"), async (req, res) => {
   try {
-    const check = await db("SELECT id FROM pago WHERE id = $1", [req.params.id]);
-    if (!check.rows.length) return res.status(404).json({ error: "Pago no encontrado" });
+    const check = await prisma.$queryRawUnsafe("SELECT id FROM pago WHERE id = $1", req.params.id);
+    if (!check.length) return res.status(404).json({ error: "Pago no encontrado" });
 
-    await db("DELETE FROM pago WHERE id = $1", [req.params.id]);
+    await prisma.$executeRawUnsafe("DELETE FROM pago WHERE id = $1", req.params.id);
     res.json({ message: "Pago eliminado" });
   } catch (err) {
     console.error("Error DELETE /pagos/:id:", err);

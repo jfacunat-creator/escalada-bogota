@@ -1,20 +1,12 @@
 /**
  * webhooks.js
  * Recibe notificaciones de Wompi y actualiza el estado de los pagos.
- * También expone el endpoint para generar links de pago.
- *
- * Variables de entorno requeridas:
- *   WOMPI_PRIVATE_KEY   — llave privada (prv_prod_... o prv_test_...)
- *   WOMPI_PUBLIC_KEY    — llave pública (pub_prod_... o pub_test_...)
- *   WOMPI_EVENT_KEY     — llave de eventos para validar webhooks
- *   WOMPI_ENV           — "sandbox" o "production" (default: sandbox)
- *   FRONTEND_URL        — URL del frontend para redirección post-pago
  */
 
 const express = require("express");
 const crypto = require("crypto");
-const { query: db } = require("../config/database");
-const { authenticate, authorize } = require("../middleware/auth");
+const prisma = require("../config/prisma");
+const { authenticate } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -26,14 +18,11 @@ const WOMPI_PRIVATE_KEY = process.env.WOMPI_PRIVATE_KEY;
 const WOMPI_EVENT_KEY   = process.env.WOMPI_EVENT_KEY;
 const FRONTEND_URL      = process.env.FRONTEND_URL || "http://localhost:5173";
 
-// ─── POST /webhooks/wompi — Webhook de Wompi ─────────────────────────────────
-// Recibe notificaciones de transacciones y actualiza el pago correspondiente.
-// NO requiere autenticación JWT — Wompi lo llama directamente.
+// ─── POST /webhooks/wompi ─────────────────────────────────────────────────────
 router.post("/wompi", async (req, res) => {
   try {
     const { event, data, timestamp, signature } = req.body;
 
-    // Solo procesamos transacciones
     if (event !== "transaction.updated") {
       return res.status(200).json({ ok: true, ignored: true });
     }
@@ -43,7 +32,6 @@ router.post("/wompi", async (req, res) => {
       return res.status(400).json({ error: "Payload inválido" });
     }
 
-    // Validar firma de integridad
     if (WOMPI_EVENT_KEY && signature) {
       const checksum = `${transaction.id}${transaction.status}${transaction.amount_in_cents}${timestamp}${WOMPI_EVENT_KEY}`;
       const expectedSignature = crypto.createHash("sha256").update(checksum).digest("hex");
@@ -54,19 +42,20 @@ router.post("/wompi", async (req, res) => {
       }
     }
 
-    // Buscar el pago por referencia (usamos pago.id como referencia en Wompi)
     const reference = transaction.reference;
     if (!reference) {
       return res.status(200).json({ ok: true, no_reference: true });
     }
 
-    const pago = await db("SELECT id, estado, inscripcion_id FROM pago WHERE id = $1", [reference]);
-    if (pago.rows.length === 0) {
+    const pago = await prisma.$queryRawUnsafe(
+      "SELECT id, estado, inscripcion_id FROM pago WHERE id = $1",
+      reference
+    );
+    if (pago.length === 0) {
       console.warn("Webhook Wompi: referencia no encontrada:", reference);
       return res.status(200).json({ ok: true, not_found: true });
     }
 
-    // Mapear estado Wompi → estado interno
     const statusMap = {
       APPROVED: "pagado",
       DECLINED: "pendiente",
@@ -79,15 +68,14 @@ router.post("/wompi", async (req, res) => {
       return res.status(200).json({ ok: true, status_ignored: transaction.status });
     }
 
-    // Actualizar pago
-    await db(
+    await prisma.$executeRawUnsafe(
       `UPDATE pago SET
         estado = $1,
         metodo = 'wompi',
         referencia = $2,
         fecha_pago = CASE WHEN $1 = 'pagado' THEN CURRENT_DATE ELSE fecha_pago END
        WHERE id = $3`,
-      [nuevoEstado, transaction.id, reference]
+      nuevoEstado, transaction.id, reference
     );
 
     console.log(`Webhook Wompi: pago ${reference} → ${nuevoEstado} (tx: ${transaction.id})`);
@@ -99,8 +87,7 @@ router.post("/wompi", async (req, res) => {
   }
 });
 
-// ─── POST /pagos/:id/link-pago — Generar link de pago Wompi ─────────────────
-// El escalador solicita un link para pagar una mensualidad pendiente.
+// ─── POST /:id/link-pago — Generar link de pago Wompi ────────────────────────
 router.post("/:id/link-pago", authenticate, async (req, res) => {
   try {
     if (!WOMPI_PRIVATE_KEY) {
@@ -109,8 +96,7 @@ router.post("/:id/link-pago", authenticate, async (req, res) => {
 
     const pagoId = req.params.id;
 
-    // Verificar que el pago existe y pertenece al escalador
-    const pago = await db(
+    const pago = await prisma.$queryRawUnsafe(
       `SELECT pa.id, pa.monto, pa.estado, pa.inscripcion_id,
               i.escalador_id, e.nombre, e.apellido,
               p.nombre AS programa, ci.codigo AS ciclo
@@ -121,16 +107,15 @@ router.post("/:id/link-pago", authenticate, async (req, res) => {
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
        WHERE pa.id = $1`,
-      [pagoId]
+      pagoId
     );
 
-    if (pago.rows.length === 0) {
+    if (pago.length === 0) {
       return res.status(404).json({ error: "Pago no encontrado" });
     }
 
-    const p = pago.rows[0];
+    const p = pago[0];
 
-    // Solo el propio escalador o un admin puede generar el link
     if (req.user.rol === "escalador" && req.user.escalador.id !== p.escalador_id) {
       return res.status(403).json({ error: "No tienes permisos sobre este pago" });
     }
@@ -139,7 +124,6 @@ router.post("/:id/link-pago", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Este pago ya fue procesado" });
     }
 
-    // Crear link de pago en Wompi
     const amountInCents = Math.round(parseFloat(p.monto) * 100);
     const body = {
       name: `${p.programa} · ${p.ciclo}`,
@@ -149,7 +133,6 @@ router.post("/:id/link-pago", authenticate, async (req, res) => {
       currency: "COP",
       amount_in_cents: amountInCents,
       redirect_url: `${FRONTEND_URL}/app/mis-pagos?pago=${pagoId}&status=redirect`,
-      // La referencia vincula el pago con nuestro sistema
       sku: pagoId,
     };
 
@@ -172,10 +155,9 @@ router.post("/:id/link-pago", authenticate, async (req, res) => {
     const linkData = wompiData.data;
     const paymentUrl = `https://checkout.wompi.co/l/${linkData.id}`;
 
-    // Guardar referencia del link en el pago
-    await db(
+    await prisma.$executeRawUnsafe(
       "UPDATE pago SET referencia = $1 WHERE id = $2",
-      [`wompi_link:${linkData.id}`, pagoId]
+      `wompi_link:${linkData.id}`, pagoId
     );
 
     res.json({

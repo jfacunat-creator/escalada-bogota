@@ -1,12 +1,11 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { query: db, pool } = require("../config/database");
+const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(authenticate);
 
-// ─── Precios mensuales de referencia (misma tabla que grupos.js) ────────────
 const PRECIO_MENSUAL = {
   iniciacion: { autonomo: 120_000, acompanado: 350_000 },
   intermedio: { autonomo: 150_000, acompanado: 450_000 },
@@ -38,21 +37,22 @@ router.get("/", async (req, res) => {
       WHERE 1=1
     `;
     const params = [];
-    if (grupoId) { params.push(grupoId); sql += ` AND i.grupo_id = $${params.length}`; }
+    if (grupoId)     { params.push(grupoId);     sql += ` AND i.grupo_id = $${params.length}`; }
     if (escaladorId) { params.push(escaladorId); sql += ` AND i.escalador_id = $${params.length}`; }
-    if (estado) { params.push(estado); sql += ` AND i.estado = $${params.length}`; }
-    if (req.user.rol === "escalador") { params.push(req.user.escalador.id); sql += ` AND i.escalador_id = $${params.length}`; }
+    if (estado)      { params.push(estado);      sql += ` AND i.estado = $${params.length}`; }
+    if (req.user.rol === "escalador")  { params.push(req.user.escalador.id);  sql += ` AND i.escalador_id = $${params.length}`; }
     if (req.user.rol === "entrenador") { params.push(req.user.entrenador.id); sql += ` AND co.entrenador_id = $${params.length}`; }
     sql += " ORDER BY i.fecha_inscripcion DESC";
 
-    const result = await db(sql, params);
-    res.json(result.rows);
+    const result = await prisma.$queryRawUnsafe(sql, ...params);
+    res.json(result);
   } catch (err) {
-    console.error("Error:", err); res.status(500).json({ error: "Error interno" });
+    console.error("Error:", err);
+    res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /inscripciones — Inscribir escalador (admin/entrenador) ─────────
+// ─── POST /inscripciones ─────────────────────────────────
 router.post("/", authorize("admin", "entrenador"), [
   body("escaladorId").isUUID(),
   body("grupoId").isUUID(),
@@ -65,157 +65,154 @@ router.post("/", authorize("admin", "entrenador"), [
   try {
     const { escaladorId, grupoId, precioCiclo, descuentoAplicado } = req.body;
 
-    const coh = await db("SELECT estado, cupo_maximo, inscritos_actual, programa_id FROM grupo WHERE id=$1", [grupoId]);
-    if (coh.rows.length === 0) return res.status(404).json({ error: "Grupo no encontrado" });
-    if (coh.rows[0].estado !== "abierta") return res.status(400).json({ error: "El grupo no está abierto para inscripciones" });
+    const coh = await prisma.$queryRawUnsafe(
+      "SELECT estado, cupo_maximo, inscritos_actual, programa_id FROM grupo WHERE id=$1",
+      grupoId
+    );
+    if (!coh.length) return res.status(404).json({ error: "Grupo no encontrado" });
+    if (coh[0].estado !== "abierta") return res.status(400).json({ error: "El grupo no está abierto para inscripciones" });
 
-    const inscritos = await db("SELECT COUNT(*) as n FROM inscripcion WHERE grupo_id=$1 AND estado='activa'", [grupoId]);
-    if (parseInt(inscritos.rows[0].n) >= coh.rows[0].cupo_maximo) {
+    const inscritos = await prisma.$queryRawUnsafe(
+      "SELECT COUNT(*) as n FROM inscripcion WHERE grupo_id=$1 AND estado='activa'",
+      grupoId
+    );
+    if (Number(inscritos[0].n) >= coh[0].cupo_maximo) {
       return res.status(400).json({ error: "Grupo sin cupos disponibles" });
     }
 
-    const dup = await db("SELECT id FROM inscripcion WHERE escalador_id=$1 AND grupo_id=$2", [escaladorId, grupoId]);
-    if (dup.rows.length > 0) return res.status(409).json({ error: "Escalador ya inscrito en este grupo" });
+    const dup = await prisma.$queryRawUnsafe(
+      "SELECT id FROM inscripcion WHERE escalador_id=$1 AND grupo_id=$2",
+      escaladorId, grupoId
+    );
+    if (dup.length > 0) return res.status(409).json({ error: "Escalador ya inscrito en este grupo" });
 
-    const esc = await db("SELECT rango_etario FROM escalador WHERE id=$1", [escaladorId]);
-    const prog = await db("SELECT poblacion, rango_etario_menor FROM programa WHERE id=$1", [coh.rows[0].programa_id]);
-    if (prog.rows[0].poblacion === "menor" && esc.rows[0].rango_etario === "adulto") {
+    const esc = await prisma.$queryRawUnsafe("SELECT rango_etario FROM escalador WHERE id=$1", escaladorId);
+    const prog = await prisma.$queryRawUnsafe(
+      "SELECT poblacion, rango_etario_menor FROM programa WHERE id=$1",
+      coh[0].programa_id
+    );
+    if (prog[0].poblacion === "menor" && esc[0].rango_etario === "adulto") {
       return res.status(400).json({ error: "Un adulto no puede inscribirse en un programa de menores" });
     }
-    if (prog.rows[0].poblacion === "adulto" && esc.rows[0].rango_etario !== "adulto") {
+    if (prog[0].poblacion === "adulto" && esc[0].rango_etario !== "adulto") {
       return res.status(400).json({ error: "Un menor no puede inscribirse en un programa de adultos" });
     }
 
-    const result = await db(
+    const result = await prisma.$queryRawUnsafe(
       `INSERT INTO inscripcion (escalador_id, grupo_id, precio_ciclo, descuento_aplicado)
        VALUES ($1,$2,$3,$4) RETURNING *`,
-      [escaladorId, grupoId, precioCiclo, descuentoAplicado || null]
+      escaladorId, grupoId, precioCiclo, descuentoAplicado || null
     );
 
-    await db("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [grupoId]);
-
-    await db(
+    await prisma.$executeRawUnsafe(
+      "UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1",
+      grupoId
+    );
+    await prisma.$executeRawUnsafe(
       `INSERT INTO pago (inscripcion_id, monto, estado, fecha_vencimiento)
        VALUES ($1, $2, 'pendiente', CURRENT_DATE + INTERVAL '15 days')`,
-      [result.rows[0].id, precioCiclo]
+      result[0].id, precioCiclo
     );
 
-    res.status(201).json({ message: "Inscripción creada con pago pendiente", inscripcion: result.rows[0] });
+    res.status(201).json({ message: "Inscripción creada con pago pendiente", inscripcion: result[0] });
   } catch (err) {
-    console.error("Error:", err); res.status(500).json({ error: "Error interno" });
+    console.error("Error:", err);
+    res.status(500).json({ error: "Error interno" });
   }
 });
 
-// ─── POST /inscripciones/autoservicio — Auto-inscripción del escalador ────
-// Transacción completa: SELECT FOR UPDATE → validaciones → INSERT → UPDATE.
-// Previene condición de carrera cuando dos escaladores inscriben simultáneamente.
+// ─── POST /inscripciones/autoservicio ────────────────────
 router.post(
   "/autoservicio",
   authorize("escalador"),
   [body("grupoId").isUUID()],
   async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty())
-      return res.status(400).json({ errors: errors.array() });
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const client = await pool.connect();
     try {
       const escaladorId = req.user.escalador.id;
       const { grupoId } = req.body;
 
-      await client.query("BEGIN");
+      const inscripcion = await prisma.$transaction(async (tx) => {
+        const coh = await tx.$queryRawUnsafe(
+          `SELECT c.id, c.estado, c.cupo_maximo, c.inscritos_actual, c.modalidad,
+                  p.nivel, p.poblacion
+           FROM grupo c JOIN programa p ON c.programa_id = p.id
+           WHERE c.id = $1
+           FOR UPDATE OF c`,
+          grupoId
+        );
+        if (!coh.length)
+          throw Object.assign(new Error("Grupo no encontrado"), { status: 404 });
 
-      // Bloqueo de fila: nadie más puede modificar esta grupo hasta COMMIT
-      const coh = await client.query(
-        `SELECT c.id, c.estado, c.cupo_maximo, c.inscritos_actual, c.modalidad,
-                p.nivel, p.poblacion
-         FROM grupo c JOIN programa p ON c.programa_id = p.id
-         WHERE c.id = $1
-         FOR UPDATE OF c`,
-        [grupoId]
-      );
-      if (coh.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return res.status(404).json({ error: "Grupo no encontrado" });
-      }
+        const grupo = coh[0];
+        if (grupo.estado !== "abierta")
+          throw Object.assign(new Error("El grupo no está abierto para inscripciones"), { status: 400 });
+        if (grupo.inscritos_actual >= grupo.cupo_maximo)
+          throw Object.assign(new Error("Grupo sin cupos disponibles"), { status: 400 });
+        if (grupo.poblacion !== "adulto")
+          throw Object.assign(new Error("Solo puedes inscribirte en programas adultos"), { status: 400 });
 
-      const grupo = coh.rows[0];
-      if (grupo.estado !== "abierta") {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: "El grupo no está abierto para inscripciones" });
-      }
-      if (grupo.inscritos_actual >= grupo.cupo_maximo) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: "Grupo sin cupos disponibles" });
-      }
-      if (grupo.poblacion !== "adulto") {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: "Solo puedes inscribirte en programas adultos" });
-      }
+        const escNivel = await tx.$queryRawUnsafe(
+          "SELECT nivel FROM escalador WHERE id=$1",
+          escaladorId
+        );
+        if (!escNivel[0]?.nivel)
+          throw Object.assign(
+            new Error("El equipo aún no te ha asignado un nivel. Espera a ser contactado."),
+            { status: 403 }
+          );
+        if (escNivel[0].nivel !== grupo.nivel)
+          throw Object.assign(
+            new Error(`Este grupo es de nivel ${grupo.nivel}, pero tu nivel asignado es ${escNivel[0].nivel}.`),
+            { status: 400 }
+          );
 
-      // Validar nivel asignado
-      const escNivel = await client.query("SELECT nivel FROM escalador WHERE id=$1", [escaladorId]);
-      if (!escNivel.rows[0]?.nivel) {
-        await client.query("ROLLBACK");
-        return res.status(403).json({ error: "El equipo aún no te ha asignado un nivel. Espera a ser contactado." });
-      }
-      if (escNivel.rows[0].nivel !== grupo.nivel) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: `Este grupo es de nivel ${grupo.nivel}, pero tu nivel asignado es ${escNivel.rows[0].nivel}.` });
-      }
+        const activas = await tx.$queryRawUnsafe(
+          `SELECT COUNT(*) AS n FROM inscripcion
+           WHERE escalador_id = $1 AND estado IN ('activa', 'reservada')`,
+          escaladorId
+        );
+        if (Number(activas[0].n) > 0)
+          throw Object.assign(
+            new Error("Ya tienes una inscripción activa o un cupo reservado. Finaliza o cancela el ciclo actual para inscribirte en otro."),
+            { status: 409 }
+          );
 
-      // Máximo una inscripción activa o reservada por escalador
-      const activas = await client.query(
-        `SELECT COUNT(*) AS n FROM inscripcion
-         WHERE escalador_id = $1 AND estado IN ('activa', 'reservada')`,
-        [escaladorId]
-      );
-      if (parseInt(activas.rows[0].n) > 0) {
-        await client.query("ROLLBACK");
-        return res.status(409).json({
-          error: "Ya tienes una inscripción activa o un cupo reservado. Finaliza o cancela el ciclo actual para inscribirte en otro.",
-        });
-      }
+        const precioMensual = PRECIO_MENSUAL[grupo.nivel]?.[grupo.modalidad] ?? 150_000;
+        const precioCiclo   = precioMensual * 3;
 
-      // Precio
-      const nivel     = grupo.nivel;
-      const modalidad = grupo.modalidad;
-      const precioMensual = PRECIO_MENSUAL[nivel]?.[modalidad] ?? 150_000;
-      const precioCiclo   = precioMensual * 3;
+        const ins = await tx.$queryRawUnsafe(
+          `INSERT INTO inscripcion (id, escalador_id, grupo_id, precio_ciclo, estado, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, 'reservada', NOW()) RETURNING *`,
+          escaladorId, grupoId, precioCiclo
+        );
 
-      // Crear inscripción en estado 'reservada' (espera pago en 24h)
-      const ins = await client.query(
-        `INSERT INTO inscripcion (id, escalador_id, grupo_id, precio_ciclo, estado, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, 'reservada', NOW()) RETURNING *`,
-        [escaladorId, grupoId, precioCiclo]
-      );
+        await tx.$executeRawUnsafe(
+          `INSERT INTO pago (id, inscripcion_id, monto, estado, fecha_vencimiento, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, 'pendiente', CURRENT_DATE + 1, NOW())`,
+          ins[0].id, precioMensual
+        );
 
-      // Pago pendiente con 24h de ventana
-      await client.query(
-        `INSERT INTO pago (id, inscripcion_id, monto, estado, fecha_vencimiento, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, 'pendiente', CURRENT_DATE + 1, NOW())`,
-        [ins.rows[0].id, precioMensual]
-      );
-
-      await client.query("COMMIT");
+        return ins[0];
+      });
 
       res.status(201).json({
         message: "Cupo reservado. Tienes 24 horas para enviar el soporte de pago. El equipo activará tu inscripción al confirmar el pago.",
-        inscripcion: ins.rows[0],
+        inscripcion,
       });
     } catch (err) {
-      await client.query("ROLLBACK");
-      if (err.code === "23505")
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      if (err.code === "23505" || err.cause?.code === "23505")
         return res.status(409).json({ error: "Ya estás inscrito en este grupo" });
       console.error("Error POST /inscripciones/autoservicio:", err);
       res.status(500).json({ error: "Error interno" });
-    } finally {
-      client.release();
     }
   }
 );
 
-// ─── PATCH /inscripciones/:id/estado — Cambiar estado ────
+// ─── PATCH /inscripciones/:id/estado ─────────────────────
 router.patch("/:id/estado", authorize("admin", "entrenador"), [
   body("estado").isIn(["activa", "congelada", "cancelada", "completada", "reservada"]),
 ], async (req, res) => {
@@ -224,46 +221,58 @@ router.patch("/:id/estado", authorize("admin", "entrenador"), [
 
   try {
     const { estado } = req.body;
-    const insc = await db(
+    const insc = await prisma.$queryRawUnsafe(
       `SELECT i.estado as old, i.grupo_id, g.entrenador_id
        FROM inscripcion i
        JOIN grupo g ON i.grupo_id = g.id
        WHERE i.id=$1`,
-      [req.params.id]
+      req.params.id
     );
-    if (insc.rows.length === 0) return res.status(404).json({ error: "Inscripción no encontrada" });
+    if (!insc.length) return res.status(404).json({ error: "Inscripción no encontrada" });
 
-    // Entrenador solo puede modificar inscripciones de sus grupos
-    if (req.user.rol === "entrenador" && insc.rows[0].entrenador_id !== req.user.entrenador?.id) {
+    if (req.user.rol === "entrenador" && insc[0].entrenador_id !== req.user.entrenador?.id) {
       return res.status(403).json({ error: "No puedes modificar inscripciones de grupos que no son tuyos" });
     }
 
-    await db("UPDATE inscripcion SET estado=$1 WHERE id=$2", [estado, req.params.id]);
+    await prisma.$executeRawUnsafe("UPDATE inscripcion SET estado=$1 WHERE id=$2", estado, req.params.id);
 
-    const old = insc.rows[0].old;
+    const old = insc[0].old;
     if (old === "activa" && estado !== "activa") {
-      await db("UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id=$1", [insc.rows[0].grupo_id]);
+      await prisma.$executeRawUnsafe(
+        "UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id=$1",
+        insc[0].grupo_id
+      );
     } else if (old !== "activa" && estado === "activa") {
-      await db("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", [insc.rows[0].grupo_id]);
+      await prisma.$executeRawUnsafe(
+        "UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1",
+        insc[0].grupo_id
+      );
     }
 
     res.json({ message: `Estado cambiado a ${estado}` });
   } catch (err) {
-    console.error("Error:", err); res.status(500).json({ error: "Error interno" });
+    console.error("Error:", err);
+    res.status(500).json({ error: "Error interno" });
   }
 });
 
 // ─── DELETE /inscripciones/:id ────────────────────────────
 router.delete("/:id", authorize("admin"), async (req, res) => {
   try {
-    const insc = await db("SELECT grupo_id, estado FROM inscripcion WHERE id = $1", [req.params.id]);
-    if (!insc.rows.length) return res.status(404).json({ error: "Inscripción no encontrada" });
+    const insc = await prisma.$queryRawUnsafe(
+      "SELECT grupo_id, estado FROM inscripcion WHERE id = $1",
+      req.params.id
+    );
+    if (!insc.length) return res.status(404).json({ error: "Inscripción no encontrada" });
 
-    await db("DELETE FROM pago WHERE inscripcion_id = $1", [req.params.id]);
-    await db("DELETE FROM inscripcion WHERE id = $1", [req.params.id]);
+    await prisma.$executeRawUnsafe("DELETE FROM pago WHERE inscripcion_id = $1", req.params.id);
+    await prisma.$executeRawUnsafe("DELETE FROM inscripcion WHERE id = $1", req.params.id);
 
-    if (insc.rows[0].estado === "activa") {
-      await db("UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id = $1", [insc.rows[0].grupo_id]);
+    if (insc[0].estado === "activa") {
+      await prisma.$executeRawUnsafe(
+        "UPDATE grupo SET inscritos_actual = GREATEST(inscritos_actual - 1, 0) WHERE id = $1",
+        insc[0].grupo_id
+      );
     }
 
     res.json({ message: "Inscripción eliminada" });
