@@ -25,7 +25,14 @@ class ApiService {
     const token = this.getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 35_000);
+    let res;
+    try {
+      res = await fetch(`${API_URL}${endpoint}`, { ...options, headers, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
     const data = await res.json();
 
     if (!res.ok) {
