@@ -67,6 +67,7 @@ export default function ProgramasAdminPage() {
   const [filtro, setFiltro] = useState('');
   const [sesionesGrupo, setSesionesGrupo] = useState([]);
   const [semanaAbierta, setSemanaAbierta] = useState(null);
+  const [planCache, setPlanCache] = useState({});
 
   useEffect(() => {
     Promise.all([api.getProgramas(), api.getGrupos({ estado: 'en_curso' })])
@@ -75,7 +76,7 @@ export default function ProgramasAdminPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Cuando se selecciona un programa, cargar sesiones del primer grupo activo
+  // Cuando se selecciona un programa, cargar sesiones del primer grupo activo y el plan_contenido
   useEffect(() => {
     setSesionesGrupo([]);
     setSemanaAbierta(null);
@@ -83,8 +84,14 @@ export default function ProgramasAdminPage() {
     const prog = programas.find(p => p.id === selected);
     if (!prog) return;
     const grupoActivo = grupos.find(g => g.programa_nombre === prog.nombre || g.programa_id === selected);
-    if (!grupoActivo) return;
-    api.getSesiones(grupoActivo.id).then(setSesionesGrupo).catch(() => setSesionesGrupo([]));
+    if (grupoActivo) {
+      api.getSesiones(grupoActivo.id).then(setSesionesGrupo).catch(() => setSesionesGrupo([]));
+    }
+    if (prog.nivel && !planCache[prog.nivel]) {
+      api.getPlanContenido(prog.nivel)
+        .then(data => setPlanCache(prev => ({ ...prev, [prog.nivel]: data.semanas || [] })))
+        .catch(() => {});
+    }
   }, [selected]);
 
   if (loading) return (
@@ -98,6 +105,19 @@ export default function ProgramasAdminPage() {
   const prog = selected ? programas.find(p => p.id === selected) : null;
   const curriculo = prog ? CURRICULO[prog.nivel] : null;
   const gruposDelProg = grupos.filter(g => g.programa_id === selected || g.programa_nombre === prog?.nombre);
+  const planSemanas = prog?.nivel ? (planCache[prog.nivel] || []) : [];
+
+  // Para un item de currículo, obtener las semanas reales de plan_contenido en ese rango
+  const getPlanSemanasParaItem = (item) => {
+    if (!planSemanas.length) return [];
+    const [semDesde, semHasta] = item.semana.includes('–')
+      ? item.semana.split('–').map(Number)
+      : [parseInt(item.semana), parseInt(item.semana)];
+    return planSemanas.filter(w => {
+      const num = parseInt(w.id?.replace('S', '') || '0');
+      return num >= semDesde && num <= semHasta;
+    });
+  };
 
   // Para un item de currículo, obtener las sesiones reales que caen en ese rango de semanas
   const getSesionesParaItem = (item) => {
@@ -260,8 +280,8 @@ export default function ProgramasAdminPage() {
                 )}
               </div>
               {curriculo.estructura.map((item, i) => {
-                const sesItemRaw = getSesionesParaItem(item);
-                const sesItem = sesItemRaw;
+                const sesItem = getSesionesParaItem(item);
+                const planSemsItem = getPlanSemanasParaItem(item);
                 const abierta = semanaAbierta === i;
                 const hoy = new Date().toISOString().split('T')[0];
 
@@ -299,10 +319,42 @@ export default function ProgramasAdminPage() {
                     {/* Detalle expandido */}
                     {abierta && (
                       <div style={{ borderTop: `1px solid #1a1a1a`, background: '#161616', padding: '16px 18px 16px 88px' }}>
-                        {/* Contenido pedagógico — siempre visible */}
-                        <p style={{ fontSize: '0.85rem', color: C.text2, fontFamily: 'Poppins', lineHeight: 1.7, marginBottom: sesItem.length > 0 ? '14px' : 0 }}>
+                        {/* Contenido pedagógico */}
+                        <p style={{ fontSize: '0.85rem', color: C.text2, fontFamily: 'Poppins', lineHeight: 1.7, marginBottom: '14px' }}>
                           {item.detalle}
                         </p>
+
+                        {/* Sesiones del plan_contenido (actividades reales de la DB) */}
+                        {planSemsItem.length > 0 && (
+                          <div style={{ marginBottom: sesItem.length > 0 ? '14px' : 0 }}>
+                            <div style={{ fontSize: '0.68rem', color: '#c084fc', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'Poppins', marginBottom: '8px' }}>
+                              Actividades del plan
+                            </div>
+                            {planSemsItem.map(w => (
+                              <div key={w.id} style={{ marginBottom: '10px' }}>
+                                <div style={{ fontSize: '0.72rem', color: C.accent, fontWeight: 700, fontFamily: 'Poppins', marginBottom: '5px' }}>{w.id}</div>
+                                {w.sesiones?.map(s => (
+                                  <div key={s.num} style={{ marginBottom: '7px', paddingLeft: '10px', borderLeft: `2px solid #2e2e2e` }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: C.text, fontFamily: 'Poppins', marginBottom: '3px' }}>
+                                      S{s.num} · {s.name}
+                                      <span style={{ fontSize: '0.68rem', color: tipoColor[s.type?.toLowerCase()] || C.text3, marginLeft: '6px', fontWeight: 400 }}>{s.type}</span>
+                                    </div>
+                                    {s.blocks?.map((b, bi) => (
+                                      <div key={bi} style={{ fontSize: '0.76rem', color: C.text2, fontFamily: 'Poppins', padding: '2px 0', paddingLeft: '8px' }}>
+                                        • {b.n}
+                                        {b.params?.length > 0 && (
+                                          <span style={{ color: C.text3, marginLeft: '6px' }}>
+                                            {b.params.slice(0, 2).map(([k, v]) => `${k ? k + ': ' : ''}${v}`).join(' · ')}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Fechas reales si el grupo ya tiene sesiones generadas */}
                         {sesItem.length > 0 && (

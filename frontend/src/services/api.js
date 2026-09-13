@@ -53,6 +53,7 @@ class ApiService {
 
   // Plan de entrenamiento
   getMyPlan() { return this.request('/plan/my'); }
+  getPlanContenido(nivel) { return this.request(`/plan/contenido?nivel=${encodeURIComponent(nivel)}`); }
 
   // Catálogos
   getProgramas(params)  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/programas${q}`); }

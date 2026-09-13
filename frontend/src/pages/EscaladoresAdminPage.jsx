@@ -72,6 +72,17 @@ export default function EscaladoresAdminPage() {
     finally { setLoadingDetalle(false); }
   };
 
+  const cambiarNivel = async (escaladorId, nuevoNivel) => {
+    try {
+      await api.asignarNivel(escaladorId, nuevoNivel);
+      load();
+      if (selected === escaladorId) {
+        const d = await api.getEscalador(escaladorId);
+        setDetalle(d);
+      }
+    } catch (err) { alert(err?.error || 'Error al cambiar nivel'); }
+  };
+
   // KPIs
   const total = escaladores.length;
   const activos = escaladores.filter(e => e.estado === 'activo').length;
@@ -165,11 +176,14 @@ export default function EscaladoresAdminPage() {
                     {e.rango_etario === 'adulto' ? 'Adulto' : e.rango_etario?.replace('menor_', 'M').replace('_', '–')}
                   </span>
                   {/* Nivel */}
-                  {e.nivel && (
-                    <span style={{ fontSize: '0.72rem', color: NIVEL_COLOR[e.nivel] || C.accent, background: (NIVEL_COLOR[e.nivel] || C.accent) + '18', padding: '2px 8px', borderRadius: '20px', fontWeight: 600, fontFamily: 'Poppins', flexShrink: 0 }}>
-                      {NIVEL_LABEL[e.nivel] || e.nivel}
-                    </span>
-                  )}
+                  {e.nivel
+                    ? <span style={{ fontSize: '0.72rem', color: NIVEL_COLOR[e.nivel] || C.accent, background: (NIVEL_COLOR[e.nivel] || C.accent) + '18', padding: '2px 8px', borderRadius: '20px', fontWeight: 600, fontFamily: 'Poppins', flexShrink: 0 }}>
+                        {NIVEL_LABEL[e.nivel] || e.nivel}
+                      </span>
+                    : isAdmin && <span style={{ fontSize: '0.72rem', color: C.text3, background: '#1a1a1a', padding: '2px 8px', borderRadius: '20px', fontFamily: 'Poppins', flexShrink: 0 }}>
+                        Sin nivel
+                      </span>
+                  }
                   {/* Reserva pendiente */}
                   {parseInt(e.reservas_pendientes) > 0 && (
                     <span style={{ fontSize: '0.72rem', color: '#D4AF37', background: '#D4AF3720', padding: '2px 8px', borderRadius: '20px', fontFamily: 'Poppins', fontWeight: 600, flexShrink: 0 }}>
@@ -212,8 +226,23 @@ export default function EscaladoresAdminPage() {
                         {/* Info personal */}
                         <div>
                           <div style={{ fontSize: '0.7rem', color: C.text2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '10px', fontFamily: 'Poppins' }}>Datos personales</div>
+                          {isAdmin && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: `1px solid #1a1a1a` }}>
+                              <span style={{ fontSize: '0.82rem', color: C.text2, fontFamily: 'Poppins' }}>Nivel</span>
+                              <select
+                                value={detalle.nivel || ''}
+                                onChange={e => e.target.value && cambiarNivel(detalle.id, e.target.value)}
+                                className="input-dark"
+                                style={{ fontSize: '0.78rem', padding: '2px 6px', height: 'auto' }}
+                              >
+                                <option value="">Sin nivel</option>
+                                <option value="iniciacion">Principiante</option>
+                                <option value="intermedio">Intermedio</option>
+                                <option value="avanzado">Avanzado</option>
+                              </select>
+                            </div>
+                          )}
                           {[
-                            ['Nivel', detalle.nivel ? (NIVEL_LABEL[detalle.nivel] || detalle.nivel) : '—'],
                             ['Teléfono', detalle.telefono || '—'],
                             ['Contacto emergencia', detalle.contacto_emergencia || '—'],
                             ['Peso', detalle.peso_kg ? `${detalle.peso_kg} kg` : '—'],

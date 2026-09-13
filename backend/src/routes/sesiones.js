@@ -137,7 +137,7 @@ router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
     const vals = [];
     fechas.forEach((fecha, i) => {
       const b = i * 7;
-      paramSets.push(`($${b+1}, $${b+2}, $${b+3}, $${b+4}, $${b+5}, $${b+6}, $${b+7})`);
+      paramSets.push(`($${b+1}, $${b+2}, $${b+3}, $${b+4}::time, $${b+5}::time, $${b+6}, $${b+7}::"TipoSesion")`);
       vals.push(randomUUID(), grupoId, fecha, horaInicio, horaFin, i + 1, getTipo(i));
     });
 

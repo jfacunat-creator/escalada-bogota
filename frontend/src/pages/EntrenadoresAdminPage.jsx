@@ -173,11 +173,11 @@ export default function EntrenadoresAdminPage() {
                 onClick={() => toggleExpanded(ent.id)}>
                 {/* Avatar */}
                 <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#3a2e0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Antonio', fontSize: '1.1rem', color: C.accent, flexShrink: 0 }}>
-                  {ent.nombre?.charAt(0)}
+                  {ent.nombre?.charAt(0)}{ent.apellido?.charAt(0)}
                 </div>
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: C.text, fontSize: '0.95rem', fontFamily: 'Poppins' }}>{ent.nombre}</div>
+                  <div style={{ fontWeight: 600, color: C.text, fontSize: '0.95rem', fontFamily: 'Poppins' }}>{ent.nombre}{ent.apellido ? ` ${ent.apellido}` : ''}</div>
                   <div style={{ fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins' }}>{ent.email} · {ent.licencia_ley181 || 'Sin licencia'}</div>
                 </div>
                 {/* Stats inline */}

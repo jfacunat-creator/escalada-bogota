@@ -31,9 +31,9 @@ router.post("/", authorize("admin"), [
     );
     const entId = randomUUID();
     const result = await prisma.$queryRawUnsafe(
-      `INSERT INTO entrenador (id, usuario_id, nombre, apellido, especialidad, max_grupos)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      entId, usuarioId, nombre, apellido, especialidad || null, maxGrupos || 4
+      `INSERT INTO entrenador (id, usuario_id, nombre, apellido, especialidad, max_grupos, fecha_ingreso)
+       VALUES ($1,$2,$3,$4,$5,$6,CURRENT_DATE) RETURNING *`,
+      entId, usuarioId, nombre, apellido || null, especialidad || null, maxGrupos || 4
     );
     res.status(201).json({ ...result[0], email });
   } catch (err) {
@@ -132,10 +132,10 @@ router.put("/:id", authorize("admin"), async (req, res) => {
     const { nombre, apellido, especialidad, maxGrupos } = req.body;
     const sets = [], params = [];
 
-    if (nombre)       { params.push(nombre);       sets.push(`nombre = $${params.length}`); }
-    if (apellido)     { params.push(apellido);     sets.push(`apellido = $${params.length}`); }
-    if (especialidad) { params.push(especialidad); sets.push(`especialidad = $${params.length}`); }
-    if (maxGrupos !== undefined) { params.push(maxGrupos); sets.push(`max_grupos = $${params.length}`); }
+    if (nombre !== undefined && nombre !== '')  { params.push(nombre);       sets.push(`nombre = $${params.length}`); }
+    if (apellido !== undefined)                 { params.push(apellido || null); sets.push(`apellido = $${params.length}`); }
+    if (especialidad !== undefined)             { params.push(especialidad || null); sets.push(`especialidad = $${params.length}`); }
+    if (maxGrupos !== undefined)                { params.push(maxGrupos); sets.push(`max_grupos = $${params.length}`); }
 
     if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
 
