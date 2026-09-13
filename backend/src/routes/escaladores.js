@@ -20,15 +20,15 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
 
     if (estado) {
       params.push(estado);
-      conditions.push(`e.estado = $${params.length}`);
+      conditions.push(`e.estado::text = $${params.length}`);
     }
     if (rangoEtario) {
       params.push(rangoEtario);
-      conditions.push(`e.rango_etario = $${params.length}`);
+      conditions.push(`e.rango_etario::text = $${params.length}`);
     }
     if (nivel) {
       params.push(nivel);
-      conditions.push(`e.nivel = $${params.length}`);
+      conditions.push(`e.nivel::text = $${params.length}`);
     }
     if (buscar) {
       params.push(`%${buscar}%`);

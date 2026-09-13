@@ -27,7 +27,7 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
       WHERE 1=1`;
     const params = [];
 
-    if (estado) { params.push(estado); sql += ` AND g.estado = $${params.length}`; }
+    if (estado) { params.push(estado); sql += ` AND g.estado::text = $${params.length}`; }
     if (cicloId) { params.push(cicloId); sql += ` AND g.ciclo_id = $${params.length}`; }
     if (programaId) { params.push(programaId); sql += ` AND g.programa_id = $${params.length}`; }
     if (entrenadorId) { params.push(entrenadorId); sql += ` AND g.entrenador_id = $${params.length}`; }

@@ -10,8 +10,8 @@ router.get("/programas", async (req, res) => {
     const { poblacion, nivel } = req.query;
     let sql = "SELECT * FROM programa WHERE activo = true";
     const params = [];
-    if (poblacion) { params.push(poblacion); sql += ` AND poblacion = $${params.length}`; }
-    if (nivel) { params.push(nivel); sql += ` AND nivel = $${params.length}`; }
+    if (poblacion) { params.push(poblacion); sql += ` AND poblacion::text = $${params.length}`; }
+    if (nivel) { params.push(nivel); sql += ` AND nivel::text = $${params.length}`; }
     sql += " ORDER BY poblacion, nivel, nombre";
     const result = await prisma.$queryRawUnsafe(sql, ...params);
     res.json(result);

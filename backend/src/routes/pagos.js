@@ -62,7 +62,7 @@ router.get("/", async (req, res) => {
       WHERE 1=1`;
     const params = [];
 
-    if (estado) { params.push(estado); sql += ` AND pg.estado = $${params.length}`; }
+    if (estado) { params.push(estado); sql += ` AND pg.estado::text = $${params.length}`; }
     if (grupoId) { params.push(grupoId); sql += ` AND i.grupo_id = $${params.length}`; }
 
     if (req.user.rol === "escalador") {

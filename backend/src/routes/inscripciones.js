@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
     const params = [];
     if (grupoId)     { params.push(grupoId);     sql += ` AND i.grupo_id = $${params.length}`; }
     if (escaladorId) { params.push(escaladorId); sql += ` AND i.escalador_id = $${params.length}`; }
-    if (estado)      { params.push(estado);      sql += ` AND i.estado = $${params.length}`; }
+    if (estado)      { params.push(estado);      sql += ` AND i.estado::text = $${params.length}`; }
     if (req.user.rol === "escalador")  { params.push(req.user.escalador.id);  sql += ` AND i.escalador_id = $${params.length}`; }
     if (req.user.rol === "entrenador") { params.push(req.user.entrenador.id); sql += ` AND co.entrenador_id = $${params.length}`; }
     sql += " ORDER BY i.fecha_inscripcion DESC";
