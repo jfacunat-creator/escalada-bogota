@@ -279,7 +279,7 @@ export default function ProgramasAdminPage() {
                         <div style={{ fontFamily: 'Antonio', fontSize: '0.95rem', color: C.text2 }}>{item.semana}</div>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontSize: '0.7rem', padding: '1px 7px', borderRadius: '4px', fontWeight: 600, fontFamily: 'Poppins', background: tipoColor[item.tipo] + '20', color: tipoColor[item.tipo] }}>
                             {tipoLabel[item.tipo]}
                           </span>
@@ -290,7 +290,6 @@ export default function ProgramasAdminPage() {
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins', lineHeight: 1.6 }}>{item.detalle}</div>
                       </div>
                       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', color: C.text3 }}>
                         {abierta ? <ChevronDown size={16} /> : <ChevronRight2 size={16} />}

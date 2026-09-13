@@ -62,11 +62,13 @@ export default function EntrenadoresAdminPage() {
         especialidad: form.especialidad,
         maxGrupos: form.maxGrupos,
       });
+      const editId = editando.id;
       setEditando(null);
       setForm(FORM_VACIO);
+      setDetalles(prev => { const d = { ...prev }; delete d[editId]; return d; });
       load();
     } catch (err) {
-      setFormError(err?.error || 'Error al guardar');
+      setFormError(err?.error || err?.message || 'Error al guardar');
     } finally {
       setSaving(false);
     }
