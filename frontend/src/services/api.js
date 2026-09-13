@@ -90,6 +90,7 @@ class ApiService {
   getSesiones(grupoId)          { return this.request(`/sesiones?grupoId=${grupoId}`); }
   getSesion(id)                 { return this.request(`/sesiones/${id}`); }
   generarSesiones(grupoId)      { return this.request('/sesiones/generar', { method: 'POST', body: JSON.stringify({ grupoId }) }); }
+  deleteSesiones(grupoId)       { return this.request(`/sesiones?grupoId=${grupoId}`, { method: 'DELETE' }); }
   updateNotasSesion(id, notas)  { return this.request(`/sesiones/${id}/notas`, { method: 'PUT', body: JSON.stringify({ notas }) }); }
 
   // Asistencia

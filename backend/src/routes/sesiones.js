@@ -205,4 +205,24 @@ router.get("/entrenador/:entrenadorId", authorize("entrenador", "admin"), async 
   }
 });
 
+// ─── DELETE /sesiones?grupoId=xxx ────────────────────────
+router.delete("/", authorize("admin"), async (req, res) => {
+  const { grupoId } = req.query;
+  if (!grupoId) return res.status(400).json({ error: "grupoId requerido" });
+  try {
+    const sesiones = await prisma.$queryRawUnsafe(
+      "SELECT id FROM sesion WHERE grupo_id = $1", grupoId
+    );
+    if (sesiones.length) {
+      const ids = sesiones.map(s => s.id);
+      await prisma.$executeRawUnsafe(`DELETE FROM asistencia WHERE sesion_id = ANY($1::uuid[])`, ids);
+      await prisma.$executeRawUnsafe("DELETE FROM sesion WHERE grupo_id = $1", grupoId);
+    }
+    res.json({ message: `${sesiones.length} sesiones eliminadas` });
+  } catch (err) {
+    console.error("Error DELETE /sesiones:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 module.exports = router;

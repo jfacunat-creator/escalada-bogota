@@ -116,7 +116,7 @@ function PanelAsistencia({ sesion, grupoId, onClose }) {
 }
 
 // ── TAB SESIONES ──────────────────────────────────────────
-function TabSesiones({ grupoId }) {
+function TabSesiones({ grupoId, isAdmin }) {
   const [sesiones, setSesiones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -130,6 +130,17 @@ function TabSesiones({ grupoId }) {
     setGenerando(true);
     try { await api.generarSesiones(grupoId); const s = await api.getSesiones(grupoId); setSesiones(s); }
     catch (e) { alert(e.error || 'Error'); } finally { setGenerando(false); }
+  };
+
+  const regenerar = async () => {
+    if (!window.confirm('¿Eliminar todas las sesiones actuales y regenerarlas? Esta acción no se puede deshacer.')) return;
+    setGenerando(true);
+    try {
+      await api.deleteSesiones(grupoId);
+      await api.generarSesiones(grupoId);
+      const s = await api.getSesiones(grupoId);
+      setSesiones(s);
+    } catch (e) { alert(e.error || 'Error'); } finally { setGenerando(false); }
   };
 
   const hoy = new Date().toISOString().split('T')[0];
@@ -150,6 +161,14 @@ function TabSesiones({ grupoId }) {
             </button>
           </div>
         ) : (
+          <div>
+            {isAdmin && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                <button onClick={regenerar} disabled={generando} style={{ padding: '6px 14px', background: 'transparent', color: '#ef4444', border: '1px solid #ef444440', borderRadius: '6px', cursor: 'pointer', fontFamily: 'Poppins', fontSize: '0.78rem', fontWeight: 600 }}>
+                  {generando ? 'Procesando...' : '↺ Regenerar sesiones'}
+                </button>
+              </div>
+            )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {sesiones.map(s => {
               const fs = s.fecha?.split('T')[0];
@@ -181,6 +200,7 @@ function TabSesiones({ grupoId }) {
                 </button>
               );
             })}
+          </div>
           </div>
         )}
       </div>
@@ -421,7 +441,7 @@ export default function GrupoDetallePage() {
 
       {/* Contenido del tab */}
       <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '20px' }}>
-        {tab === 'sesiones' && <TabSesiones grupoId={id} />}
+        {tab === 'sesiones' && <TabSesiones grupoId={id} isAdmin={isAdmin} />}
         {tab === 'escaladores' && <TabEscaladores grupoId={id} isAdmin={isAdmin} />}
         {tab === 'resumen' && <TabResumen grupoId={id} />}
       </div>
