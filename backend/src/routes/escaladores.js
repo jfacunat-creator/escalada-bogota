@@ -38,8 +38,8 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
     if (grupoId) {
       params.push(grupoId);
       const p = params.length;
-      conditions.push(`EXISTS (SELECT 1 FROM inscripcion i WHERE i.escalador_id = e.id AND i.grupo_id = $${p} AND i.estado = 'activa')`);
-      inscripcionActivaSelect = `, (SELECT id FROM inscripcion i2 WHERE i2.escalador_id = e.id AND i2.grupo_id = $${p} AND i2.estado = 'activa' LIMIT 1) as inscripcion_activa_id`;
+      conditions.push(`EXISTS (SELECT 1 FROM inscripcion i WHERE i.escalador_id = e.id AND i.grupo_id = $${p} AND i.estado IN ('activa', 'congelada'))`);
+      inscripcionActivaSelect = `, (SELECT id FROM inscripcion i2 WHERE i2.escalador_id = e.id AND i2.grupo_id = $${p} AND i2.estado IN ('activa', 'congelada') LIMIT 1) as inscripcion_id, (SELECT estado FROM inscripcion i2 WHERE i2.escalador_id = e.id AND i2.grupo_id = $${p} AND i2.estado IN ('activa', 'congelada') LIMIT 1) as inscripcion_estado`;
     }
 
     if (req.user.rol === "entrenador") {

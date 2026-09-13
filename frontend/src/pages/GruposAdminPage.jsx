@@ -467,6 +467,7 @@ export default function GruposAdminPage() {
 
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroCiclo, setFiltroCiclo] = useState('');
+  const [filtroNivel, setFiltroNivel] = useState('');
   const [showCrear, setShowCrear] = useState(false);
   const [editando, setEditando] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -478,6 +479,7 @@ export default function GruposAdminPage() {
       const grupoParams = {};
       if (filtroEstado) grupoParams.estado = filtroEstado;
       if (filtroCiclo)  grupoParams.cicloId = filtroCiclo;
+      if (filtroNivel)  grupoParams.nivel = filtroNivel;
       const [coh, progs, cics, ents, murs] = await Promise.all([
         api.getGrupos(Object.keys(grupoParams).length ? grupoParams : undefined),
         api.getProgramas(),
@@ -497,7 +499,7 @@ export default function GruposAdminPage() {
     }
   };
 
-  useEffect(() => { cargarDatos(); }, [filtroEstado, filtroCiclo]);
+  useEffect(() => { cargarDatos(); }, [filtroEstado, filtroCiclo, filtroNivel]);
 
   const handleEstado = async (id, estado) => {
     try {
@@ -562,6 +564,14 @@ export default function GruposAdminPage() {
           <option value="">Todos los ciclos</option>
           {ciclos.map(c => <option key={c.id} value={c.id}>{c.codigo}</option>)}
         </select>
+
+        <select value={filtroNivel} onChange={e => setFiltroNivel(e.target.value)}
+          className="input-dark" style={{ width: 'auto', minWidth: '150px' }}>
+          <option value="">Todos los niveles</option>
+          <option value="iniciacion">Iniciación</option>
+          <option value="intermedio">Intermedio</option>
+          <option value="avanzado">Avanzado</option>
+        </select>
       </div>
 
       {/* Grid */}
@@ -573,7 +583,7 @@ export default function GruposAdminPage() {
         <div style={{ textAlign: 'center', padding: '60px' }}>
           <IconoMuro style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
           <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: C.text2, marginBottom: '8px' }}>
-            Sin grupos{filtroEstado || filtroCiclo ? ' con esos filtros' : ''}
+            Sin grupos{filtroEstado || filtroCiclo || filtroNivel ? ' con esos filtros' : ''}
           </div>
           <p style={{ color: C.text3, fontSize: '0.85rem', fontFamily: 'Poppins', marginBottom: '16px' }}>
             Crea el primer grupo para iniciar el ciclo.

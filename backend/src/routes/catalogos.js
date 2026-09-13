@@ -66,7 +66,7 @@ router.get("/grupos", async (req, res) => {
       JOIN entrenador ent ON g.entrenador_id = ent.id
       WHERE 1=1`;
     const params = [];
-    if (estado) { params.push(estado); sql += ` AND g.estado = $${params.length}`; }
+    if (estado) { params.push(estado); sql += ` AND g.estado::text = $${params.length}`; }
     if (cicloId) { params.push(cicloId); sql += ` AND g.ciclo_id = $${params.length}`; }
     if (programaId) { params.push(programaId); sql += ` AND g.programa_id = $${params.length}`; }
     sql += " ORDER BY ci.anio DESC, ci.trimestre DESC, p.nombre";

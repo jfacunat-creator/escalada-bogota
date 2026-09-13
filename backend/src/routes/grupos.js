@@ -10,7 +10,7 @@ router.use(authenticate);
 // ─── GET /grupos ──────────────────────────────────────────
 router.get("/", authorize("admin", "entrenador"), async (req, res) => {
   try {
-    const { estado, cicloId, programaId, entrenadorId } = req.query;
+    const { estado, cicloId, programaId, entrenadorId, nivel } = req.query;
     let sql = `
       SELECT g.*, p.nombre AS programa_nombre, p.nivel, p.poblacion,
              ci.codigo AS ciclo_codigo, ci.anio, ci.trimestre,
@@ -31,6 +31,7 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
     if (cicloId) { params.push(cicloId); sql += ` AND g.ciclo_id = $${params.length}`; }
     if (programaId) { params.push(programaId); sql += ` AND g.programa_id = $${params.length}`; }
     if (entrenadorId) { params.push(entrenadorId); sql += ` AND g.entrenador_id = $${params.length}`; }
+    if (nivel) { params.push(nivel); sql += ` AND p.nivel::text = $${params.length}`; }
 
     if (req.user.rol === "entrenador") {
       params.push(req.user.entrenador.id);

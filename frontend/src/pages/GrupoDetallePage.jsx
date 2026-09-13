@@ -27,11 +27,11 @@ function PanelAsistencia({ sesion, grupoId, onClose }) {
   useEffect(() => {
     Promise.all([
       api.getEscaladores({ grupoId: grupoId }),
-      api.getSesion(sesion.id),
-    ]).then(([escs, detail]) => {
+      api.getAsistenciaSesion(sesion.id),
+    ]).then(([escs, asistencias]) => {
       setEscaladores(escs);
       const aData = {};
-      for (const a of detail.asistencia || []) aData[a.escalador_id] = { asistio: a.asistio, obs: a.observaciones || '' };
+      for (const a of asistencias) aData[a.escalador_id] = { asistio: a.asistio, obs: a.observaciones || '' };
       for (const e of escs) if (!aData[e.id]) aData[e.id] = { asistio: true, obs: '' };
       setAsistData(aData);
     }).catch(console.error);
@@ -235,7 +235,8 @@ function TabEscaladores({ grupoId, isAdmin }) {
   }, [grupoId]);
 
   const cambiarEstado = async (escalador, nuevoEstado) => {
-    const inscripcionId = escalador.inscripcion_activa_id || escalador.id;
+    const inscripcionId = escalador.inscripcion_id || escalador.inscripcion_activa_id;
+    if (!inscripcionId) { alert('No se encontró inscripción para este escalador'); return; }
     try {
       await api.cambiarEstadoInscripcion(inscripcionId, nuevoEstado);
       const e = await api.getEscaladores({ grupoId });
@@ -276,17 +277,17 @@ function TabEscaladores({ grupoId, isAdmin }) {
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{
                     padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, fontFamily: 'Poppins',
-                    background: e.estado === 'activo' ? 'rgba(34,197,94,0.1)' : e.estado === 'congelado' ? 'rgba(245,158,11,0.1)' : 'rgba(100,100,100,0.1)',
-                    color: e.estado === 'activo' ? '#22c55e' : e.estado === 'congelado' ? '#f59e0b' : '#666',
-                  }}>{e.estado}</span>
+                    background: e.inscripcion_estado === 'activa' ? 'rgba(34,197,94,0.1)' : e.inscripcion_estado === 'congelada' ? 'rgba(245,158,11,0.1)' : 'rgba(100,100,100,0.1)',
+                    color: e.inscripcion_estado === 'activa' ? '#22c55e' : e.inscripcion_estado === 'congelada' ? '#f59e0b' : '#666',
+                  }}>{e.inscripcion_estado || e.estado}</span>
                   <>
-                    {e.estado === 'activo' && (
+                    {e.inscripcion_estado === 'activa' && isAdmin && (
                       <button onClick={() => cambiarEstado(e, 'congelada')}
                         style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
                         Congelar
                       </button>
                     )}
-                    {e.estado === 'congelado' && (
+                    {e.inscripcion_estado === 'congelada' && isAdmin && (
                       <button onClick={() => cambiarEstado(e, 'activa')}
                         style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
                         Reactivar

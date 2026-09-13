@@ -179,7 +179,7 @@ export default function EscaladoresAdminPage() {
                   {/* Grupo */}
                   {parseInt(e.grupos_activos) > 0
                     ? <span style={{ fontSize: '0.72rem', color: '#22c55e', background: '#0b1910', padding: '2px 8px', borderRadius: '20px', fontFamily: 'Poppins', fontWeight: 600, flexShrink: 0 }}>
-                        {e.programa_activo?.split(' ')[0] || 'Inscrito'}
+                        En grupo
                       </span>
                     : <span style={{ fontSize: '0.72rem', color: C.text3, background: '#1a1a1a', padding: '2px 8px', borderRadius: '20px', fontFamily: 'Poppins', flexShrink: 0 }}>Sin grupo</span>}
                   {/* Pagos */}
