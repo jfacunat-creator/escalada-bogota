@@ -234,7 +234,7 @@ router.patch("/:id/estado", authorize("admin", "entrenador"), [
       return res.status(403).json({ error: "No puedes modificar inscripciones de grupos que no son tuyos" });
     }
 
-    await prisma.$executeRawUnsafe("UPDATE inscripcion SET estado=$1 WHERE id=$2", estado, req.params.id);
+    await prisma.$executeRawUnsafe(`UPDATE inscripcion SET estado=$1::"EstadoInscripcion" WHERE id=$2`, estado, req.params.id);
 
     const old = insc[0].old;
     if (old === "activa" && estado !== "activa") {

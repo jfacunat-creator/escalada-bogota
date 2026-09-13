@@ -201,7 +201,7 @@ router.patch(
       if (!check.length) return res.status(404).json({ error: "Escalador no encontrado" });
 
       const result = await prisma.$queryRawUnsafe(
-        "UPDATE escalador SET nivel=$1, updated_at=NOW() WHERE id=$2 RETURNING *",
+        `UPDATE escalador SET nivel=$1::"NivelPrograma", updated_at=NOW() WHERE id=$2 RETURNING *`,
         nivel, id
       );
       res.json(result[0]);
@@ -222,7 +222,7 @@ router.patch(
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     try {
-      await prisma.$executeRawUnsafe("UPDATE escalador SET estado = $1 WHERE id = $2", req.body.estado, req.params.id);
+      await prisma.$executeRawUnsafe(`UPDATE escalador SET estado = $1::"EstadoEscalador" WHERE id = $2`, req.body.estado, req.params.id);
       res.json({ message: `Estado cambiado a ${req.body.estado}` });
     } catch (err) {
       console.error("Error PATCH estado:", err);

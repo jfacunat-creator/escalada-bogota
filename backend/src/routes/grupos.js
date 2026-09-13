@@ -126,7 +126,7 @@ router.post("/", authorize("admin"), [
     const id = randomUUID();
     const result = await prisma.$queryRawUnsafe(
       `INSERT INTO grupo (id, programa_id, ciclo_id, muro_id, entrenador_id, modalidad, horario, cupo_maximo, estado, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW()) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,$6::"ModalidadPlan",$7,$8,$9::"EstadoGrupo",NOW()) RETURNING *`,
       id, programaId, cicloId, muroId || null, entrenadorId, modalidad, horario || null, cupoMaximo, estado || "abierta"
     );
     res.status(201).json(result[0]);
@@ -142,7 +142,7 @@ router.put("/:id", authorize("admin"), async (req, res) => {
     const { modalidad, horario, cupoMaximo, entrenadorId, muroId } = req.body;
     const sets = [], params = [];
 
-    if (modalidad) { params.push(modalidad); sets.push(`modalidad = $${params.length}`); }
+    if (modalidad) { params.push(modalidad); sets.push(`modalidad = $${params.length}::"ModalidadPlan"`); }
     if ('horario' in req.body) { params.push(horario || null); sets.push(`horario = $${params.length}`); }
     if (cupoMaximo !== undefined) { params.push(cupoMaximo); sets.push(`cupo_maximo = $${params.length}`); }
     if (entrenadorId) { params.push(entrenadorId); sets.push(`entrenador_id = $${params.length}`); }
@@ -198,7 +198,7 @@ router.patch("/:id/estado", authorize("admin"), async (req, res) => {
     if (!["abierta", "en_curso", "cerrada", "finalizada"].includes(estado)) {
       return res.status(400).json({ error: "Estado inválido (abierta | en_curso | cerrada | finalizada)" });
     }
-    await prisma.$executeRawUnsafe("UPDATE grupo SET estado = $1 WHERE id = $2", estado, req.params.id);
+    await prisma.$executeRawUnsafe(`UPDATE grupo SET estado = $1::"EstadoGrupo" WHERE id = $2`, estado, req.params.id);
     res.json({ message: `Estado cambiado a ${estado}` });
   } catch (err) {
     console.error("Error:", err);
