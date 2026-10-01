@@ -4,10 +4,23 @@
  * con módulo de Movilidad integrado (Sesión A / Sesión B × 3 niveles)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import {
+  ZONAS, PERFIL_VACIO, ESCALA_VIA, ESCALA_BLOQUE, cargarPerfil, guardarPerfil,
+  camposFaltantes, perfilCompleto, perfilDesdeTestS0, calcularParametros, fmtRangoKg,
+} from "../plan/perfil";
+import { personalizarBloques } from "../plan/personalizar";
+import { evaluarSobrecarga, esSobrecarga, dolorVigente, regletaPrevia, aplicarAdaptaciones } from "../plan/adaptacion";
+import {
+  seriePse, mapaDolor, serieHangboard, esSesionTest, objetivoSalida, evaluarSalida,
+  exportarCSV, exportarJSON, descargar,
+} from "../plan/progresion";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, Legend,
+} from "recharts";
 
 // ─── PALETA ──────────────────────────────────────────────
 const C = {
@@ -133,25 +146,113 @@ function PseBar({ target }) {
   );
 }
 
+function FichaSeccion({ titulo, color, children }) {
+  return (
+    <div style={{ marginTop: 9 }}>
+      <div style={{ color, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+        textTransform: "uppercase", marginBottom: 4, fontFamily: "Poppins" }}>{titulo}</div>
+      {children}
+    </div>
+  );
+}
+
+function Ficha({ f }) {
+  const txt = { color: C.text, fontSize: 12, lineHeight: 1.55, fontFamily: "Poppins" };
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
+      padding: "4px 11px 11px", marginBottom: 8 }}>
+      <FichaSeccion titulo="Posición y ejecución" color={C.teal}>
+        <ol style={{ margin: 0, paddingLeft: 18, listStyle: "decimal", color: C.teal }}>
+          {f.como.map((t, i) => <li key={i} style={{ ...txt, marginBottom: 3 }}>{t}</li>)}
+        </ol>
+      </FichaSeccion>
+      {f.errores?.length > 0 && (
+        <FichaSeccion titulo="Errores frecuentes" color={C.orange}>
+          {f.errores.map((t, i) => <div key={i} style={{ ...txt, marginBottom: 2 }}>✕ {t}</div>)}
+        </FichaSeccion>
+      )}
+      {f.calidad && (
+        <FichaSeccion titulo="Criterio de calidad" color={C.green}>
+          <div style={txt}>{f.calidad}</div>
+        </FichaSeccion>
+      )}
+      {f.parada && f.parada !== "—" && (
+        <FichaSeccion titulo="Señal de parada" color={C.red}>
+          <div style={txt}>{f.parada}</div>
+        </FichaSeccion>
+      )}
+    </div>
+  );
+}
+
 function Block({ b }) {
   const [open, setOpen] = useState(false);
+  const [como, setComo] = useState(false);
   const hasParams = b.params && b.params.length > 0;
+  const expandible = hasParams || b.ficha || b.avisos?.length > 0;
+
+  if (b.bloqueado) {
+    return (
+      <div style={{ background: C.redA, border: `1px dashed ${C.red}55`, borderRadius: 10,
+        padding: "10px 13px", marginBottom: 8, opacity: 0.75 }}>
+        <div style={{ color: C.sub, fontSize: 12, fontWeight: 600, fontFamily: "Poppins",
+          textDecoration: "line-through" }}>{b.n}</div>
+        <div style={{ color: C.red, fontSize: 11, marginTop: 3, lineHeight: 1.5, fontFamily: "Poppins" }}>
+          {b.motivoBloqueo}
+        </div>
+      </div>
+    );
+  }
+
+  if (b.oculto) {
+    return (
+      <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 10,
+        padding: "10px 13px", marginBottom: 8, opacity: 0.6 }}>
+        <div style={{ color: C.sub, fontSize: 12, fontWeight: 600, fontFamily: "Poppins",
+          textDecoration: "line-through" }}>{b.n}</div>
+        <div style={{ color: C.muted, fontSize: 11, marginTop: 3, lineHeight: 1.5, fontFamily: "Poppins" }}>
+          {b.motivoOculto}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: C.cardAlt, border: `1px solid ${C.border}`,
       borderRadius: 10, overflow: "hidden", marginBottom: 8 }}>
-      <div onClick={() => hasParams && setOpen(o => !o)}
+      <div onClick={() => expandible && setOpen(o => !o)}
         style={{ display: "flex", alignItems: "center", gap: 10,
-          padding: "10px 13px", cursor: hasParams ? "pointer" : "default" }}>
+          padding: "10px 13px", cursor: expandible ? "pointer" : "default" }}>
         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.text,
           lineHeight: 1.3, fontFamily: "Poppins" }}>{b.n}</span>
-        {hasParams && (
+        {b.avisos?.length > 0 && <span style={{ fontSize: 12 }}>⚠️</span>}
+        {expandible && (
           <span style={{ color: C.muted, fontSize: 13, display: "inline-block",
             transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
         )}
       </div>
-      {open && hasParams && (
+      {open && expandible && (
         <div style={{ padding: "0 13px 13px" }}>
-          {b.params.map(([k, v], i) => (
+          {b.avisos?.map((a, i) => (
+            <div key={i} style={{ background: C.goldA, border: `1px solid ${C.gold}33`, borderRadius: 7,
+              padding: "7px 10px", marginBottom: 8, color: C.gold, fontSize: 11, lineHeight: 1.5,
+              fontFamily: "Poppins" }}>{a}</div>
+          ))}
+          {b.ficha && (
+            <>
+              <button onClick={() => setComo(c => !c)}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 6,
+                  background: como ? C.tealA : "transparent", border: `1px solid ${como ? C.teal : C.border}`,
+                  borderRadius: 7, padding: "7px 10px", cursor: "pointer", marginBottom: 8,
+                  color: C.teal, fontSize: 12, fontWeight: 700, fontFamily: "Poppins" }}>
+                <span style={{ flex: 1, textAlign: "left" }}>📘 ¿Cómo se hace?</span>
+                <span style={{ display: "inline-block", transform: como ? "rotate(180deg)" : "none",
+                  transition: "transform 0.2s" }}>▾</span>
+              </button>
+              {como && <Ficha f={b.ficha} />}
+            </>
+          )}
+          {hasParams && b.params.map(([k, v], i) => (
             <div key={i} style={{ display: "flex", gap: 8, padding: "5px 0",
               borderTop: `1px solid ${C.border}` }}>
               {k && (
@@ -332,10 +433,31 @@ function PlanTab({ semanas, logs, onSelect, curWeek }) {
 }
 
 // ─── SESIÓN TAB ───────────────────────────────────────────
-function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange, onLog }) {
+const SUGERENCIA_AMARILLO = {
+  dedos: "usa una regleta 2 tamaños más grande o agarre abierto en vez de arqueado.",
+  codo: "tracción con lastre −30% y sin excéntricos en esta sesión.",
+  hombro: "sin bloqueos dinámicos y campus reducido.",
+  espalda: "reduce la carga del core y evita posiciones que provoquen dolor.",
+};
+
+function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSessionChange, onLog, onPerfil, onOverride }) {
+  const semanas = plan.semanas;
   const wd = semanas.find(w => w.id === week);
   const sd = wd?.sesiones.find(s => s.num === session);
   const lg = logs[`${week}_${session}`];
+  const override = !!lg?.override_dolor;
+  const { bloques, alertas } = useMemo(() => {
+    if (!sd) return { bloques: [], alertas: { amarillo: [], rojo: [] } };
+    const { reducciones } = evaluarSobrecarga(semanas, logs);
+    return aplicarAdaptaciones(personalizarBloques(plan, week, sd, calc), {
+      reduccion: reducciones[week],
+      dolor: dolorVigente(semanas, logs, week, session, perfil),
+      regleta: regletaPrevia(semanas, logs, week, session),
+      calc,
+      override,
+    });
+  }, [plan, semanas, week, session, sd, calc, logs, perfil, override]);
+  const fuenteDolor = f => (f === "perfil" ? "tu perfil" : `el registro de ${f.replace("_", "·S")}`);
   const tc = TIPO_COLOR[sd?.type?.toLowerCase()] || C.accent;
 
   // Lógica de recomendación de movilidad
@@ -427,6 +549,40 @@ function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange
         </div>
       </div>
 
+      {/* Adaptaciones (Fase 2) */}
+      {alertas.naranja && (
+        <div style={{ background: C.orangeA, border: `1px solid ${C.orange}55`, borderRadius: 9,
+          padding: "10px 12px", marginBottom: 10, color: C.orange, fontSize: 12,
+          lineHeight: 1.5, fontFamily: "Poppins" }}>{alertas.naranja}</div>
+      )}
+      {alertas.rojo.length > 0 && (
+        <div style={{ background: C.redA, border: `1px solid ${C.red}`, borderRadius: 9,
+          padding: "11px 12px", marginBottom: 10, fontFamily: "Poppins" }}>
+          {alertas.rojo.map(r => (
+            <div key={r.grupo} style={{ color: C.red, fontSize: 12, fontWeight: 700, lineHeight: 1.5, marginBottom: 4 }}>
+              🔴 Dolor nivel {r.nivel} en {r.zona}. Sesión suspendida para {r.grupo}. Consulta fisioterapia antes de continuar.
+              <div style={{ color: C.sub, fontSize: 10, fontWeight: 400 }}>Fuente: {fuenteDolor(r.fuente)}</div>
+            </div>
+          ))}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, cursor: "pointer",
+            color: override ? C.red : C.sub, fontSize: 11 }}>
+            <input type="checkbox" checked={override} onChange={e => onOverride(e.target.checked, alertas.rojo)}
+              style={{ accentColor: C.red }} />
+            Continuar bajo mi responsabilidad {override && `· registrado ${new Date(lg.override_dolor.ts).toLocaleString("es-CO")}`}
+          </label>
+        </div>
+      )}
+      {alertas.amarillo.length > 0 && (
+        <div style={{ background: C.goldA, border: `1px solid ${C.gold}55`, borderRadius: 9,
+          padding: "10px 12px", marginBottom: 10, fontFamily: "Poppins" }}>
+          {alertas.amarillo.map(a => (
+            <div key={a.grupo} style={{ color: C.gold, fontSize: 12, lineHeight: 1.5, marginBottom: 3 }}>
+              🟡 Dolor nivel 3 en {a.zona} ({fuenteDolor(a.fuente)}): {SUGERENCIA_AMARILLO[a.grupo]}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Advertencia y nota */}
       {sd.warn && (
         <div style={{ background: C.redA, border: `1px solid ${C.red}33`, borderRadius: 9,
@@ -439,14 +595,22 @@ function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange
           lineHeight: 1.5, fontFamily: "Poppins" }}>{sd.note}</div>
       )}
 
+      {!calc && (
+        <div onClick={onPerfil} style={{ background: C.tealA, border: `1px solid ${C.teal}44`, borderRadius: 9,
+          padding: "10px 12px", marginBottom: 10, color: C.teal, fontSize: 12, lineHeight: 1.5,
+          fontFamily: "Poppins", cursor: "pointer" }}>
+          👤 Completa tu perfil para ver cargas en kg y grados calculados para ti →
+        </div>
+      )}
+
       {/* Bloques */}
-      {sd.blocks?.length > 0 && (
+      {bloques.length > 0 && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ color: C.sub, fontSize: 10, fontWeight: 800, letterSpacing: 0.8,
             textTransform: "uppercase", marginBottom: 8, fontFamily: "Poppins" }}>
             Bloques de la sesión
           </div>
-          {sd.blocks.map((b, i) => <Block key={i} b={b} />)}
+          {bloques.map((b, i) => <Block key={`${week}_${session}_${i}`} b={b} />)}
         </div>
       )}
 
@@ -484,13 +648,13 @@ function SesionTab({ semanas, week, session, logs, onWeekChange, onSessionChange
 const PRUEBAS_TEST = [
   { id: 'barras_lastre_kg',         label: 'T2 · Barras con máximo lastre',     unidad: 'kg',  desc: '1RM dominada con lastre adicional' },
   { id: 'suspensiones_20mm_kg',     label: 'T4 · Suspensiones en regleta 20mm', unidad: 'kg',  desc: 'Isométrica 5 seg con máximo lastre' },
-  { id: 'repeticiones_regleta_rep', label: 'T5 · Repeticiones en regleta',      unidad: 'rep', desc: 'Máximo de repeticiones al fallo' },
+  { id: 'repeticiones_regleta_rep', label: 'T5 · Máximo dominadas seguidas',    unidad: 'rep', desc: 'Sin lastre · sin balanceo ni rebote' },
   { id: 'resistencia_continua_seg', label: 'T6 · Resistencia continua',         unidad: 'seg', desc: 'Suspensión isométrica máxima' },
   { id: 'campus_movimientos',       label: 'T7 · Campus movimientos',            unidad: 'mov', desc: 'Total de movimientos en tabla campus' },
-  { id: 'grado_critico_un',         label: 'T9 · Grado crítico',                unidad: 'un',  desc: 'Grado de vía encadenado al 70%' },
+  { id: 'grado_critico_un',         label: 'T9 · Abdominales en suspensión',    unidad: 'rep', desc: 'Piernas rectas hasta las manos · con control' },
   { id: 'powerslab_d_cm',           label: 'Powerslab Derecho',                 unidad: 'cm',  desc: 'Alcance máximo brazo derecho' },
   { id: 'powerslab_i_cm',           label: 'Powerslab Izquierdo',               unidad: 'cm',  desc: 'Alcance máximo brazo izquierdo' },
-  { id: 'circuito_min',             label: 'Circuito estándar',                 unidad: 'min', desc: 'Tiempo de completación del circuito' },
+  { id: 'circuito_min',             label: 'Circuito estándar',                 unidad: 'mov', desc: 'Movimientos completados en 1 intento' },
 ];
 const SEM_TEST = [
   { v: 'verde',    label: 'Óptimo',     bg: '#052010', border: '#22c55e60', color: '#22c55e' },
@@ -499,15 +663,18 @@ const SEM_TEST = [
 ];
 
 // ─── REGISTRO TAB ─────────────────────────────────────────
-function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSesiones }) {
+function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSesiones, perfil }) {
   const ZONES = ["Dedos D", "Dedos I", "Codo D", "Codo I", "Hombro D", "Hombro I", "Espalda"];
   const logKey = `${week}_${session}`;
   const wd = semanas.find(w => w.id === week);
   const sd = wd?.sesiones.find(s => s.num === session);
 
   // Detectar si es sesión de test
+  // S0: sesión 1 · S12: la sesión "TEST DE SALIDA" (sesión 2 en T1 Avanzado).
+  // El formulario se muestra siempre; el envío al backend solo si hay sesión de test en el grupo.
   const testSesion = testSesiones?.find(t => t.semanaCode === week) || null;
-  const esTest = testSesion !== null && session === 1;
+  const esTest = esSesionTest(week, sd, wd);
+  const esSalida = esTest && week === "S12";
 
   const initDraft = {
     pse: "", notas: "", regleta: "", tiempo: "", completed: false,
@@ -517,15 +684,26 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSe
   const [draft, setDraft] = useState(initDraft);
   const [saved, setSaved] = useState("");
   const [testError, setTestError] = useState('');
+  const [aviso, setAviso] = useState('');
 
   useEffect(() => {
     const stored = logs[logKey];
     setDraft(stored ? { ...initDraft, ...stored } : initDraft);
+    setAviso('');
   }, [logKey]);
 
   const save = async () => {
-    const entry = { ...draft, date: new Date().toLocaleDateString("es-CO"), week, session };
+    const entry = {
+      ...draft, date: new Date().toLocaleDateString("es-CO"), ts: new Date().toISOString(), week, session,
+      pse_objetivo: sd?.pse ?? null,
+      sobrecarga: esSobrecarga(draft.pse, sd?.pse),
+    };
     const all = { ...logs, [logKey]: entry };
+    const antes = evaluarSobrecarga(semanas, logs).reducciones;
+    const nueva = Object.entries(evaluarSobrecarga(semanas, all).reducciones).find(([w]) => !antes[w]);
+    setAviso(nueva
+      ? `⚠️ Segunda sesión seguida con PSE ≥2 sobre el objetivo: el volumen de ${nueva[0]} se reduce un 20%.`
+      : entry.sobrecarga ? `PSE ${draft.pse} supera en 2 o más el objetivo (${sd.pse}). Si se repite en la próxima sesión, se reducirá el volumen de la semana siguiente.` : "");
     setLogs(all);
     setTestError('');
     try { localStorage.setItem(storageKey, JSON.stringify(all)); } catch {}
@@ -627,7 +805,7 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSe
         </div>
       </div>
 
-      {/* Resultados del test — solo en semanas S0/S12 sesión 1 */}
+      {/* Resultados del test — S0 (línea base) y S12 (salida, comparada con S0) */}
       {esTest && (
         <div style={{ background: '#130e00', border: '1px solid #f59e0b30', borderRadius: 11, padding: "12px", marginBottom: 9 }}>
           <div style={{ color: '#f59e0b', fontSize: 10, fontWeight: 700, textTransform: "uppercase",
@@ -636,6 +814,7 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSe
           </div>
           <div style={{ color: C.sub, fontSize: 10, fontFamily: "Poppins", marginBottom: 10 }}>
             Ingresa los valores que obtuviste. Deja en blanco los que no realizaste.
+            {esSalida && " Cada resultado se compara con tu línea base S0 del perfil."}
           </div>
           {PRUEBAS_TEST.map(p => (
             <div key={p.id} style={{ background: C.cardAlt, borderRadius: 8, padding: "9px 10px", marginBottom: 7 }}>
@@ -656,6 +835,22 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSe
                   <span style={{ color: C.muted, fontSize: 10, fontFamily: "Poppins", width: 24 }}>{p.unidad}</span>
                 </div>
               </div>
+              {esSalida && (() => {
+                const obj = objetivoSalida(p.id, perfil);
+                const ev = evaluarSalida(p.id, draft[`t_${p.id}`], perfil);
+                if (!obj) return null;
+                const col = ev?.cumple === true ? C.green : ev?.cumple === false ? C.red : C.sub;
+                return (
+                  <div style={{ marginTop: 5, fontSize: 10, lineHeight: 1.5, fontFamily: "Poppins" }}>
+                    <div style={{ color: C.sub }}>{obj.texto}</div>
+                    {ev && (
+                      <div style={{ color: col, fontWeight: 700 }}>
+                        {ev.cumple === true ? "✓ Cumplido · " : ev.cumple === false ? "✕ No cumplido · " : ""}{ev.texto}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {draft[`t_${p.id}`] !== '' && (
                 <div style={{ display: "flex", gap: 5, marginTop: 6 }}>
                   {SEM_TEST.map(s => (
@@ -735,9 +930,14 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSe
       <button onClick={save}
         style={{ width: "100%", background: C.accent, border: "none", borderRadius: 10,
           padding: "12px", cursor: "pointer", color: "#121212", fontSize: 14,
-          fontWeight: 700, marginBottom: 20, fontFamily: "Poppins" }}>
+          fontWeight: 700, marginBottom: aviso ? 10 : 20, fontFamily: "Poppins" }}>
         {saved || "Guardar registro"}
       </button>
+      {aviso && (
+        <div style={{ background: C.orangeA, border: `1px solid ${C.orange}55`, borderRadius: 9,
+          padding: "10px 12px", marginBottom: 20, color: C.orange, fontSize: 12,
+          lineHeight: 1.5, fontFamily: "Poppins" }}>{aviso}</div>
+      )}
 
       {/* Historial */}
       {history.length > 0 && (
@@ -773,6 +973,366 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSe
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── PROGRESIÓN (dashboard) ───────────────────────────────
+const NIVEL_DOLOR = v => (v >= 4 ? { bg: C.redA, bd: C.red, c: C.red }
+  : v === 3 ? { bg: C.goldA, bd: C.gold, c: C.gold }
+  : v > 0 ? { bg: C.greenA, bd: `${C.green}55`, c: C.green }
+  : { bg: C.cardAlt, bd: "transparent", c: C.muted });
+
+function TooltipBox({ active, payload, render }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px",
+      fontSize: 11, color: C.text, fontFamily: "Poppins", lineHeight: 1.5, maxWidth: 220 }}>
+      {render(payload[0].payload)}
+    </div>
+  );
+}
+
+function PuntoPse({ cx, cy, payload }) {
+  if (cx == null || cy == null) return null;
+  return payload.sobrecarga
+    ? <g><circle cx={cx} cy={cy} r={6} fill={C.red} stroke={C.card} strokeWidth={2} />
+        <text x={cx} y={cy - 10} textAnchor="middle" fontSize={10} fill={C.red}>▲</text></g>
+    : <circle cx={cx} cy={cy} r={4} fill={C.teal} stroke={C.card} strokeWidth={2} />;
+}
+
+function ProgresionView({ plan, logs, perfil }) {
+  const [tabla, setTabla] = useState(false);
+  const pse = useMemo(() => seriePse(plan.semanas, logs), [plan, logs]);
+  const dolor = useMemo(() => mapaDolor(plan.semanas, logs), [plan, logs]);
+  const hang = useMemo(() => serieHangboard(plan.semanas, logs), [plan, logs]);
+  const sobrecargas = pse.filter(p => p.sobrecarga).length;
+
+  const card = { background: C.card, borderRadius: 11, padding: "12px", marginBottom: 10 };
+  const titulo = { color: C.sub, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+    letterSpacing: 0.5, marginBottom: 4, fontFamily: "Poppins" };
+  const sub = { color: C.muted, fontSize: 10, marginBottom: 10, fontFamily: "Poppins" };
+  const eje = { fill: C.sub, fontSize: 10, fontFamily: "Poppins" };
+  const vacio = txt => <div style={{ color: C.muted, fontSize: 12, padding: "18px 0", textAlign: "center", fontFamily: "Poppins" }}>{txt}</div>;
+  const nombreArchivo = ext => `${plan.trimestre}_${plan.nivel}_${(plan.nombre || "escalador").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.${ext}`;
+  const btnExport = { flex: 1, background: C.accentA, border: `1px solid ${C.accent}`, borderRadius: 9, padding: "10px",
+    cursor: "pointer", color: C.accent, fontSize: 12, fontWeight: 700, fontFamily: "Poppins" };
+
+  return (
+    <div>
+      {/* PSE real vs objetivo */}
+      <div style={card}>
+        <div style={{ display: "flex", alignItems: "baseline" }}>
+          <div style={{ ...titulo, flex: 1 }}>PSE por sesión</div>
+          {pse.length > 0 && (
+            <button onClick={() => setTabla(t => !t)} style={{ background: "none", border: "none", color: C.sub,
+              fontSize: 10, cursor: "pointer", fontFamily: "Poppins", textDecoration: "underline" }}>
+              {tabla ? "Ver gráfico" : "Ver tabla"}
+            </button>
+          )}
+        </div>
+        <div style={sub}>
+          {pse.length} sesiones registradas{sobrecargas > 0 && ` · ${sobrecargas} con sobrecarga (▲ PSE real ≥2 sobre el objetivo)`}
+        </div>
+        {pse.length === 0 ? vacio("Registra tu PSE al final de cada sesión para ver la curva.") : tabla ? (
+          <div style={{ fontSize: 11, fontFamily: "Poppins" }}>
+            {pse.map(p => (
+              <div key={p.key} style={{ display: "flex", gap: 8, padding: "4px 0", borderTop: `1px solid ${C.border}` }}>
+                <span style={{ color: C.sub, width: 56 }}>{p.label}</span>
+                <span style={{ color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</span>
+                <span style={{ color: C.text }}>{p.real}</span>
+                <span style={{ color: C.muted }}>/ {p.objetivo ?? "—"}</span>
+                <span style={{ width: 14, color: C.red }}>{p.sobrecarga ? "▲" : ""}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={pse} margin={{ top: 14, right: 8, left: -22, bottom: 0 }}>
+              <CartesianGrid stroke={C.border} strokeDasharray="2 4" vertical={false} />
+              <XAxis dataKey="label" tick={eje} tickLine={false} axisLine={{ stroke: C.border }} interval="preserveStartEnd" minTickGap={12} />
+              <YAxis domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} tick={eje} tickLine={false} axisLine={false} />
+              <Tooltip cursor={{ stroke: C.muted, strokeWidth: 1 }} content={<TooltipBox render={d => (
+                <>
+                  <div style={{ fontWeight: 700 }}>{d.label} · {d.nombre}</div>
+                  <div>PSE real: <b>{d.real}</b> · objetivo: {d.objetivo ?? "—"}</div>
+                  {d.sobrecarga && <div style={{ color: C.red }}>▲ Sobrecarga</div>}
+                </>
+              )} />} />
+              <Legend verticalAlign="top" height={22} iconType="plainline"
+                formatter={v => <span style={{ color: C.sub, fontSize: 10, fontFamily: "Poppins" }}>{v}</span>} />
+              <Line name="Objetivo" dataKey="objetivo" type="stepAfter" stroke={C.sub} strokeWidth={2}
+                strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} />
+              <Line name="PSE real" dataKey="real" type="linear" stroke={C.teal} strokeWidth={2}
+                dot={<PuntoPse />} activeDot={{ r: 6 }} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Mapa de calor de dolor */}
+      <div style={card}>
+        <div style={titulo}>🚦 Dolor por zona y semana</div>
+        <div style={sub}>Máximo registrado en la semana · 0–2 continúa · 3 reduce · 4+ para y fisio</div>
+        {dolor.length === 0 ? vacio("Aún no hay semanas registradas.") : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "separate", borderSpacing: 3, fontFamily: "Poppins", fontSize: 11 }}>
+              <thead>
+                <tr>
+                  <th />
+                  {dolor.map(d => <th key={d.semana} style={{ color: C.sub, fontWeight: 600, fontSize: 10, padding: "0 2px" }}>{d.semana}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {ZONAS.map(z => (
+                  <tr key={z.key}>
+                    <td style={{ color: C.sub, fontSize: 10, paddingRight: 6, whiteSpace: "nowrap" }}>{z.label}</td>
+                    {dolor.map(d => {
+                      const v = d.zonas[z.key];
+                      const st = NIVEL_DOLOR(v);
+                      return (
+                        <td key={d.semana} title={`${z.label} · ${d.semana}: nivel ${v}`}
+                          style={{ width: 30, height: 26, textAlign: "center", borderRadius: 5, background: st.bg,
+                            border: `1px solid ${st.bd}`, color: v >= 3 ? st.c : C.sub, fontWeight: v >= 3 ? 800 : 400 }}>
+                          {v}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Hangboard */}
+      <div style={card}>
+        <div style={titulo}>🤚 Tiempo aguantado en hangboard</div>
+        <div style={sub}>Banda verde: zona objetivo 6–8 seg. El tooltip muestra la regleta usada.</div>
+        {hang.length < 2 ? vacio("Anota regleta y tiempo en al menos 2 sesiones para ver la tendencia.") : (
+          <ResponsiveContainer width="100%" height={170}>
+            <LineChart data={hang} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
+              <CartesianGrid stroke={C.border} strokeDasharray="2 4" vertical={false} />
+              <ReferenceArea y1={6} y2={8} fill={C.green} fillOpacity={0.08} stroke="none" />
+              <XAxis dataKey="label" tick={eje} tickLine={false} axisLine={{ stroke: C.border }} interval="preserveStartEnd" minTickGap={12} />
+              <YAxis tick={eje} tickLine={false} axisLine={false} unit="s" domain={[0, dataMax => Math.max(12, Math.ceil(dataMax + 1))]} />
+              <Tooltip cursor={{ stroke: C.muted, strokeWidth: 1 }} content={<TooltipBox render={d => (
+                <>
+                  <div style={{ fontWeight: 700 }}>{d.label}</div>
+                  <div>{d.tiempo} seg{d.regleta ? ` en ${d.regleta} mm` : ""}</div>
+                  <div style={{ color: d.tiempo > 8 ? C.gold : d.tiempo < 6 ? C.orange : C.green }}>
+                    {d.tiempo > 8 ? "Regleta grande → bajar" : d.tiempo < 6 ? "Regleta pequeña → subir" : "En zona objetivo"}
+                  </div>
+                </>
+              )} />} />
+              <Line dataKey="tiempo" stroke={C.teal} strokeWidth={2} dot={{ r: 4, fill: C.teal, stroke: C.card, strokeWidth: 2 }}
+                activeDot={{ r: 6 }} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Exportación */}
+      <div style={card}>
+        <div style={titulo}>📤 Exportar trimestre</div>
+        <div style={sub}>Todos tus registros, perfil y comparativa S0 vs S12 para compartir con tu entrenador.</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button style={btnExport}
+            onClick={() => descargar(nombreArchivo("csv"), "﻿" + exportarCSV(plan.semanas, logs, PRUEBAS_TEST), "text/csv;charset=utf-8")}>
+            CSV (Excel)
+          </button>
+          <button style={btnExport}
+            onClick={() => descargar(nombreArchivo("json"), exportarJSON({ plan, perfil, logs, pruebas: PRUEBAS_TEST }), "application/json")}>
+            JSON
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PERFIL TAB ───────────────────────────────────────────
+const CAMPOS_TEST = [
+  ["t2", "T2 · Tracción máx. con lastre", "kg extra"],
+  ["t4", "T4 · Suspensión 5 seg 20 mm", "kg extra"],
+  ["t5", "T5 · Máximo dominadas", "rep"],
+  ["t6", "T6 · Suspensión máx. sin lastre", "seg"],
+  ["t7", "T7 · Campus máx. movimientos", "mov"],
+  ["t9", "T9 · Abdominales en suspensión", "rep"],
+  ["powerslabD", "Powerslab mano D", "cm"],
+  ["powerslabI", "Powerslab mano I", "cm"],
+  ["circuito", "Circuito estándar", "mov"],
+];
+const CAMPOS_NUM = ["peso", "edad", "anosCampus", ...CAMPOS_TEST.map(([k]) => k)];
+const REQ = new Set(["peso", "edad", "t2", "t4", "gradoMaxVista"]);
+
+function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
+  const [draft, setDraft] = useState(() => {
+    const base = perfil || { ...PERFIL_VACIO, nombre: nombre || "", ...perfilDesdeTestS0(logs) };
+    return Object.fromEntries(Object.entries(base).map(([k, v]) =>
+      [k, CAMPOS_NUM.includes(k) && v !== "" && v != null ? String(v) : v]));
+  });
+  const [msg, setMsg] = useState("");
+  const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+  const desdeS0 = perfilDesdeTestS0(logs);
+  const hayS0 = Object.keys(desdeS0).length > 0;
+
+  const normalizado = useMemo(() => ({
+    ...draft,
+    ...Object.fromEntries(CAMPOS_NUM.map(k => [k, draft[k] === "" || draft[k] == null ? "" : Number(draft[k])])),
+  }), [draft]);
+  const faltan = camposFaltantes(normalizado);
+  const calc = faltan.length === 0 ? calcularParametros(normalizado) : null;
+
+  const guardar = () => {
+    if (faltan.length) { setMsg(`Falta: ${faltan.join(", ")}`); return; }
+    try { onSave(normalizado); setMsg("✓ Perfil guardado"); }
+    catch { setMsg("Error al guardar"); }
+    setTimeout(() => setMsg(""), 2500);
+  };
+
+  const card = { background: C.card, borderRadius: 11, padding: "12px", marginBottom: 9 };
+  const titulo = { color: C.sub, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+    letterSpacing: 0.5, marginBottom: 8, fontFamily: "Poppins" };
+  const input = { width: "100%", background: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 7,
+    padding: "7px 9px", color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "Poppins" };
+  const campo = (k, label, unidad, type = "number") => (
+    <div>
+      <div style={{ color: C.sub, fontSize: 10, marginBottom: 4, fontFamily: "Poppins" }}>
+        {label}{REQ.has(k) && <span style={{ color: C.accent }}> *</span>}
+        {unidad && <span style={{ color: C.muted }}> · {unidad}</span>}
+      </div>
+      <input type={type} inputMode={type === "number" ? "decimal" : undefined} step="any"
+        value={draft[k] ?? ""} onChange={e => set(k, e.target.value)} style={input} />
+    </div>
+  );
+  const grado = (k, label, escala) => (
+    <div>
+      <div style={{ color: C.sub, fontSize: 10, marginBottom: 4, fontFamily: "Poppins" }}>
+        {label}{REQ.has(k) && <span style={{ color: C.accent }}> *</span>}
+      </div>
+      <select value={draft[k] || ""} onChange={e => set(k, e.target.value)} style={input}>
+        <option value="">—</option>
+        {escala.map(g => <option key={g} value={g}>{g}</option>)}
+      </select>
+    </div>
+  );
+  const grid = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 };
+
+  return (
+    <div>
+      {onboarding && (
+        <div style={{ background: C.accentA, border: `1px solid ${C.accent}44`, borderRadius: 12,
+          padding: "13px 14px", marginBottom: 12 }}>
+          <div style={{ color: C.accent, fontSize: 14, fontWeight: 700, fontFamily: "Antonio", marginBottom: 4 }}>
+            Configura tu perfil para empezar
+          </div>
+          <div style={{ color: C.sub, fontSize: 12, lineHeight: 1.5, fontFamily: "Poppins" }}>
+            Con tu peso, edad, resultados de test y grado máximo, la app calcula tus cargas en kg,
+            los grados de cada bloque y las sustituciones según tu estado. Los campos con
+            <span style={{ color: C.accent }}> *</span> son obligatorios.
+          </div>
+        </div>
+      )}
+
+      <div style={card}>
+        <div style={titulo}>Datos personales</div>
+        <div style={grid}>
+          <div style={{ gridColumn: "1 / -1" }}>{campo("nombre", "Nombre", null, "text")}</div>
+          {campo("peso", "Peso", "kg")}
+          {campo("edad", "Edad", "años")}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ color: C.sub, fontSize: 10, marginBottom: 4, fontFamily: "Poppins" }}>Género</div>
+            <select value={draft.genero || ""} onChange={e => set("genero", e.target.value)} style={input}>
+              <option value="">—</option>
+              <option value="mujer">Mujer</option>
+              <option value="hombre">Hombre</option>
+              <option value="otro">Otro / prefiero no decir</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ ...titulo, marginBottom: 0, flex: 1 }}>Resultados de test S0 (línea base)</div>
+          {hayS0 && (
+            <button onClick={() => setDraft(d => ({ ...d, ...Object.fromEntries(Object.entries(desdeS0).map(([k, v]) => [k, String(v)])) }))}
+              style={{ background: "transparent", border: `1px solid ${C.teal}66`, borderRadius: 6,
+                padding: "3px 8px", color: C.teal, fontSize: 10, cursor: "pointer", fontFamily: "Poppins" }}>
+              ↺ Usar mi registro S0
+            </button>
+          )}
+        </div>
+        <div style={grid}>
+          {CAMPOS_TEST.map(([k, label, u]) => <div key={k}>{campo(k, label, u)}</div>)}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={titulo}>Capacidades</div>
+        <div style={grid}>
+          {grado("gradoMaxVista", "Grado máx. a vista", ESCALA_VIA)}
+          {grado("gradoMaxBloque", "Grado máx. bloque", ESCALA_BLOQUE)}
+          {campo("anosCampus", "Experiencia en campus", "años")}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={titulo}>🚦 Dolor activo por zona (0–4)</div>
+        <div style={grid}>
+          {ZONAS.map(z => {
+            const cur = Number(draft.lesionesActivas?.[z.key] ?? 0);
+            return (
+              <div key={z.key} style={{ background: C.cardAlt, borderRadius: 8, padding: "7px 9px" }}>
+                <div style={{ color: C.sub, fontSize: 10, marginBottom: 5, fontFamily: "Poppins" }}>{z.label}</div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {[0, 1, 2, 3, 4].map(v => (
+                    <button key={v} onClick={() => set("lesionesActivas", { ...draft.lesionesActivas, [z.key]: v })}
+                      style={{ width: 22, height: 22, borderRadius: 5, cursor: "pointer", fontWeight: 700, fontSize: 10,
+                        fontFamily: "Poppins",
+                        background: cur === v ? (v === 0 ? C.greenA : v <= 2 ? C.accentA : C.redA) : C.border,
+                        border: `1px solid ${cur === v ? (v === 0 ? C.green : v <= 2 ? C.accent : C.red) : "transparent"}`,
+                        color: cur === v ? (v === 0 ? C.green : v <= 2 ? C.accent : C.red) : C.sub }}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {calc && (
+        <div style={{ ...card, border: `1px solid ${C.teal}44` }}>
+          <div style={{ ...titulo, color: C.teal }}>Tus parámetros calculados</div>
+          {[
+            ["Tracción con lastre", calc.lastreTraccion && `${fmtRangoKg(calc.lastreTraccion.min, calc.lastreTraccion.max)} (80–85% de T2)`],
+            ["Excéntrico S6–S8", calc.lastreExcentrico && `${fmtRangoKg(calc.lastreExcentrico.min, calc.lastreExcentrico.max)} (${calc.lastreExcentrico.pct.join("–")}% de T2${calc.protocoloMayor40 ? " · protocolo +40" : ""})`],
+            ["Continuidad", calc.gradoContinuidad],
+            ["Técnica / recuperación", calc.gradoTecnica],
+            ["Capilarización", calc.gradoCapilarizacion],
+            ["Boulder 85% / 90%", calc.gradoBoulder85 && `${calc.gradoBoulder85} / ${calc.gradoBoulder90}`],
+            ["Campus", calc.campusApto ? "✓ Apto" : "✕ No apto → fuerza de contacto en muro"],
+          ].filter(([, v]) => v).map(([k, v]) => (
+            <div key={k} style={{ display: "flex", gap: 8, padding: "5px 0", borderTop: `1px solid ${C.border}` }}>
+              <span style={{ color: C.sub, fontSize: 10, fontWeight: 700, minWidth: 120, textTransform: "uppercase",
+                letterSpacing: 0.4, paddingTop: 2, fontFamily: "Poppins" }}>{k}</span>
+              <span style={{ color: C.text, fontSize: 12, flex: 1, fontFamily: "Poppins" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button onClick={guardar}
+        style={{ width: "100%", background: faltan.length ? C.cardAlt : C.accent,
+          border: faltan.length ? `1px solid ${C.border}` : "none", borderRadius: 10, padding: "12px",
+          cursor: "pointer", color: faltan.length ? C.sub : "#121212", fontSize: 14, fontWeight: 700,
+          marginBottom: 20, fontFamily: "Poppins" }}>
+        {msg || (faltan.length ? `Falta: ${faltan.join(", ")}` : onboarding ? "Guardar y empezar" : "Guardar perfil")}
+      </button>
     </div>
   );
 }
@@ -856,6 +1416,7 @@ const TABS = [
   { id: "sesion",    label: "💪 Sesión"    },
   { id: "registro",  label: "✏️ Registro"  },
   { id: "movilidad", label: "🧘 Movilidad" },
+  { id: "perfil",    label: "👤 Perfil"    },
 ];
 
 export default function PlanTrackerPage() {
@@ -867,8 +1428,26 @@ export default function PlanTrackerPage() {
   const [week, setWeek]       = useState(null);
   const [session, setSession] = useState(1);
   const [logs, setLogs]       = useState({});
+  const [perfil, setPerfil]   = useState(() => (user?.id ? cargarPerfil(user.id) : null));
+  const [vistaRegistro, setVistaRegistro] = useState("registrar");
 
   const storageKey = `plan_logs_${user?.id}`;
+  const calc = useMemo(() => (perfilCompleto(perfil) ? calcularParametros(perfil) : null), [perfil]);
+
+  useEffect(() => { if (user?.id) setPerfil(cargarPerfil(user.id)); }, [user?.id]);
+
+  const onSavePerfil = p => { guardarPerfil(user.id, p); setPerfil(cargarPerfil(user.id)); };
+
+  // Override del semáforo rojo: queda registrado en el log de la sesión
+  const onOverride = (activo, rojos) => {
+    const key = `${week}_${session}`;
+    const entry = { ...logs[key], week, session };
+    if (activo) entry.override_dolor = { ts: new Date().toISOString(), zonas: rojos.map(r => ({ zona: r.zona, nivel: r.nivel })) };
+    else delete entry.override_dolor;
+    const all = { ...logs, [key]: entry };
+    setLogs(all);
+    try { localStorage.setItem(storageKey, JSON.stringify(all)); } catch {}
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -909,6 +1488,7 @@ export default function PlanTrackerPage() {
 
   const nivelLabel  = { iniciacion: "Principiante", intermedio: "Intermedio", avanzado: "Avanzado" }[plan.nivel] || plan.nivel;
   const nivelColor  = NIVEL_COLOR[plan.nivel] || C.accent;
+  const onboarding  = !perfilCompleto(perfil);
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto" }}>
@@ -929,7 +1509,12 @@ export default function PlanTrackerPage() {
         </p>
       </div>
 
+      {onboarding && (
+        <PerfilTab perfil={perfil} logs={logs} nombre={user?.escalador?.nombre} onboarding onSave={onSavePerfil} />
+      )}
+
       {/* Tabs */}
+      {!onboarding && <>
       <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -949,16 +1534,38 @@ export default function PlanTrackerPage() {
         <PlanTab semanas={plan.semanas} logs={logs} onSelect={goToSession} curWeek={week} />
       )}
       {tab === "sesion" && week && (
-        <SesionTab semanas={plan.semanas} week={week} session={session} logs={logs}
-          onWeekChange={setWeek} onSessionChange={setSession} onLog={() => setTab("registro")} />
+        <SesionTab plan={plan} week={week} session={session} logs={logs} calc={calc} perfil={perfil}
+          onWeekChange={setWeek} onSessionChange={setSession} onLog={() => setTab("registro")}
+          onPerfil={() => setTab("perfil")} onOverride={onOverride} />
       )}
       {tab === "registro" && week && (
-        <RegistroTab week={week} session={session} semanas={plan.semanas}
-          logs={logs} setLogs={setLogs} storageKey={storageKey} testSesiones={plan.testSesiones} />
+        <>
+          <div style={{ display: "flex", gap: 4, background: C.card, borderRadius: 9, padding: 3, marginBottom: 12 }}>
+            {[["registrar", "✏️ Registrar sesión"], ["progresion", "📈 Progresión"]].map(([id, label]) => (
+              <button key={id} onClick={() => setVistaRegistro(id)}
+                style={{ flex: 1, background: vistaRegistro === id ? C.accentA : "transparent",
+                  border: `1px solid ${vistaRegistro === id ? C.accent : "transparent"}`, borderRadius: 7,
+                  padding: "7px", cursor: "pointer", color: vistaRegistro === id ? C.accent : C.sub,
+                  fontSize: 12, fontWeight: vistaRegistro === id ? 700 : 400, fontFamily: "Poppins" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {vistaRegistro === "registrar" ? (
+            <RegistroTab week={week} session={session} semanas={plan.semanas} perfil={perfil}
+              logs={logs} setLogs={setLogs} storageKey={storageKey} testSesiones={plan.testSesiones} />
+          ) : (
+            <ProgresionView plan={plan} logs={logs} perfil={perfil} />
+          )}
+        </>
       )}
       {tab === "movilidad" && (
         <MovilidadTab nivel={plan.nivel} />
       )}
+      {tab === "perfil" && (
+        <PerfilTab key={perfil?.actualizado} perfil={perfil} logs={logs} nombre={user?.escalador?.nombre} onSave={onSavePerfil} />
+      )}
+      </>}
     </div>
   );
 }
