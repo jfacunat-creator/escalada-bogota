@@ -19,13 +19,13 @@ const horarioLabel = {
 const PRUEBAS_TEST = [
   { id: 'barras_lastre_kg',         label: 'T2 · Barras con máximo lastre',    unidad: 'kg',  desc: '1RM dominada con lastre adicional en barra' },
   { id: 'suspensiones_20mm_kg',     label: 'T4 · Suspensiones en regleta 20mm',unidad: 'kg',  desc: 'Máximo lastre en suspensión isométrica 20mm' },
-  { id: 'repeticiones_regleta_rep', label: 'T5 · Repeticiones en regleta',     unidad: 'rep', desc: 'Reps al fallo en regleta (yema de dedos)' },
+  { id: 'repeticiones_regleta_rep', label: 'T5 · Máximo dominadas seguidas',   unidad: 'rep', desc: 'Dominadas sin lastre, sin balanceo ni rebote' },
   { id: 'resistencia_continua_seg', label: 'T6 · Resistencia continua',        unidad: 'seg', desc: 'Tiempo máximo de suspensión continua en regleta' },
   { id: 'campus_movimientos',       label: 'T7 · Campus movimientos',           unidad: 'mov', desc: 'Total de movimientos en tabla campus' },
-  { id: 'grado_critico_un',         label: 'T9 · Grado crítico',               unidad: 'un',  desc: 'Grado de vía encadenado al 70% de intentos' },
+  { id: 'grado_critico_un',         label: 'T9 · Abdominales en suspensión',   unidad: 'rep', desc: 'Piernas rectas hasta las manos, con control' },
   { id: 'powerslab_d_cm',           label: 'Powerslab Derecho',                unidad: 'cm',  desc: 'Alcance máximo brazo derecho en Powerslab' },
   { id: 'powerslab_i_cm',           label: 'Powerslab Izquierdo',              unidad: 'cm',  desc: 'Alcance máximo brazo izquierdo en Powerslab' },
-  { id: 'circuito_min',             label: 'Circuito estándar',                unidad: 'min', desc: 'Tiempo de completación del circuito' },
+  { id: 'circuito_min',             label: 'Circuito estándar',                unidad: 'mov', desc: 'Movimientos completados en 1 intento' },
 ];
 
 const SEM_OPTIONS = [

@@ -12,13 +12,13 @@ const SEM_COLOR = { verde: '#22c55e', amarillo: '#f59e0b', rojo: '#ef4444' };
 const METRICAS_CFG = {
   barras_lastre_kg:          { label: 'Barras con máximo lastre',       sub: 'T2 · 1RM dominada con lastre',             color: '#D4AF37' },
   suspensiones_20mm_kg:      { label: 'Suspensiones 20mm + lastre',     sub: 'T4 · Isométrica en regleta 20mm',          color: '#f59e0b' },
-  repeticiones_regleta_rep:  { label: 'Repeticiones en regleta',        sub: 'T5 · Reps al fallo en regleta',            color: '#60a5fa' },
+  repeticiones_regleta_rep:  { label: 'Máximo dominadas',               sub: 'T5 · Dominadas seguidas sin lastre',       color: '#60a5fa' },
   resistencia_continua_seg:  { label: 'Resistencia continua',           sub: 'T6 · Suspensión isométrica máxima',        color: '#818cf8' },
   campus_movimientos:        { label: 'Campus movimientos',             sub: 'T7 · Movimientos totales en tabla campus', color: '#34d399' },
-  grado_critico_un:          { label: 'Grado crítico',                  sub: 'T9 · Grado máximo encadenado al 70%',     color: '#c084fc' },
+  grado_critico_un:          { label: 'Abdominales en suspensión',      sub: 'T9 · Reps con control',                    color: '#c084fc' },
   powerslab_d_cm:            { label: 'Powerslab Derecho',              sub: 'Alcance máximo brazo derecho',             color: '#f87171' },
   powerslab_i_cm:            { label: 'Powerslab Izquierdo',            sub: 'Alcance máximo brazo izquierdo',           color: '#fb923c' },
-  circuito_min:              { label: 'Circuito estándar',              sub: 'Tiempo de completación del circuito',      color: '#a3e635' },
+  circuito_min:              { label: 'Circuito estándar',              sub: 'Movimientos completados en 1 intento',     color: '#a3e635' },
 };
 
 function cfg(metrica) {
