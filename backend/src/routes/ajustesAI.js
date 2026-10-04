@@ -1,7 +1,9 @@
 /**
  * Ajustes del plan propuestos por la AI.
  *
+ *   POST /ajustes-ai/n8n/lote-semanal  → n8n pide las consultas de la actualización semanal (auth: X-Webhook-Secret)
  *   POST /ajustes-ai/n8n/resultado     → n8n devuelve la respuesta de Claude (auth: X-Webhook-Secret + firma)
+ *   GET  /ajustes-ai/semanal           → admin: vista previa de la próxima corrida y costo estimado
  *   GET  /ajustes-ai?estado=pendiente  → entrenador (sus escaladores) o admin (todos)
  *   POST /ajustes-ai/:id/aprobar       → { nota? }
  *   POST /ajustes-ai/:id/rechazar      → { nota? }
@@ -12,7 +14,9 @@ const crypto = require("crypto");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 const { puedeVerEscalador } = require("../utils/acceso");
-const { validarAjustes, guardarPropuestas, firmaValida, etiquetaFuente } = require("../utils/ajustesAI");
+const {
+  validarAjustes, guardarPropuestas, firmaValida, etiquetaFuente, seleccionarSemanal, construirCorrida, estimarCosto,
+} = require("../utils/ajustesAI");
 
 const router = express.Router();
 
@@ -21,6 +25,32 @@ function secretoValido(req) {
   const recibido = Buffer.from(String(req.headers["x-webhook-secret"] || ""));
   return esperado.length > 0 && esperado.length === recibido.length && crypto.timingSafeEqual(esperado, recibido);
 }
+
+// ─── POST /ajustes-ai/n8n/lote-semanal ───────────────────
+// La corrida queda registrada al entregarse: lo incluido no se vuelve a seleccionar.
+router.post("/n8n/lote-semanal", async (req, res) => {
+  if (!secretoValido(req)) return res.status(401).json({ error: "No autorizado" });
+  try {
+    const seleccion = await seleccionarSemanal();
+    const { loteId, tareas } = await construirCorrida(seleccion);
+    const marcas = [
+      ...seleccion.items.map(({ escaladorId, origen, evaluacionId, semanas, hasta }) => ({ escaladorId, origen, evaluacionId, semanas, hasta })),
+      // Semanas leídas sin novedades: también quedan marcadas para no releerlas.
+      ...seleccion.omitidos.filter(o => o.hasta).map(o => ({ escalador: o.escalador, origen: "sin_novedades", hasta: o.hasta })),
+    ];
+    if (tareas.length || marcas.length) {
+      await prisma.$executeRawUnsafe(
+        "INSERT INTO plan_ai_corrida (id, items, consultas, costo_est) VALUES ($1::uuid, $2::jsonb, $3, $4)",
+        loteId, JSON.stringify(marcas), tareas.length, estimarCosto(tareas)
+      );
+    }
+    console.log(`[ajustes-ai] corrida ${loteId}: ${tareas.length} consultas`);
+    res.json({ loteId, tareas, items: seleccion.items.map(i => ({ escalador: i.escalador, motivo: i.motivo })), omitidos: seleccion.omitidos });
+  } catch (err) {
+    console.error("[ajustes-ai] lote semanal:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── POST /ajustes-ai/n8n/resultado ──────────────────────
 router.post("/n8n/resultado", async (req, res) => {
@@ -53,6 +83,39 @@ router.post("/n8n/resultado", async (req, res) => {
 
 // ─── Revisión (entrenador / admin) ───────────────────────
 router.use(authenticate, authorize("entrenador", "admin"));
+
+router.get("/semanal", authorize("admin"), async (req, res) => {
+  try {
+    const seleccion = await seleccionarSemanal();
+    const { tareas } = await construirCorrida(seleccion);
+    const porEscalador = new Map();
+    for (const t of tareas) porEscalador.set(t.meta.escaladorId, (porEscalador.get(t.meta.escaladorId) || 0) + 1);
+    const corridas = await prisma.$queryRawUnsafe(
+      `SELECT c.id, c.created_at, c.consultas, c.costo_est,
+              COUNT(q.id)::int AS devueltas, COUNT(q.error)::int AS errores
+       FROM plan_ai_corrida c LEFT JOIN plan_ai_consulta q ON q.lote_id = c.id
+       GROUP BY c.id ORDER BY c.created_at DESC LIMIT 5`
+    );
+    const propuestas = await prisma.$queryRawUnsafe(
+      "SELECT lote_id, COUNT(*)::int AS n FROM plan_ai_ajuste WHERE lote_id = ANY($1::uuid[]) GROUP BY lote_id",
+      corridas.map(c => c.id)
+    );
+    const nProp = new Map(propuestas.map(p => [p.lote_id, p.n]));
+    res.json({
+      items: seleccion.items.map(i => ({ escalador: i.escalador, origen: i.origen, motivo: i.motivo, consultas: porEscalador.get(i.escaladorId) || 0 })),
+      omitidos: seleccion.omitidos.map(({ escalador, motivo }) => ({ escalador, motivo })),
+      consultas: tareas.length,
+      costoEstimado: estimarCosto(tareas),
+      corridas: corridas.map(c => ({
+        fecha: c.created_at, consultas: c.consultas, devueltas: c.devueltas, errores: c.errores,
+        costoEstimado: c.costo_est === null ? null : Number(c.costo_est), propuestas: nProp.get(c.id) || 0,
+      })),
+    });
+  } catch (err) {
+    console.error("[GET /ajustes-ai/semanal]", err.message);
+    res.status(500).json({ error: "No se pudo armar la vista previa" });
+  }
+});
 
 router.get("/", async (req, res) => {
   const estado = ["pendiente", "aprobado", "rechazado"].includes(req.query.estado) ? req.query.estado : "pendiente";

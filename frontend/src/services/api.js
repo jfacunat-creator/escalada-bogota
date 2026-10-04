@@ -63,6 +63,7 @@ class ApiService {
   getAjustesAI(estado = 'pendiente') { return this.request(`/ajustes-ai?estado=${encodeURIComponent(estado)}`); }
   aprobarAjusteAI(id, nota) { return this.request(`/ajustes-ai/${id}/aprobar`, { method: 'POST', body: JSON.stringify({ nota }) }); }
   rechazarAjusteAI(id, nota) { return this.request(`/ajustes-ai/${id}/rechazar`, { method: 'POST', body: JSON.stringify({ nota }) }); }
+  getActualizacionSemanal() { return this.request('/ajustes-ai/semanal'); }
   aprobarAjustesAI(ids) { return this.request('/ajustes-ai/aprobar', { method: 'POST', body: JSON.stringify({ ids }) }); }
   getPlanContenido(nivel) { return this.request(`/plan/contenido?nivel=${encodeURIComponent(nivel)}`); }
 

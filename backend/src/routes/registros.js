@@ -4,7 +4,7 @@
  *   GET  /registros?trimestre=T1                 → mis registros + mi perfil
  *   GET  /registros/escalador/:id?trimestre=T1   → los de un escalador (su entrenador o admin)
  *   PUT  /registros/perfil                        → guardar mi perfil
- *   PUT  /registros/:semana/:sesionNum            → guardar un registro (y avisar a n8n)
+ *   PUT  /registros/:semana/:sesionNum            → guardar un registro
  *   POST /registros/sincronizar                   → subir lo que haya en el navegador y recibir lo del servidor
  *
  * Conflictos: gana el registro más reciente según datos.ts (momento en que se guardó en el dispositivo).
@@ -13,7 +13,6 @@ const express = require("express");
 const prisma = require("../config/prisma");
 const { authenticate } = require("../middleware/auth");
 const { puedeVerEscalador } = require("../utils/acceso");
-const { notificarReporteSesion } = require("../utils/n8n");
 
 const router = express.Router();
 router.use(authenticate);
@@ -82,41 +81,6 @@ async function leerTodo(escaladorId, trimestre) {
   };
 }
 
-// Sesión siguiente en el orden del plan base del escalador (la que debe ajustar n8n).
-async function sesionSiguiente(escaladorId, trimestre, semana, sesionNum) {
-  const nivel = await prisma.$queryRawUnsafe(
-    `SELECT p.nivel FROM inscripcion i
-     JOIN grupo g ON g.id = i.grupo_id JOIN programa p ON p.id = g.programa_id
-     WHERE i.escalador_id = $1::uuid AND i.estado = 'activa'
-     ORDER BY i.created_at DESC LIMIT 1`,
-    escaladorId
-  );
-  if (!nivel.length) return null;
-  const plan = await prisma.$queryRawUnsafe(
-    "SELECT semanas FROM plan_contenido WHERE trimestre = $1 AND nivel = $2",
-    trimestre, nivel[0].nivel
-  );
-  const orden = (plan[0]?.semanas || []).flatMap(w => w.sesiones.map(s => ({ semana: w.id, sesionNum: s.num })));
-  const i = orden.findIndex(o => o.semana === semana && o.sesionNum === sesionNum);
-  return i >= 0 ? orden[i + 1] || null : null;
-}
-
-async function avisarN8n(escaladorId, trimestre, semana, sesionNum, datos) {
-  const pse = pseDe(datos);
-  if (pse === null || !process.env.N8N_WEBHOOK_URL) return;
-  const zonas = Object.fromEntries(
-    Object.entries(datos).filter(([k]) => k.startsWith("p_")).map(([k, v]) => [k.slice(2), Math.max(0, Math.min(4, Number(v) || 0))])
-  );
-  notificarReporteSesion({
-    escaladorId, trimestre, semana, sesionNum, pse,
-    pseObjetivo: datos.pse_objetivo == null ? null : Number(datos.pse_objetivo),
-    dolor: Math.max(0, ...Object.values(zonas)),
-    dolorZonas: zonas,
-    notas: String(datos.notas || "").slice(0, 2000),
-    siguiente: await sesionSiguiente(escaladorId, trimestre, semana, sesionNum),
-  });
-}
-
 // ─── GET /registros ──────────────────────────────────────
 router.get("/", async (req, res) => {
   if (!soloEscalador(req, res)) return;
@@ -173,8 +137,6 @@ router.put("/:semana/:sesionNum", async (req, res) => {
   const sesionNum = Number(m[2]);
   try {
     const guardado = await upsertRegistro(req.user.escalador.id, trimestre, req.params.semana, sesionNum, datos);
-    if (guardado) avisarN8n(req.user.escalador.id, trimestre, req.params.semana, sesionNum, datos)
-      .catch(err => console.error("[n8n ajuste]", err.message));
     res.json({ ok: true, guardado });
   } catch (err) {
     console.error("[PUT /registros]", err.message);

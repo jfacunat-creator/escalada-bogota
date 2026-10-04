@@ -648,3 +648,14 @@ model FuenteGuia {
   @@id([trimestre, nivel])
   @@map("fuente_guia")
 }
+
+/// Actualización semanal ejecutada por el admin (n8n pide el lote): lo procesado en cada corrida.
+model PlanAiCorrida {
+  id        String   @id @db.Uuid
+  items     Json
+  consultas Int
+  costoEst  Decimal? @map("costo_est") @db.Decimal(8, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("plan_ai_corrida")
+}
