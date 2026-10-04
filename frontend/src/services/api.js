@@ -54,7 +54,11 @@ class ApiService {
   // Plan de entrenamiento
   getMyPlan() { return this.request('/plan/my'); }
   getPlanAI(escaladorId, trimestre = 'T1') { return this.request(`/plan/ai/${escaladorId}?trimestre=${encodeURIComponent(trimestre)}`); }
-  reportarSesion(reporte) { return this.request('/plan/reporte', { method: 'POST', body: JSON.stringify(reporte) }); }
+  // Registros de sesión y perfil de entrenamiento (BD)
+  sincronizarRegistros(datos) { return this.request('/registros/sincronizar', { method: 'POST', body: JSON.stringify(datos) }); }
+  guardarRegistro(trimestre, semana, sesionNum, datos) { return this.request(`/registros/${semana}/${sesionNum}`, { method: 'PUT', body: JSON.stringify({ trimestre, datos }) }); }
+  guardarPerfilEntrenamiento(datos) { return this.request('/registros/perfil', { method: 'PUT', body: JSON.stringify({ datos }) }); }
+  getRegistrosEscalador(escaladorId, trimestre = 'T1') { return this.request(`/registros/escalador/${escaladorId}?trimestre=${encodeURIComponent(trimestre)}`); }
   getPlanContenido(nivel) { return this.request(`/plan/contenido?nivel=${encodeURIComponent(nivel)}`); }
 
   // Catálogos

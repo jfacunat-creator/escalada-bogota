@@ -669,7 +669,7 @@ const SEM_TEST = [
 ];
 
 // ─── REGISTRO TAB ─────────────────────────────────────────
-function RegistroTab({ week, session, semanas, trimestre, logs, setLogs, storageKey, testSesiones, perfil }) {
+function RegistroTab({ week, session, semanas, logs, onGuardar, testSesiones, perfil }) {
   const ZONES = ["Dedos D", "Dedos I", "Codo D", "Codo I", "Hombro D", "Hombro I", "Espalda"];
   const logKey = `${week}_${session}`;
   const wd = semanas.find(w => w.id === week);
@@ -705,22 +705,13 @@ function RegistroTab({ week, session, semanas, trimestre, logs, setLogs, storage
       sobrecarga: esSobrecarga(draft.pse, sd?.pse),
     };
     const all = { ...logs, [logKey]: entry };
-    if (draft.pse !== "") {
-      // n8n flujo 2 ajusta la sesión siguiente; si falla no afecta el registro local
-      api.reportarSesion({
-        trimestre, semana: week, sesionNum: session, pse: Number(draft.pse), pseObjetivo: sd?.pse ?? null,
-        dolor: Object.fromEntries(ZONAS.map(z => [z.key, Number(draft[`p_${z.label}`] || 0)])),
-        notas: draft.notas || "",
-      }).catch(() => {});
-    }
     const antes = evaluarSobrecarga(semanas, logs).reducciones;
     const nueva = Object.entries(evaluarSobrecarga(semanas, all).reducciones).find(([w]) => !antes[w]);
     setAviso(nueva
       ? `⚠️ Segunda sesión seguida con PSE ≥2 sobre el objetivo: el volumen de ${nueva[0]} se reduce un 20%.`
       : entry.sobrecarga ? `PSE ${draft.pse} supera en 2 o más el objetivo (${sd.pse}). Si se repite en la próxima sesión, se reducirá el volumen de la semana siguiente.` : "");
-    setLogs(all);
     setTestError('');
-    try { localStorage.setItem(storageKey, JSON.stringify(all)); } catch {}
+    const enServidor = await onGuardar(logKey, entry); // BD + copia local; el backend avisa a n8n
 
     // Si es sesión de test, enviar resultados al backend
     if (esTest && testSesion?.id) {
@@ -737,10 +728,10 @@ function RegistroTab({ week, session, semanas, trimestre, logs, setLogs, storage
           else { setTestError(e.error || 'Error al guardar test. Intenta de nuevo.'); setSaved(''); return; }
         }
       } else {
-        setSaved("✓ Guardado");
+        setSaved(enServidor ? "✓ Guardado" : "✓ Guardado en este dispositivo");
       }
     } else {
-      setSaved("✓ Guardado");
+      setSaved(enServidor ? "✓ Guardado" : "✓ Guardado en este dispositivo");
     }
     setTimeout(() => setSaved(""), 3000);
   };
@@ -1456,7 +1447,9 @@ export default function PlanTrackerPage() {
   const [perfil, setPerfil]   = useState(() => (user?.id ? cargarPerfil(user.id) : null));
   const [vistaRegistro, setVistaRegistro] = useState("registrar");
 
-  const storageKey = `plan_logs_${user?.id}`;
+  const [sync, setSync]       = useState("ok"); // "ok" | "local" (sin conexión con el servidor)
+  // Copia local por trimestre (respaldo si no hay conexión). La fuente de verdad es la BD.
+  const storageKey = plan ? `plan_logs_${user?.id}_${plan.trimestre}` : null;
   const calc = useMemo(() => (perfilCompleto(perfil) ? calcularParametros(perfil) : null), [perfil]);
 
   useEffect(() => { if (user?.id) setPerfil(cargarPerfil(user.id)); }, [user?.id]);
@@ -1477,34 +1470,70 @@ export default function PlanTrackerPage() {
       }
     }
     guardarPerfil(user.id, { ...p, nombre });
-    setPerfil(cargarPerfil(user.id));
+    const guardado = cargarPerfil(user.id);
+    setPerfil(guardado);
+    try { await api.guardarPerfilEntrenamiento(guardado); setSync("ok"); }
+    catch {
+      setSync("local");
+      throw new Error("Guardado en este dispositivo; no se pudo subir al servidor.");
+    }
+  };
+
+  // Guarda un registro: estado, copia local y BD. Devuelve true si llegó al servidor.
+  const guardarRegistro = async (key, entry) => {
+    const next = { ...logs, [key]: entry };
+    setLogs(next);
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+    const [semana, num] = key.split("_");
+    try {
+      await api.guardarRegistro(plan.trimestre, semana, num, entry);
+      setSync("ok");
+      return true;
+    } catch {
+      setSync("local"); // se sube en la próxima sincronización
+      return false;
+    }
   };
 
   // Override del semáforo rojo: queda registrado en el log de la sesión
   const onOverride = (activo, rojos) => {
     const key = `${week}_${session}`;
-    const entry = { ...logs[key], week, session };
-    if (activo) entry.override_dolor = { ts: new Date().toISOString(), zonas: rojos.map(r => ({ zona: r.zona, nivel: r.nivel })) };
+    const entry = { ...logs[key], week, session, ts: new Date().toISOString() };
+    if (activo) entry.override_dolor = { ts: entry.ts, zonas: rojos.map(r => ({ zona: r.zona, nivel: r.nivel })) };
     else delete entry.override_dolor;
-    const all = { ...logs, [key]: entry };
-    setLogs(all);
-    try { localStorage.setItem(storageKey, JSON.stringify(all)); } catch {}
+    guardarRegistro(key, entry);
   };
 
+  // Carga: plan → sincroniza registros y perfil con la BD (sube lo que haya en el navegador,
+  // incluidos datos guardados antes de esta versión) → usa lo que devuelve el servidor.
   useEffect(() => {
+    if (!user?.id) return;
     setLoading(true);
     api.getMyPlan()
-      .then(data => {
+      .then(async data => {
         setPlan(data);
         setWeek(data.semanas?.[0]?.id || null);
+        const clave = `plan_logs_${user.id}_${data.trimestre}`;
+        const claveAntigua = `plan_logs_${user.id}`; // versión anterior: sin trimestre
+        let local = {};
         try {
-          const stored = localStorage.getItem(storageKey);
-          if (stored) setLogs(JSON.parse(stored));
+          local = JSON.parse(localStorage.getItem(clave) || localStorage.getItem(claveAntigua) || "{}");
         } catch {}
+        setLogs(local);
+        try {
+          const srv = await api.sincronizarRegistros({ trimestre: data.trimestre, registros: local, perfil: cargarPerfil(user.id) });
+          setLogs(srv.registros || {});
+          localStorage.setItem(clave, JSON.stringify(srv.registros || {}));
+          localStorage.removeItem(claveAntigua);
+          if (srv.perfil) { guardarPerfil(user.id, srv.perfil); setPerfil(cargarPerfil(user.id)); }
+          setSync("ok");
+        } catch {
+          setSync("local");
+        }
       })
       .catch(err => setError(err))
       .finally(() => setLoading(false));
-  }, [storageKey]);
+  }, [user?.id]);
 
   const goToSession = (w, s) => { setWeek(w); setSession(s); setTab("sesion"); };
 
@@ -1561,6 +1590,15 @@ export default function PlanTrackerPage() {
         </span>
       </div>
 
+      {sync === "local" && (
+        <div style={{ background: C.orangeA, border: `1px solid ${C.orange}55`, borderRadius: 9,
+          padding: "9px 12px", marginBottom: 14, color: C.orange, fontSize: 12, lineHeight: 1.5,
+          fontFamily: "Poppins" }}>
+          ⚠️ Sin conexión con el servidor: tus registros quedan en este dispositivo y se subirán
+          la próxima vez que abras el plan con conexión.
+        </div>
+      )}
+
       {onboarding && (
         <PerfilTab perfil={perfil} logs={logs} nombre={user?.escalador?.nombre} onboarding onSave={onSavePerfil} />
       )}
@@ -1604,8 +1642,8 @@ export default function PlanTrackerPage() {
             ))}
           </div>
           {vistaRegistro === "registrar" ? (
-            <RegistroTab week={week} session={session} semanas={plan.semanas} trimestre={plan.trimestre} perfil={perfil}
-              logs={logs} setLogs={setLogs} storageKey={storageKey} testSesiones={plan.testSesiones} />
+            <RegistroTab week={week} session={session} semanas={plan.semanas} perfil={perfil}
+              logs={logs} onGuardar={guardarRegistro} testSesiones={plan.testSesiones} />
           ) : (
             <ProgresionView plan={plan} logs={logs} perfil={perfil} />
           )}
