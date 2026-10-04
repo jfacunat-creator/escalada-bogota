@@ -1,10 +1,12 @@
 /**
  * AjustesAIPage.jsx — Revisión de los ajustes que la AI propone sobre el plan base.
- * Entrenador: sus escaladores. Admin: todos. Nada llega al escalador sin aprobación.
+ * Entrenador: sus escaladores. Admin: todos, más la vista previa de la actualización semanal.
+ * Nada llega al escalador sin aprobación.
  */
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { Loader2, Check, X, BookOpen } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Loader2, Check, X, BookOpen, RefreshCw } from 'lucide-react';
 
 const C = {
   surface: '#1c1c1c', card: '#232323', border: '#2e2e2e', accent: '#D4AF37',
@@ -17,7 +19,7 @@ const ESTADOS = [
   { key: 'rechazado', label: 'Rechazados' },
 ];
 
-const ORIGEN = { test_entrada: 'Test S0', reporte: 'Reporte semanal' };
+const ORIGEN = { test_entrada: 'Test S0', semanal: 'Semana registrada', reporte: 'Reporte' };
 
 function agrupar(ajustes) {
   const porEscalador = new Map();
@@ -72,7 +74,72 @@ function Ajuste({ a, pendiente, onRevisar, ocupado }) {
   );
 }
 
+const fecha = f => new Date(f).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
+
+function ActualizacionSemanal() {
+  const [datos, setDatos] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
+
+  const cargar = useCallback(() => {
+    setCargando(true);
+    setError(null);
+    api.getActualizacionSemanal()
+      .then(setDatos)
+      .catch(e => setError(e?.error || 'No se pudo armar la vista previa'))
+      .finally(() => setCargando(false));
+  }, []);
+  useEffect(cargar, [cargar]);
+
+  return (
+    <section style={{ background: C.surface, border: `1px solid ${C.accent}55`, borderRadius: 14, padding: '14px 16px', marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <h2 style={{ color: C.text, fontSize: '1.05rem', margin: 0 }}>Actualización semanal</h2>
+        <button style={boton(C.accent, false)} onClick={cargar} disabled={cargando}><RefreshCw size={14} /> Revisar de nuevo</button>
+      </div>
+      <p style={{ color: C.text2, fontSize: '0.8rem', lineHeight: 1.5, margin: '6px 0 10px' }}>
+        Esto es lo que procesará la próxima corrida. Para ejecutarla, abre en n8n el flujo
+        <b> Actualización semanal de planes</b> y dale <b>Execute workflow</b>. Las propuestas aparecerán abajo como pendientes.
+      </p>
+      {cargando ? <Loader2 className="animate-spin" style={{ width: 22, height: 22, color: C.accent }} />
+        : error ? <div style={{ color: C.red, fontSize: '0.85rem' }}>{error}</div>
+        : (
+          <>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 10 }}>
+              <div><div style={{ color: C.text3, fontSize: '0.7rem' }}>Consultas a la AI</div><div style={{ color: C.text, fontSize: '1.3rem', fontWeight: 700 }}>{datos.consultas}</div></div>
+              <div><div style={{ color: C.text3, fontSize: '0.7rem' }}>Costo estimado</div><div style={{ color: C.accent, fontSize: '1.3rem', fontWeight: 700 }}>US$ {datos.costoEstimado.toFixed(2)}</div></div>
+            </div>
+            {datos.items.length ? datos.items.map((i, k) => (
+              <div key={k} style={{ color: C.text, fontSize: '0.82rem', padding: '4px 0' }}>
+                • <b>{i.escalador}</b> <span style={{ color: C.text3 }}>({ORIGEN[i.origen] || i.origen}, {i.consultas} consulta{i.consultas === 1 ? '' : 's'})</span>
+                <span style={{ color: C.text2 }}> — {i.motivo}</span>
+              </div>
+            )) : <div style={{ color: C.text3, fontSize: '0.82rem' }}>No hay nada que procesar: la corrida no gastaría créditos.</div>}
+            {datos.omitidos.length > 0 && (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ color: C.text3, fontSize: '0.75rem', cursor: 'pointer' }}>Sin consulta esta semana ({datos.omitidos.length})</summary>
+                {datos.omitidos.map((o, k) => <div key={k} style={{ color: C.text3, fontSize: '0.75rem', padding: '2px 0' }}>· {o.escalador}: {o.motivo}</div>)}
+              </details>
+            )}
+            {datos.corridas.length > 0 && (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ color: C.text3, fontSize: '0.75rem', cursor: 'pointer' }}>Corridas anteriores</summary>
+                {datos.corridas.map((c, k) => (
+                  <div key={k} style={{ color: C.text3, fontSize: '0.75rem', padding: '2px 0' }}>
+                    · {fecha(c.fecha)}: {c.devueltas}/{c.consultas} consultas devueltas{c.errores ? `, ${c.errores} con error` : ''} · {c.propuestas} propuestas
+                    {c.costoEstimado != null ? ` · ≈ US$ ${c.costoEstimado.toFixed(2)}` : ''}
+                  </div>
+                ))}
+              </details>
+            )}
+          </>
+        )}
+    </section>
+  );
+}
+
 export default function AjustesAIPage() {
+  const { user } = useAuth();
   const [estado, setEstado] = useState('pendiente');
   const [ajustes, setAjustes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,9 +194,11 @@ export default function AjustesAIPage() {
     <div style={{ maxWidth: 860, margin: '0 auto', fontFamily: 'Poppins' }}>
       <h1 style={{ color: C.text, fontFamily: 'Antonio', fontSize: '1.8rem', margin: '0 0 4px' }}>Ajustes del plan</h1>
       <p style={{ color: C.text2, fontSize: '0.85rem', margin: '0 0 16px', lineHeight: 1.5 }}>
-        Propuestas de la AI a partir del test S0 y los reportes semanales. Cada una cita su fuente
+        Propuestas de la AI a partir del test S0 y de lo que cada escalador registró en la semana. Cada una cita su fuente
         (guía del programa, Hörst u Obradó) y llega al escalador solo cuando la apruebas.
       </p>
+
+      {user?.rol === 'admin' && <ActualizacionSemanal />}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {ESTADOS.map(e => (

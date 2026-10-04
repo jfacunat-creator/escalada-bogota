@@ -1,42 +1,49 @@
 {
-  "name": "escalada-bogota · Ajustes AI (test S0 y reportes)",
+  "name": "escalada-bogota · Actualización semanal de planes (AI)",
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "ajustes-ai",
-        "authentication": "headerAuth",
-        "responseMode": "responseNode",
-        "options": {}
-      },
-      "name": "Webhook ajustes-ai",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "webhookId": "7d8c281e-7652-43d9-8cce-74586ac3b8ec",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "CONFIGURAR",
-          "name": "escalada-bogota webhook secret"
-        }
-      },
-      "id": "1cfc5bd5-e807-4832-a402-2f162dba9700",
+      "parameters": {},
+      "name": "Ejecutar actualización",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "id": "1901cf8e-c118-45d8-8cbd-84e4e0d72b27",
       "position": [
         0,
-        300
+        200
       ]
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { ok: true, lote: $json.body.loteId, consultas: ($json.body.tareas || []).length } }}",
-        "options": {
-          "responseCode": 202
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 6
+            }
+          ]
         }
       },
-      "name": "Responder 202",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "id": "9c494e10-cd0a-4a89-bf77-dc5055d19d0d",
+      "name": "Cada lunes 6 a. m. (opcional)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "5d6d5d55-917b-4ea8-b11d-2d47c004118e",
+      "position": [
+        0,
+        400
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// URL del backend al que se le pide el lote y se devuelven las respuestas.\n// Producción: https://escalada-bogota.onrender.com · Local: http://host.docker.internal:3001\nreturn [{ json: { apiBase: 'https://escalada-bogota.onrender.com' } }];"
+      },
+      "name": "Configuración",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "8639c111-709f-4f7a-9e85-c23e441fd7d4",
       "position": [
         240,
         300
@@ -44,14 +51,39 @@
     },
     {
       "parameters": {
-        "jsCode": "// Una consulta por item. El backend ya armó cada request completo (guía + fuentes + datos);\n// este flujo no lo modifica: solo lo envía a Claude y devuelve la respuesta.\nconst body = $('Webhook ajustes-ai').first().json.body;\nreturn (body.tareas || []).map(t => ({ json: { apiBase: body.apiBase, meta: t.meta, firma: t.firma, request: t.request } }));"
+        "method": "POST",
+        "url": "={{ $json.apiBase }}/api/ajustes-ai/n8n/lote-semanal",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "name": "Pedir lote semanal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "82a3a631-01a2-4f41-a74f-59a79ceee4a9",
+      "position": [
+        480,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURAR",
+          "name": "escalada-bogota webhook secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Una consulta por item. El backend ya armó cada request completo (guía + fuentes + datos);\n// este flujo no lo modifica: solo lo envía a Claude y devuelve la respuesta.\nconst { apiBase } = $('Configuración').first().json;\nconst lote = $input.first().json;\nreturn (lote.tareas || []).map(t => ({ json: { apiBase, meta: t.meta, firma: t.firma, request: t.request } }));"
       },
       "name": "Separar consultas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "id": "902ba62c-0804-437b-853f-38d5fe126900",
+      "id": "44cdd807-698b-4cf4-b1b8-7468f53727e4",
       "position": [
-        480,
+        720,
         300
       ]
     },
@@ -63,9 +95,9 @@
       "name": "Una a la vez",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "id": "5114321b-cd14-4d15-a9b6-40d413f298a3",
+      "id": "21de327e-4226-41a6-9839-1fc8594f1152",
       "position": [
-        720,
+        1200,
         300
       ]
     },
@@ -105,8 +137,8 @@
       "typeVersion": 4.2,
       "id": "62f70a9f-c44b-4ffd-9c26-a94962f7a6f3",
       "position": [
-        960,
-        400
+        1440,
+        420
       ],
       "credentials": {
         "anthropicApi": {
@@ -133,8 +165,8 @@
       "typeVersion": 4.2,
       "id": "3d2b2434-0c4d-4fca-9ca5-a3f4d44b8968",
       "position": [
-        1200,
-        400
+        1680,
+        420
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -147,19 +179,45 @@
       "waitBetweenTries": 5000
     }
   ],
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
   "connections": {
-    "Webhook ajustes-ai": {
+    "Ejecutar actualización": {
       "main": [
         [
           {
-            "node": "Responder 202",
+            "node": "Configuración",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Responder 202": {
+    "Cada lunes 6 a. m. (opcional)": {
+      "main": [
+        [
+          {
+            "node": "Configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuración": {
+      "main": [
+        [
+          {
+            "node": "Pedir lote semanal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir lote semanal": {
       "main": [
         [
           {
@@ -215,9 +273,5 @@
         ]
       ]
     }
-  },
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "active": false
+  }
 }

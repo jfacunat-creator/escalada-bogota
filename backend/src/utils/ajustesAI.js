@@ -1,7 +1,8 @@
 /**
  * Ajustes del plan propuestos por la AI, con respaldo bibliográfico y aprobación humana.
  *
- *   1. construirTareas()   → una consulta a Claude por semana (test S0) o por sesión siguiente (reporte),
+ *   1. seleccionarSemanal() / construirCorrida() → en la actualización semanal que ejecuta el admin, una consulta
+ *                            a Claude por semana pendiente (test S0) o por semana siguiente (registros de la semana),
  *                            con la guía del programa y las secciones de los libros que tocan esos ejercicios.
  *   2. validarAjustes()    → descarta todo ajuste que no cumpla las reglas: parámetro existente, solo cambian
  *                            números, límites de variación, sentido permitido y cita LITERAL de la fuente.
@@ -64,7 +65,21 @@ function fuentesDe(temas) {
   return [...new Map(lista.map(f => [claveFragmento(f), f])).keys()];
 }
 
+// Los libros y las guías casi nunca cambian: se guardan en memoria unos minutos para no releerlos
+// en cada una de las consultas de una corrida.
+const cacheFuentes = new Map();
+const TTL_FUENTES = 10 * 60 * 1000;
+
 async function leerFuentes(claves, trimestre, nivel) {
+  const clave = `${trimestre}|${nivel}|${[...claves].sort().join(",")}`;
+  const previo = cacheFuentes.get(clave);
+  if (previo && Date.now() - previo.t < TTL_FUENTES) return previo.valor;
+  const valor = await leerFuentesBD(claves, trimestre, nivel);
+  cacheFuentes.set(clave, { t: Date.now(), valor });
+  return valor;
+}
+
+async function leerFuentesBD(claves, trimestre, nivel) {
   const [frag, guia] = await Promise.all([
     claves.length
       ? prisma.$queryRawUnsafe(
@@ -263,14 +278,44 @@ async function planVigente(escaladorId, trimestre, nivel) {
 }
 
 const tieneParams = s => (s.blocks || []).some(b => (b.params || []).some(([, v]) => numeros(v).length));
+const RE_SEMANA_ENTRENO = /^S([1-9]|1[01])$/; // S0 y S12 son tests: no se ajustan
+
+// "7–8" → 8 (el máximo del rango objetivo), igual que la app
+function parsePse(v) {
+  const n = numeros(v);
+  return n.length ? Math.max(...n) : null;
+}
+
+/** Lo que importa de un registro de sesión para interpretar la semana. */
+function resumenRegistro(f, planBase) {
+  const d = f.datos || {};
+  const dolor = Object.fromEntries(
+    Object.entries(d).filter(([k, v]) => k.startsWith("p_") && Number(v) > 0).map(([k, v]) => [k.slice(2), Number(v)])
+  );
+  const sesionPlan = planBase.find(w => w.id === f.semana)?.sesiones.find(s => s.num === f.sesion_num);
+  const pseObjetivo = parsePse(d.pse_objetivo ?? sesionPlan?.pse);
+  return {
+    sesion: `${f.semana}·S${f.sesion_num}`,
+    pse: f.pse ?? null,
+    pseObjetivo,
+    sobrecarga: !!f.sobrecarga,
+    dolor,
+    dolorMax: Math.max(0, ...Object.values(dolor)),
+    notas: String(d.notas || "").trim().slice(0, 600) || undefined,
+  };
+}
+
+// Una semana se consulta solo si hay algo que interpretar.
+const requiereLectura = r =>
+  !!r.notas || r.dolorMax >= 1 || (r.pse != null && r.pseObjetivo != null && Math.abs(r.pse - r.pseObjetivo) >= 2);
 
 /**
- * @param origen 'test_entrada' → una tarea por semana de entrenamiento (S1–S11) a partir de los resultados del S0
- *               (soloSemanas: ['S2'] limita a esas semanas, p. ej. para una prueba de calidad barata).
- *               'reporte'      → una tarea para la sesión siguiente a la reportada.
+ * @param origen 'test_entrada' → una tarea por semana de entrenamiento a partir del S0 (soloSemanas limita cuáles).
+ *               'semanal'      → una tarea con todas las sesiones de la semana siguiente, a partir de lo que el
+ *                                escalador registró en la semana (registros: resúmenes de resumenRegistro).
  * @returns { loteId, tareas: [{ meta, firma, request }] } o null si no hay nada que consultar.
  */
-async function construirTareas({ escaladorId, origen, resultados = [], reporte = null, soloSemanas = null }) {
+async function construirTareas({ escaladorId, origen, loteId = crypto.randomUUID(), resultados = [], registros = [], soloSemanas = null }) {
   const esc = await contextoEscalador(escaladorId);
   if (!esc) return null;
   const plan = await planVigente(escaladorId, esc.trimestre, esc.nivel);
@@ -280,39 +325,32 @@ async function construirTareas({ escaladorId, origen, resultados = [], reporte =
     nivel: esc.nivel, rangoEtario: esc.rangoEtario, pesoKg: esc.pesoKg, perfil: esc.perfil,
     testEntradaS0: Object.fromEntries(resultados.map(r => [r.codigo, { valor: r.valor, unidad: r.unidad, prueba: DESCRIPCION_TEST[r.codigo] || r.metrica }])),
   };
+  const semanasDe = filtro => plan.vigente
+    .filter(w => RE_SEMANA_ENTRENO.test(w.id) && filtro(w.id))
+    .map(w => ({ semana: w.id, sesiones: (w.sesiones || []).filter(tieneParams).map(s => ({ semana: w.id, s })) }))
+    .filter(g => g.sesiones.length);
 
-  let grupos = [];
+  let grupos;
   let soloReducir = false;
+  let dolorMax = 0;
   if (origen === "test_entrada") {
-    grupos = plan.vigente
-      .filter(w => /^S([1-9]|1[01])$/.test(w.id) && (!soloSemanas || soloSemanas.includes(w.id)))
-      .map(w => ({ semana: w.id, sesiones: (w.sesiones || []).filter(tieneParams).map(s => ({ semana: w.id, s })) }))
-      .filter(g => g.sesiones.length);
+    grupos = semanasDe(id => !soloSemanas || soloSemanas.includes(id));
   } else {
-    const sig = reporte?.siguiente;
-    const w = sig && plan.vigente.find(x => x.id === sig.semana);
-    const s = w?.sesiones.find(x => x.num === sig.sesionNum);
-    if (!s || !tieneParams(s)) return null;
-    soloReducir = reporte.dolor >= 3 || reporte.pse >= 9 || (reporte.pseObjetivo != null && reporte.pse - reporte.pseObjetivo >= 2);
-    datos.reporte = {
-      sesionReportada: `${reporte.semana}·S${reporte.sesionNum}`,
-      pse: reporte.pse, pseObjetivo: reporte.pseObjetivo, dolorMaximo: reporte.dolor, dolorPorZona: reporte.dolorZonas, notas: reporte.notas,
-    };
-    datos.registrosRecientes = await registrosRecientes(escaladorId, esc.trimestre);
-    grupos = [{ semana: w.id, sesiones: [{ semana: w.id, s }] }];
+    grupos = semanasDe(id => soloSemanas?.includes(id));
+    dolorMax = Math.max(0, ...registros.map(r => r.dolorMax));
+    soloReducir = registros.some(r => r.dolorMax >= 3 || r.sobrecarga || (r.pse ?? 0) >= 9);
+    datos.registrosDeLaSemana = registros;
   }
 
-  // Test S0: todas las fuentes, compartidas y cacheadas entre las consultas del lote.
-  // Reporte: una sola consulta, solo las secciones de los temas de esa sesión.
-  // Con una sola consulta no hay caché que aprovechar: también se seleccionan las secciones por tema.
+  // Test S0 con varias semanas: todas las fuentes, compartidas y cacheadas entre las consultas.
+  // Consulta suelta (semanal o una semana del S0): solo las secciones de los temas de esas sesiones.
   const todas = origen === "test_entrada" && grupos.length > 1;
-  const loteId = crypto.randomUUID();
   const tareas = [];
   for (const g of grupos) {
     const sesiones = g.sesiones.map(x => x.s);
     const claves = todas
       ? fuentesDe(Object.keys(mapa.temas).filter(k => temaAplica(mapa.temas[k], origen)))
-      : fuentesDe(temasDe(sesiones, { dolor: reporte?.dolor || 0, origen }));
+      : fuentesDe(temasDe(sesiones, { dolor: dolorMax, origen }));
     const { fragmentos, guia } = await leerFuentes(claves, esc.trimestre, esc.nivel);
     if (!guia) throw new Error(`Falta la guía ${esc.trimestre} ${esc.nivel} en fuente_guia (npm run fuentes:cargar)`);
     const meta = {
@@ -332,17 +370,120 @@ async function construirTareas({ escaladorId, origen, resultados = [], reporte =
   return tareas.length ? { loteId, tareas } : null;
 }
 
-async function registrosRecientes(escaladorId, trimestre) {
-  const filas = await prisma.$queryRawUnsafe(
-    `SELECT semana, sesion_num, pse, sobrecarga, datos FROM registro_sesion
-     WHERE escalador_id = $1::uuid AND trimestre = $2 ORDER BY registrado_at DESC LIMIT 6`,
-    escaladorId, trimestre
+// ─── ACTUALIZACIÓN SEMANAL (la ejecuta el admin desde n8n) ──
+const METRICA_CODIGO = {
+  barras_lastre_kg: "T2", suspensiones_20mm_kg: "T4", repeticiones_regleta_rep: "T5",
+  resistencia_continua_seg: "T6", campus_movimientos: "T7", grado_critico_un: "T9",
+  powerslab_d_cm: "PowerslabD", powerslab_i_cm: "PowerslabI", circuito_min: "Circuito",
+};
+
+/**
+ * Qué hay que procesar en la próxima corrida, por escalador activo:
+ *   - test S0 de entrada aún no incluido en una corrida → semanas de entrenamiento que le faltan por hacer
+ *   - registros nuevos desde su última corrida semanal con algo que interpretar → su semana siguiente
+ * @returns { items, omitidos }
+ */
+async function seleccionarSemanal() {
+  const activos = await prisma.$queryRawUnsafe(
+    `SELECT DISTINCT e.id, e.nombre FROM escalador e
+     JOIN inscripcion i ON i.escalador_id = e.id AND i.estado = 'activa'
+     WHERE e.estado = 'activo' ORDER BY e.nombre`
   );
-  return filas.map(f => ({
-    sesion: `${f.semana}·S${f.sesion_num}`, pse: f.pse, sobrecarga: f.sobrecarga,
-    dolor: Object.fromEntries(Object.entries(f.datos || {}).filter(([k, v]) => k.startsWith("p_") && Number(v) > 0).map(([k, v]) => [k.slice(2), Number(v)])),
-    notas: String(f.datos?.notas || "").slice(0, 300) || undefined,
-  }));
+  const previos = (await prisma.$queryRawUnsafe("SELECT items FROM plan_ai_corrida")).flatMap(c => c.items || []);
+  const evaluacionesHechas = new Set(previos.map(i => i.evaluacionId).filter(Boolean));
+
+  const items = [];
+  const omitidos = [];
+  for (const e of activos) {
+    const esc = await contextoEscalador(e.id);
+    const plan = esc && await planVigente(e.id, esc.trimestre, esc.nivel);
+    if (!plan) { omitidos.push({ escalador: e.nombre, motivo: "sin plan base para su nivel y trimestre" }); continue; }
+    const orden = plan.base.map(w => w.id);
+
+    const regs = await prisma.$queryRawUnsafe(
+      `SELECT semana, sesion_num, pse, sobrecarga, datos, updated_at FROM registro_sesion
+       WHERE escalador_id = $1::uuid AND trimestre = $2 ORDER BY updated_at`,
+      e.id, esc.trimestre
+    );
+    const ultimaIdx = Math.max(-1, ...regs.map(r => orden.indexOf(r.semana)));
+
+    // 1) Test S0 sin procesar
+    const ev = (await prisma.$queryRawUnsafe(
+      `SELECT ev.id, ev.fecha FROM evaluacion ev
+       WHERE ev.escalador_id = $1::uuid AND ev.tipo = 'entrada' AND ev.estado = 'realizada'
+         AND EXISTS (SELECT 1 FROM resultado_test r WHERE r.evaluacion_id = ev.id)
+       ORDER BY ev.fecha DESC, ev.created_at DESC LIMIT 1`,
+      e.id
+    ))[0];
+    if (ev && !evaluacionesHechas.has(ev.id)) {
+      const semanas = orden.filter((id, i) => i > ultimaIdx && RE_SEMANA_ENTRENO.test(id));
+      if (semanas.length) {
+        items.push({ escaladorId: e.id, escalador: e.nombre, origen: "test_entrada", evaluacionId: ev.id, semanas,
+          motivo: `Test S0 sin procesar · semanas ${semanas[0]}–${semanas[semanas.length - 1]}` });
+        continue;
+      }
+    }
+
+    // 2) Semana registrada
+    const ultimaCorrida = previos.filter(i => i.escaladorId === e.id && i.hasta).map(i => i.hasta).sort().pop();
+    const nuevos = regs.filter(r => !ultimaCorrida || r.updated_at.toISOString() > ultimaCorrida);
+    if (!nuevos.length) { omitidos.push({ escalador: e.nombre, motivo: "sin registros nuevos" }); continue; }
+    const registros = nuevos.map(r => resumenRegistro(r, plan.base));
+    const hasta = nuevos[nuevos.length - 1].updated_at.toISOString();
+    const objetivo = orden[ultimaIdx + 1];
+    if (!registros.some(requiereLectura)) {
+      omitidos.push({ escalador: e.nombre, motivo: `${registros.length} registros sin novedades (sin notas, dolor ni PSE desviada)`, hasta });
+      continue;
+    }
+    if (!objetivo || !RE_SEMANA_ENTRENO.test(objetivo)) {
+      omitidos.push({ escalador: e.nombre, motivo: "no queda una semana de entrenamiento por ajustar", hasta });
+      continue;
+    }
+    items.push({ escaladorId: e.id, escalador: e.nombre, origen: "semanal", semanas: [objetivo], hasta, registros,
+      motivo: `${registros.length} registros nuevos (${registros.filter(requiereLectura).length} con novedades) → ajustar ${objetivo}` });
+  }
+  return { items, omitidos };
+}
+
+async function resultadosS0(evaluacionId) {
+  const filas = await prisma.$queryRawUnsafe(
+    "SELECT metrica, valor, unidad FROM resultado_test WHERE evaluacion_id = $1::uuid", evaluacionId
+  );
+  return filas.map(r => ({ metrica: r.metrica, codigo: METRICA_CODIGO[r.metrica] || r.metrica, valor: Number(r.valor), unidad: r.unidad }));
+}
+
+/** Arma todas las consultas de una corrida (sin guardar nada). */
+async function construirCorrida({ items }) {
+  const loteId = crypto.randomUUID();
+  const tareas = [];
+  for (const it of items) {
+    const lote = it.origen === "test_entrada"
+      ? await construirTareas({ escaladorId: it.escaladorId, origen: "test_entrada", loteId, resultados: await resultadosS0(it.evaluacionId), soloSemanas: it.semanas })
+      : await construirTareas({ escaladorId: it.escaladorId, origen: "semanal", loteId, registros: it.registros, soloSemanas: it.semanas });
+    if (lote) tareas.push(...lote.tareas);
+  }
+  return { loteId, tareas };
+}
+
+// Precios de claude-opus-5-5 (US$ por millón de tokens) y ~3 caracteres por token en español.
+const PRECIO = { entrada: 4, escrituraCache: 5, lecturaCache: 0.2, salida: 20 };
+const CHARS_POR_TOKEN = 3;
+const SALIDA_ESTIMADA = 2000;
+
+function estimarCosto(tareas) {
+  const cacheados = new Set();
+  let usd = 0;
+  for (const t of tareas) {
+    const sistema = JSON.stringify(t.request.system);
+    const resto = t.request.messages[0].content.reduce((a, c) => a + c.text.length, 0);
+    const tokSistema = sistema.length / CHARS_POR_TOKEN;
+    const cachea = t.request.system.some(b => b.cache_control);
+    if (!cachea) usd += tokSistema * PRECIO.entrada;
+    else if (cacheados.has(sistema)) usd += tokSistema * PRECIO.lecturaCache;
+    else { cacheados.add(sistema); usd += tokSistema * PRECIO.escrituraCache; }
+    usd += (resto / CHARS_POR_TOKEN) * PRECIO.entrada + SALIDA_ESTIMADA * PRECIO.salida;
+  }
+  return Math.round(usd / 1e4) / 100; // US$ con 2 decimales
 }
 
 // ─── FIRMA (integridad de meta en el ida y vuelta por n8n) ──
@@ -463,7 +604,7 @@ async function guardarPropuestas(meta, validos) {
 
 module.exports = {
   claveFragmento, construirTareas, validarAjustes, guardarPropuestas, aplicarAjustes, leerAprobados,
-  firmaValida, etiquetaFuente,
+  firmaValida, etiquetaFuente, seleccionarSemanal, construirCorrida, estimarCosto, METRICA_CODIGO,
   // expuestos para pruebas
-  _interno: { numeros, esqueleto, normalizar, variacionOk, temasDe, fuentesDe, citaEnFuente, armarRequest },
+  _interno: { numeros, esqueleto, normalizar, variacionOk, temasDe, fuentesDe, citaEnFuente, armarRequest, resumenRegistro, requiereLectura },
 };

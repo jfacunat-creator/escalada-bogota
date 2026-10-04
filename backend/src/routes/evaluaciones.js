@@ -2,7 +2,6 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
-const { notificarTestEntrada } = require("../utils/n8n");
 
 const router = express.Router();
 router.use(authenticate);
@@ -119,7 +118,6 @@ router.post("/mi-test", async (req, res) => {
       );
     }
 
-    notificarTestEntrada(evalId); // n8n genera el plan personalizado (solo tipo entrada)
     res.status(201).json({ id: evalId, tipo, fecha, message: `Test de ${tipo} registrado` });
   } catch (err) {
     console.error("Error registrando test del escalador:", err);
@@ -289,7 +287,6 @@ router.post("/:id/resultados", authorize("entrenador", "admin"), [
     }
 
     await prisma.$executeRawUnsafe("UPDATE evaluacion SET estado = 'realizada' WHERE id = $1", evalId);
-    notificarTestEntrada(evalId); // n8n genera el plan personalizado (solo tipo entrada)
 
     res.status(201).json({ message: `${insertados} resultados registrados`, insertados });
   } catch (err) {
