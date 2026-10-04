@@ -525,6 +525,12 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
               ✓ Completada
             </span>
           )}
+          {sd.ai && (
+            <span style={{ background: C.tealA, color: C.teal, fontSize: 9,
+              fontWeight: 700, padding: "2px 7px", borderRadius: 999, fontFamily: "Poppins" }}>
+              ✨ Personalizada{sd.aiRevisado ? " · revisada" : ""}
+            </span>
+          )}
         </div>
         <div style={{ color: C.text, fontSize: 14, fontWeight: 700, marginBottom: 8,
           lineHeight: 1.3, fontFamily: "Antonio" }}>
@@ -663,7 +669,7 @@ const SEM_TEST = [
 ];
 
 // ─── REGISTRO TAB ─────────────────────────────────────────
-function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSesiones, perfil }) {
+function RegistroTab({ week, session, semanas, trimestre, logs, setLogs, storageKey, testSesiones, perfil }) {
   const ZONES = ["Dedos D", "Dedos I", "Codo D", "Codo I", "Hombro D", "Hombro I", "Espalda"];
   const logKey = `${week}_${session}`;
   const wd = semanas.find(w => w.id === week);
@@ -699,6 +705,14 @@ function RegistroTab({ week, session, semanas, logs, setLogs, storageKey, testSe
       sobrecarga: esSobrecarga(draft.pse, sd?.pse),
     };
     const all = { ...logs, [logKey]: entry };
+    if (draft.pse !== "") {
+      // n8n flujo 2 ajusta la sesión siguiente; si falla no afecta el registro local
+      api.reportarSesion({
+        trimestre, semana: week, sesionNum: session, pse: Number(draft.pse), pseObjetivo: sd?.pse ?? null,
+        dolor: Object.fromEntries(ZONAS.map(z => [z.key, Number(draft[`p_${z.label}`] || 0)])),
+        notas: draft.notas || "",
+      }).catch(() => {});
+    }
     const antes = evaluarSobrecarga(semanas, logs).reducciones;
     const nueva = Object.entries(evaluarSobrecarga(semanas, all).reducciones).find(([w]) => !antes[w]);
     setAviso(nueva
@@ -1507,6 +1521,16 @@ export default function PlanTrackerPage() {
         <p style={{ color: C.sub, fontSize: "0.85rem", fontFamily: "Poppins" }}>
           {plan.nombre} · {plan.semanas.length} semanas
         </p>
+        <span title={plan.fuente === "ai"
+            ? `${plan.aiSesiones} sesiones ajustadas a tus resultados del test S0`
+            : "Se personaliza cuando registres tu test S0"}
+          style={{ display: "inline-block", marginTop: 6, fontSize: 10, fontWeight: 700, padding: "3px 9px",
+            borderRadius: 999, fontFamily: "Poppins",
+            background: plan.fuente === "ai" ? C.tealA : C.cardAlt,
+            color: plan.fuente === "ai" ? C.teal : C.sub,
+            border: `1px solid ${plan.fuente === "ai" ? `${C.teal}55` : C.border}` }}>
+          {plan.fuente === "ai" ? "✨ Plan personalizado" : "Plan base · test S0 pendiente"}
+        </span>
       </div>
 
       {onboarding && (
@@ -1552,7 +1576,7 @@ export default function PlanTrackerPage() {
             ))}
           </div>
           {vistaRegistro === "registrar" ? (
-            <RegistroTab week={week} session={session} semanas={plan.semanas} perfil={perfil}
+            <RegistroTab week={week} session={session} semanas={plan.semanas} trimestre={plan.trimestre} perfil={perfil}
               logs={logs} setLogs={setLogs} storageKey={storageKey} testSesiones={plan.testSesiones} />
           ) : (
             <ProgresionView plan={plan} logs={logs} perfil={perfil} />

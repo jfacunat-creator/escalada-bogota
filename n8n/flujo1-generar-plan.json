@@ -1,0 +1,243 @@
+{
+  "name": "escalada-bogota · 1 · Generar plan (test S0)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generar-plan",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook generar-plan",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "556de4af-0ead-4220-983f-ef3bc1d320f5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURAR",
+          "name": "escalada-bogota webhook secret"
+        }
+      },
+      "id": "f86ec72c-c22a-44b9-8956-5a5b0132d3c5",
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT semanas FROM plan_contenido WHERE trimestre = 'T1' AND nivel = $1",
+        "options": {
+          "queryReplacement": "={{ [$json.body.nivel] }}"
+        }
+      },
+      "name": "Leer plan base",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "CONFIGURAR",
+          "name": "Neon escalada-bogota"
+        }
+      },
+      "id": "bff454aa-808f-42a8-a5e5-e341db165a95",
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma el prompt con los resultados del test S0 y las sesiones base S1–S4.\nconst body = $('Webhook generar-plan').first().json.body;\nconst semanas = $input.first().json.semanas || [];\nconst m = Object.fromEntries((body.resultados || []).map(r => [r.codigo, r.valor]));\nconst base = semanas\n  .filter(w => ['S1', 'S2', 'S3', 'S4'].includes(w.id))\n  .flatMap(w => w.sesiones.map(s => ({ semana: w.id, num: s.num, nombre: s.name, bloques: s.blocks })));\nif (!base.length) throw new Error('No hay plan base T1 para el nivel ' + body.nivel);\n\nconst v = k => (m[k] ?? 'ND');\nconst prompt = `Escalador: ${body.nombre}, rango etario ${body.rangoEtario}, ${body.pesoKg ?? 'ND'} kg, nivel ${body.nivel}.\nResultados del test S0 (protocolo Hörst):\n- T2 tracción máxima con lastre: ${v('T2')} kg adicionales\n- T4 suspensión 5 seg en 20 mm con lastre: ${v('T4')} kg adicionales\n- T5 máximo dominadas seguidas: ${v('T5')} reps\n- T6 suspensión máxima sin lastre: ${v('T6')} seg\n- T7 campus máximo de movimientos: ${v('T7')}\n- T9 abdominales en suspensión: ${v('T9')} reps\n- Powerslab: D ${v('PowerslabD')} cm / I ${v('PowerslabI')} cm\n- Circuito estándar: ${v('Circuito')} movimientos\n\nPlan base de las semanas S1–S4 (acumulación), en JSON:\n${JSON.stringify(base)}\n\nPersonaliza esas sesiones para este escalador:\n- Conserva EXACTAMENTE las mismas sesiones (semana, num) y los mismos nombres de bloque (\"n\").\n- Ajusta solo los valores de \"params\": cargas en kg calculadas desde T2/T4 (ej. \"40–42,5 kg · 80–85% de tu T2\"),\n  series y tiempos según su nivel. No inventes ejercicios nuevos.\n- Si un dato es ND, deja el parámetro como estaba.\nDevuelve SOLO un JSON válido, sin texto adicional, con esta forma:\n{\"sesiones\":[{\"semana\":\"S1\",\"num\":1,\"nombre\":\"...\",\"bloques\":[{\"n\":\"...\",\"i\":\"...\",\"params\":[[\"Etiqueta\",\"Valor\"]]}]}]}`;\n\nreturn [{ json: { prompt, escaladorId: body.escaladorId, claves: base.map(b => b.semana + '_' + b.num) } }];"
+      },
+      "name": "Preparar prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "70f2d5a2-290e-4b56-9987-09c6395431dd",
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {
+          "systemMessage": "Eres entrenador de escalada deportiva experto en periodización (protocolo Hörst). Respondes solo con JSON válido, sin texto adicional."
+        }
+      },
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "id": "4b6e18b0-2280-4bac-97ad-f33fae385c8e",
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrae el JSON de la respuesta y lo valida contra las sesiones base.\nconst ctx = $('Preparar prompt').first().json;\nconst texto = $input.first().json.output ?? $input.first().json.text ?? '';\nconst match = String(texto).match(/\\{[\\s\\S]*\\}/);\nif (!match) throw new Error('La respuesta de la AI no contiene JSON');\nconst parsed = JSON.parse(match[0]);\nconst validas = new Set(ctx.claves);\nconst filas = (parsed.sesiones || [])\n  .filter(s => validas.has(s.semana + '_' + s.num))\n  .filter(s => Array.isArray(s.bloques) && s.bloques.every(b => b && typeof b.n === 'string' && Array.isArray(b.params)))\n  .map(s => ({ json: {\n    escalador_id: ctx.escaladorId,\n    trimestre: 'T1',\n    semana: s.semana,\n    sesion_num: Number(s.num),\n    nombre: String(s.nombre || ''),\n    bloques: JSON.stringify(s.bloques),\n  }}));\nif (!filas.length) throw new Error('La AI no devolvió sesiones válidas');\nreturn filas;"
+      },
+      "name": "Parsear respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "a2b55b4d-dd64-413e-95c3-2454514b3abf",
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO plan_ai_sesion (escalador_id, trimestre, semana, sesion_num, nombre, bloques)\nVALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)\nON CONFLICT (escalador_id, trimestre, semana, sesion_num)\nDO UPDATE SET nombre = EXCLUDED.nombre, bloques = EXCLUDED.bloques, generado_at = now(), revisado = false",
+        "options": {
+          "queryReplacement": "={{ [$json.escalador_id, $json.trimestre, $json.semana, $json.sesion_num, $json.nombre, $json.bloques] }}"
+        }
+      },
+      "name": "Guardar plan",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "CONFIGURAR",
+          "name": "Neon escalada-bogota"
+        }
+      },
+      "id": "a61392b3-687d-4dcf-a49f-d0cd43245cfe",
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, sesiones: $input.all().length } }}",
+        "options": {}
+      },
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "executeOnce": true,
+      "id": "f770af08-4457-4994-a272-c36bae385397",
+      "position": [
+        1440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-opus-5-5"
+        },
+        "options": {
+          "maxTokensToSample": 16000
+        }
+      },
+      "name": "Claude",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "credentials": {
+        "anthropicApi": {
+          "id": "CONFIGURAR",
+          "name": "Anthropic"
+        }
+      },
+      "position": [
+        720,
+        520
+      ],
+      "id": "fbee8c04-fbf6-4484-a99d-2dd5220674df"
+    }
+  ],
+  "connections": {
+    "Webhook generar-plan": {
+      "main": [
+        [
+          {
+            "node": "Leer plan base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer plan base": {
+      "main": [
+        [
+          {
+            "node": "Preparar prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parsear respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear respuesta": {
+      "main": [
+        [
+          {
+            "node": "Guardar plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar plan": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

@@ -53,6 +53,8 @@ class ApiService {
 
   // Plan de entrenamiento
   getMyPlan() { return this.request('/plan/my'); }
+  getPlanAI(escaladorId, trimestre = 'T1') { return this.request(`/plan/ai/${escaladorId}?trimestre=${encodeURIComponent(trimestre)}`); }
+  reportarSesion(reporte) { return this.request('/plan/reporte', { method: 'POST', body: JSON.stringify(reporte) }); }
   getPlanContenido(nivel) { return this.request(`/plan/contenido?nivel=${encodeURIComponent(nivel)}`); }
 
   // Catálogos
