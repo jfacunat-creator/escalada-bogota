@@ -57,6 +57,20 @@
     },
     {
       "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "name": "Una a la vez",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "id": "5114321b-cd14-4d15-a9b6-40d413f298a3",
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "authentication": "predefinedCredentialType",
@@ -79,12 +93,6 @@
         "jsonBody": "={{ JSON.stringify($json.request) }}",
         "options": {
           "timeout": 600000,
-          "batching": {
-            "batch": {
-              "batchSize": 1,
-              "batchInterval": 0
-            }
-          },
           "response": {
             "response": {
               "neverError": true
@@ -97,28 +105,25 @@
       "typeVersion": 4.2,
       "id": "62f70a9f-c44b-4ffd-9c26-a94962f7a6f3",
       "position": [
-        720,
-        300
+        960,
+        400
       ],
       "credentials": {
         "anthropicApi": {
           "id": "CONFIGURAR",
           "name": "Anthropic"
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000
+      }
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Separar consultas').item.json.apiBase }}/api/ajustes-ai/n8n/resultado",
+        "url": "={{ $('Una a la vez').item.json.apiBase }}/api/ajustes-ai/n8n/resultado",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ meta: $('Separar consultas').item.json.meta, firma: $('Separar consultas').item.json.firma, respuesta: $json }) }}",
+        "jsonBody": "={{ JSON.stringify({ meta: $('Una a la vez').item.json.meta, firma: $('Una a la vez').item.json.firma, respuesta: $json }) }}",
         "options": {
           "timeout": 60000
         }
@@ -128,8 +133,8 @@
       "typeVersion": 4.2,
       "id": "3d2b2434-0c4d-4fca-9ca5-a3f4d44b8968",
       "position": [
-        960,
-        300
+        1200,
+        400
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -169,6 +174,18 @@
       "main": [
         [
           {
+            "node": "Una a la vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Una a la vez": {
+      "main": [
+        [],
+        [
+          {
             "node": "Claude",
             "type": "main",
             "index": 0
@@ -181,6 +198,17 @@
         [
           {
             "node": "Devolver al backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Devolver al backend": {
+      "main": [
+        [
+          {
+            "node": "Una a la vez",
             "type": "main",
             "index": 0
           }
