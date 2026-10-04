@@ -669,7 +669,7 @@ const SEM_TEST = [
 ];
 
 // ─── REGISTRO TAB ─────────────────────────────────────────
-function RegistroTab({ week, session, semanas, trimestre, logs, setLogs, storageKey, testSesiones, perfil }) {
+function RegistroTab({ week, session, semanas, logs, onGuardar, testSesiones, perfil }) {
   const ZONES = ["Dedos D", "Dedos I", "Codo D", "Codo I", "Hombro D", "Hombro I", "Espalda"];
   const logKey = `${week}_${session}`;
   const wd = semanas.find(w => w.id === week);
@@ -705,22 +705,13 @@ function RegistroTab({ week, session, semanas, trimestre, logs, setLogs, storage
       sobrecarga: esSobrecarga(draft.pse, sd?.pse),
     };
     const all = { ...logs, [logKey]: entry };
-    if (draft.pse !== "") {
-      // n8n flujo 2 ajusta la sesión siguiente; si falla no afecta el registro local
-      api.reportarSesion({
-        trimestre, semana: week, sesionNum: session, pse: Number(draft.pse), pseObjetivo: sd?.pse ?? null,
-        dolor: Object.fromEntries(ZONAS.map(z => [z.key, Number(draft[`p_${z.label}`] || 0)])),
-        notas: draft.notas || "",
-      }).catch(() => {});
-    }
     const antes = evaluarSobrecarga(semanas, logs).reducciones;
     const nueva = Object.entries(evaluarSobrecarga(semanas, all).reducciones).find(([w]) => !antes[w]);
     setAviso(nueva
       ? `⚠️ Segunda sesión seguida con PSE ≥2 sobre el objetivo: el volumen de ${nueva[0]} se reduce un 20%.`
       : entry.sobrecarga ? `PSE ${draft.pse} supera en 2 o más el objetivo (${sd.pse}). Si se repite en la próxima sesión, se reducirá el volumen de la semana siguiente.` : "");
-    setLogs(all);
     setTestError('');
-    try { localStorage.setItem(storageKey, JSON.stringify(all)); } catch {}
+    const enServidor = await onGuardar(logKey, entry); // BD + copia local; el backend avisa a n8n
 
     // Si es sesión de test, enviar resultados al backend
     if (esTest && testSesion?.id) {
@@ -737,10 +728,10 @@ function RegistroTab({ week, session, semanas, trimestre, logs, setLogs, storage
           else { setTestError(e.error || 'Error al guardar test. Intenta de nuevo.'); setSaved(''); return; }
         }
       } else {
-        setSaved("✓ Guardado");
+        setSaved(enServidor ? "✓ Guardado" : "✓ Guardado en este dispositivo");
       }
     } else {
-      setSaved("✓ Guardado");
+      setSaved(enServidor ? "✓ Guardado" : "✓ Guardado en este dispositivo");
     }
     setTimeout(() => setSaved(""), 3000);
   };
@@ -1183,7 +1174,9 @@ const REQ = new Set(["peso", "edad", "t2", "t4", "gradoMaxVista"]);
 
 function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
   const [draft, setDraft] = useState(() => {
-    const base = perfil || { ...PERFIL_VACIO, nombre: nombre || "", ...perfilDesdeTestS0(logs) };
+    const base = perfil
+      ? { ...perfil, nombre: nombre || perfil.nombre }
+      : { ...PERFIL_VACIO, nombre: nombre || "", ...perfilDesdeTestS0(logs) };
     return Object.fromEntries(Object.entries(base).map(([k, v]) =>
       [k, CAMPOS_NUM.includes(k) && v !== "" && v != null ? String(v) : v]));
   });
@@ -1199,11 +1192,15 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
   const faltan = camposFaltantes(normalizado);
   const calc = faltan.length === 0 ? calcularParametros(normalizado) : null;
 
-  const guardar = () => {
+  const [guardando, setGuardando] = useState(false);
+  const guardar = async () => {
     if (faltan.length) { setMsg(`Falta: ${faltan.join(", ")}`); return; }
-    try { onSave(normalizado); setMsg("✓ Perfil guardado"); }
-    catch { setMsg("Error al guardar"); }
-    setTimeout(() => setMsg(""), 2500);
+    if (!String(normalizado.nombre || "").trim()) { setMsg("Falta: Nombre"); return; }
+    setGuardando(true);
+    try { await onSave(normalizado); setMsg("✓ Perfil guardado"); }
+    catch (e) { setMsg(e?.message || "Error al guardar"); }
+    finally { setGuardando(false); }
+    setTimeout(() => setMsg(""), 3000);
   };
 
   const card = { background: C.card, borderRadius: 11, padding: "12px", marginBottom: 9 };
@@ -1253,7 +1250,12 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
       <div style={card}>
         <div style={titulo}>Datos personales</div>
         <div style={grid}>
-          <div style={{ gridColumn: "1 / -1" }}>{campo("nombre", "Nombre", null, "text")}</div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            {campo("nombre", "Nombre", null, "text")}
+            <div style={{ color: C.muted, fontSize: 10, marginTop: 3, fontFamily: "Poppins" }}>
+              Es el nombre de tu cuenta: se actualiza en toda la app.
+            </div>
+          </div>
           {campo("peso", "Peso", "kg")}
           {campo("edad", "Edad", "años")}
           <div style={{ gridColumn: "1 / -1" }}>
@@ -1345,7 +1347,7 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
           border: faltan.length ? `1px solid ${C.border}` : "none", borderRadius: 10, padding: "12px",
           cursor: "pointer", color: faltan.length ? C.sub : "#121212", fontSize: 14, fontWeight: 700,
           marginBottom: 20, fontFamily: "Poppins" }}>
-        {msg || (faltan.length ? `Falta: ${faltan.join(", ")}` : onboarding ? "Guardar y empezar" : "Guardar perfil")}
+        {guardando ? "Guardando…" : msg || (faltan.length ? `Falta: ${faltan.join(", ")}` : onboarding ? "Guardar y empezar" : "Guardar perfil")}
       </button>
     </div>
   );
@@ -1434,7 +1436,7 @@ const TABS = [
 ];
 
 export default function PlanTrackerPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [plan, setPlan]       = useState(null);
   const [error, setError]     = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1445,38 +1447,93 @@ export default function PlanTrackerPage() {
   const [perfil, setPerfil]   = useState(() => (user?.id ? cargarPerfil(user.id) : null));
   const [vistaRegistro, setVistaRegistro] = useState("registrar");
 
-  const storageKey = `plan_logs_${user?.id}`;
+  const [sync, setSync]       = useState("ok"); // "ok" | "local" (sin conexión con el servidor)
+  // Copia local por trimestre (respaldo si no hay conexión). La fuente de verdad es la BD.
+  const storageKey = plan ? `plan_logs_${user?.id}_${plan.trimestre}` : null;
   const calc = useMemo(() => (perfilCompleto(perfil) ? calcularParametros(perfil) : null), [perfil]);
 
   useEffect(() => { if (user?.id) setPerfil(cargarPerfil(user.id)); }, [user?.id]);
 
-  const onSavePerfil = p => { guardarPerfil(user.id, p); setPerfil(cargarPerfil(user.id)); };
+  // Perfil: métricas de entrenamiento en el navegador; nombre y peso en la cuenta (BD),
+  // para que el saludo, el entrenador y los demás módulos vean el mismo dato.
+  const onSavePerfil = async p => {
+    const escId = user?.escalador?.id;
+    const nombre = String(p.nombre || "").trim();
+    if (escId) {
+      const datos = {};
+      if (nombre && nombre !== user.escalador.nombre) datos.nombre = nombre;
+      if (p.peso !== "" && p.peso != null && !isNaN(Number(p.peso))) datos.pesoKg = Number(p.peso);
+      if (Object.keys(datos).length) {
+        try { await api.updateEscalador(escId, datos); }
+        catch (e) { throw new Error(e?.error || "No se pudo actualizar tu cuenta. Intenta de nuevo."); }
+        if (datos.nombre) await refreshUser().catch(() => {});
+      }
+    }
+    guardarPerfil(user.id, { ...p, nombre });
+    const guardado = cargarPerfil(user.id);
+    setPerfil(guardado);
+    try { await api.guardarPerfilEntrenamiento(guardado); setSync("ok"); }
+    catch {
+      setSync("local");
+      throw new Error("Guardado en este dispositivo; no se pudo subir al servidor.");
+    }
+  };
+
+  // Guarda un registro: estado, copia local y BD. Devuelve true si llegó al servidor.
+  const guardarRegistro = async (key, entry) => {
+    const next = { ...logs, [key]: entry };
+    setLogs(next);
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+    const [semana, num] = key.split("_");
+    try {
+      await api.guardarRegistro(plan.trimestre, semana, num, entry);
+      setSync("ok");
+      return true;
+    } catch {
+      setSync("local"); // se sube en la próxima sincronización
+      return false;
+    }
+  };
 
   // Override del semáforo rojo: queda registrado en el log de la sesión
   const onOverride = (activo, rojos) => {
     const key = `${week}_${session}`;
-    const entry = { ...logs[key], week, session };
-    if (activo) entry.override_dolor = { ts: new Date().toISOString(), zonas: rojos.map(r => ({ zona: r.zona, nivel: r.nivel })) };
+    const entry = { ...logs[key], week, session, ts: new Date().toISOString() };
+    if (activo) entry.override_dolor = { ts: entry.ts, zonas: rojos.map(r => ({ zona: r.zona, nivel: r.nivel })) };
     else delete entry.override_dolor;
-    const all = { ...logs, [key]: entry };
-    setLogs(all);
-    try { localStorage.setItem(storageKey, JSON.stringify(all)); } catch {}
+    guardarRegistro(key, entry);
   };
 
+  // Carga: plan → sincroniza registros y perfil con la BD (sube lo que haya en el navegador,
+  // incluidos datos guardados antes de esta versión) → usa lo que devuelve el servidor.
   useEffect(() => {
+    if (!user?.id) return;
     setLoading(true);
     api.getMyPlan()
-      .then(data => {
+      .then(async data => {
         setPlan(data);
         setWeek(data.semanas?.[0]?.id || null);
+        const clave = `plan_logs_${user.id}_${data.trimestre}`;
+        const claveAntigua = `plan_logs_${user.id}`; // versión anterior: sin trimestre
+        let local = {};
         try {
-          const stored = localStorage.getItem(storageKey);
-          if (stored) setLogs(JSON.parse(stored));
+          local = JSON.parse(localStorage.getItem(clave) || localStorage.getItem(claveAntigua) || "{}");
         } catch {}
+        setLogs(local);
+        try {
+          const srv = await api.sincronizarRegistros({ trimestre: data.trimestre, registros: local, perfil: cargarPerfil(user.id) });
+          setLogs(srv.registros || {});
+          localStorage.setItem(clave, JSON.stringify(srv.registros || {}));
+          localStorage.removeItem(claveAntigua);
+          if (srv.perfil) { guardarPerfil(user.id, srv.perfil); setPerfil(cargarPerfil(user.id)); }
+          setSync("ok");
+        } catch {
+          setSync("local");
+        }
       })
       .catch(err => setError(err))
       .finally(() => setLoading(false));
-  }, [storageKey]);
+  }, [user?.id]);
 
   const goToSession = (w, s) => { setWeek(w); setSession(s); setTab("sesion"); };
 
@@ -1519,7 +1576,7 @@ export default function PlanTrackerPage() {
           </span>
         </div>
         <p style={{ color: C.sub, fontSize: "0.85rem", fontFamily: "Poppins" }}>
-          {plan.nombre} · {plan.semanas.length} semanas
+          {user?.escalador?.nombre || plan.nombre} · {plan.semanas.length} semanas
         </p>
         <span title={plan.fuente === "ai"
             ? `${plan.aiSesiones} sesiones ajustadas a tus resultados del test S0`
@@ -1532,6 +1589,15 @@ export default function PlanTrackerPage() {
           {plan.fuente === "ai" ? "✨ Plan personalizado" : "Plan base · test S0 pendiente"}
         </span>
       </div>
+
+      {sync === "local" && (
+        <div style={{ background: C.orangeA, border: `1px solid ${C.orange}55`, borderRadius: 9,
+          padding: "9px 12px", marginBottom: 14, color: C.orange, fontSize: 12, lineHeight: 1.5,
+          fontFamily: "Poppins" }}>
+          ⚠️ Sin conexión con el servidor: tus registros quedan en este dispositivo y se subirán
+          la próxima vez que abras el plan con conexión.
+        </div>
+      )}
 
       {onboarding && (
         <PerfilTab perfil={perfil} logs={logs} nombre={user?.escalador?.nombre} onboarding onSave={onSavePerfil} />
@@ -1576,8 +1642,8 @@ export default function PlanTrackerPage() {
             ))}
           </div>
           {vistaRegistro === "registrar" ? (
-            <RegistroTab week={week} session={session} semanas={plan.semanas} trimestre={plan.trimestre} perfil={perfil}
-              logs={logs} setLogs={setLogs} storageKey={storageKey} testSesiones={plan.testSesiones} />
+            <RegistroTab week={week} session={session} semanas={plan.semanas} perfil={perfil}
+              logs={logs} onGuardar={guardarRegistro} testSesiones={plan.testSesiones} />
           ) : (
             <ProgresionView plan={plan} logs={logs} perfil={perfil} />
           )}
@@ -1587,7 +1653,7 @@ export default function PlanTrackerPage() {
         <MovilidadTab nivel={plan.nivel} />
       )}
       {tab === "perfil" && (
-        <PerfilTab key={perfil?.actualizado} perfil={perfil} logs={logs} nombre={user?.escalador?.nombre} onSave={onSavePerfil} />
+        <PerfilTab perfil={perfil} logs={logs} nombre={user?.escalador?.nombre} onSave={onSavePerfil} />
       )}
       </>}
     </div>

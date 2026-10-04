@@ -37,6 +37,13 @@ export function AuthProvider({ children }) {
     return perfil;
   };
 
+  // Recarga el perfil del usuario (tras editar nombre u otros datos)
+  const refreshUser = async () => {
+    const perfil = await api.getMe();
+    setUser(perfil);
+    return perfil;
+  };
+
   const logout = () => {
     api.setToken(null);
     localStorage.removeItem('refreshToken');
@@ -44,7 +51,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

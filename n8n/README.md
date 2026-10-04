@@ -3,7 +3,7 @@
 | Archivo | Webhook | Se dispara desde |
 |---|---|---|
 | `flujo1-generar-plan.json` | `POST /webhook/generar-plan` | Backend, al registrar un test de **entrada** (S0): `POST /api/evaluaciones/mi-test` o `POST /api/evaluaciones/:id/resultados` |
-| `flujo2-ajustar-sesion.json` | `POST /webhook/ajustar-sesion` | Backend, `POST /api/plan/reporte` (la app lo llama al guardar cada registro de sesión) |
+| `flujo2-ajustar-sesion.json` | `POST /webhook/ajustar-sesion` | Backend, al guardar un registro de sesión con PSE (`PUT /api/registros/:semana/:sesionNum`) |
 
 Ambos escriben en la tabla `plan_ai_sesion` de Neon. `GET /api/plan/my` superpone esas sesiones sobre `plan_contenido`.
 

@@ -2,23 +2,7 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../config/prisma");
 const { authenticate } = require("../middleware/auth");
-const { notificarReporteSesion } = require("../utils/n8n");
-
-// ¿Puede el usuario ver el plan de este escalador?
-// escalador → el propio · entrenador → escaladores con inscripción activa en sus grupos · admin → todos
-async function puedeVerEscalador(user, escaladorId) {
-  if (user.rol === "admin") return true;
-  if (user.rol === "escalador") return user.escalador?.id === escaladorId;
-  if (user.rol === "entrenador" && user.entrenador?.id) {
-    const r = await prisma.$queryRawUnsafe(
-      `SELECT 1 FROM inscripcion i JOIN grupo g ON g.id = i.grupo_id
-       WHERE i.escalador_id = $1::uuid AND g.entrenador_id = $2::uuid AND i.estado = 'activa' LIMIT 1`,
-      escaladorId, user.entrenador.id
-    );
-    return r.length > 0;
-  }
-  return false;
-}
+const { puedeVerEscalador } = require("../utils/acceso");
 
 async function sesionesAI(escaladorId, trimestre) {
   return prisma.$queryRawUnsafe(
@@ -173,57 +157,6 @@ router.get("/ai/:escaladorId", authenticate, async (req, res) => {
     res.json({ escaladorId, trimestre, sesiones });
   } catch (err) {
     console.error("[GET /api/plan/ai]", err.message);
-    res.status(500).json({ error: "Error interno" });
-  }
-});
-
-// ─── POST /plan/reporte ──────────────────────────────────
-// Reporte de una sesión (PSE, dolor por zona, notas) → n8n flujo 2 ajusta la sesión siguiente.
-// Los registros completos siguen en el navegador del escalador; esto solo dispara el ajuste.
-router.post("/reporte", authenticate, async (req, res) => {
-  if (!req.user.escalador) return res.status(403).json({ error: "Solo para escaladores" });
-  const { trimestre = "T1", semana, sesionNum, pse, pseObjetivo, dolor = {}, notas = "" } = req.body || {};
-  const pseN = Number(pse);
-  if (!/^S\d{1,2}$/.test(semana || "") || !Number.isInteger(Number(sesionNum)) || !(pseN >= 0 && pseN <= 10)) {
-    return res.status(400).json({ error: "semana, sesionNum y pse (0–10) son requeridos" });
-  }
-  const zonas = Object.fromEntries(
-    Object.entries(dolor).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.min(4, Number(v) || 0))])
-  );
-  try {
-    // Sesión siguiente en el orden del plan base: es la que n8n debe ajustar
-    const nivelRes = await prisma.$queryRawUnsafe(
-      `SELECT p.nivel FROM inscripcion i
-       JOIN grupo g ON g.id = i.grupo_id JOIN programa p ON p.id = g.programa_id
-       WHERE i.escalador_id = $1::uuid AND i.estado = 'activa'
-       ORDER BY i.created_at DESC LIMIT 1`,
-      req.user.escalador.id
-    );
-    let siguiente = null;
-    if (nivelRes.length) {
-      const planRes = await prisma.$queryRawUnsafe(
-        "SELECT semanas FROM plan_contenido WHERE trimestre = $1 AND nivel = $2",
-        trimestre, nivelRes[0].nivel
-      );
-      const orden = (planRes[0]?.semanas || []).flatMap(w => w.sesiones.map(s => ({ semana: w.id, sesionNum: s.num })));
-      const i = orden.findIndex(o => o.semana === semana && o.sesionNum === Number(sesionNum));
-      siguiente = i >= 0 ? orden[i + 1] || null : null;
-    }
-    notificarReporteSesion({
-      escaladorId: req.user.escalador.id,
-      trimestre,
-      semana,
-      sesionNum: Number(sesionNum),
-      pse: pseN,
-      pseObjetivo: pseObjetivo === undefined || pseObjetivo === null ? null : Number(pseObjetivo),
-      dolor: Math.max(0, ...Object.values(zonas)),
-      dolorZonas: zonas,
-      notas: String(notas).slice(0, 2000),
-      siguiente,
-    });
-    res.status(202).json({ ok: true, siguiente });
-  } catch (err) {
-    console.error("[POST /api/plan/reporte]", err.message);
     res.status(500).json({ error: "Error interno" });
   }
 });
