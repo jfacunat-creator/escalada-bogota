@@ -1,5 +1,5 @@
 {
-  "_doc": "Mapa tema → secciones de los libros fuente. Solo referencias (páginas del PDF), nunca texto de los libros: el texto vive fuera del repo (Fuentes_AI) y en la BD. Un bloque del plan se asigna a los temas cuyas palabras clave aparecen en su nombre o sus params. El tema recuperacion_lesiones también se agrega siempre que el reporte semanal trae dolor ≥ 1 (flujo 2).",
+  "_doc": "Mapa tema → secciones de los libros fuente. Solo referencias (páginas del PDF), nunca texto de los libros: el texto vive fuera del repo (Fuentes_AI) y en la BD. Un bloque del plan se asigna a los temas cuyas palabras clave aparecen en su nombre o sus params. El tema recuperacion_lesiones también se agrega siempre que el reporte semanal trae dolor ≥ 1 (flujo 2). Los temas con soloReportes no entran en las consultas del test S0: no sirven para justificar cambios de series, %, tiempos o descansos; sí en los reportes semanales, donde el escalador puede escribir notas sobre técnica, miedo o alimentación.",
   "libros": {
     "horst": "Eric Hörst — Cómo entrenar y escalar mejor (Ediciones Desnivel, manual recomendado por la EEAM-FEDME)",
     "obrado": "Félix Obradó Carriedo — Manual básico de entrenamiento en escalada (FEDME-EEAM, 2015)"
@@ -233,7 +233,8 @@
             60
           ]
         }
-      ]
+      ],
+      "soloReportes": true
     },
     "tecnica": {
       "claves": [
@@ -274,7 +275,8 @@
             44
           ]
         }
-      ]
+      ],
+      "soloReportes": true
     },
     "tactica_mental": {
       "claves": [
@@ -319,7 +321,8 @@
             50
           ]
         }
-      ]
+      ],
+      "soloReportes": true
     },
     "antagonistas_flexibilidad": {
       "claves": [
@@ -450,7 +453,8 @@
         "nutrici",
         "dieta",
         "hidrataci",
-        "peso"
+        "comida",
+        "aliment"
       ],
       "fuentes": [
         {
@@ -461,7 +465,8 @@
             145
           ]
         }
-      ]
+      ],
+      "soloReportes": true
     }
   }
 }

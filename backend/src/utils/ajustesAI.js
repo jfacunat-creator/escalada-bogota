@@ -43,12 +43,15 @@ function textoSesion(s) {
   return [s.name, ...(s.blocks || []).map(b => `${b.n} ${b.i || ""} ${JSON.stringify(b.params || [])}`)].join(" ").toLowerCase();
 }
 
+// En el test S0 solo entran los temas que pueden justificar números (ver soloReportes en el mapa).
+const temaAplica = (v, origen) => origen !== "test_entrada" || !v.soloReportes;
+
 function temasDe(sesiones, { dolor = 0, origen }) {
   const temas = new Set();
   for (const s of sesiones) {
     const t = textoSesion(s);
     for (const [k, v] of Object.entries(mapa.temas)) {
-      if (v.claves.some(c => t.includes(c.toLowerCase()))) temas.add(k);
+      if (temaAplica(v, origen) && v.claves.some(c => t.includes(c.toLowerCase()))) temas.add(k);
     }
   }
   if (dolor >= 1) temas.add("recuperacion_lesiones");
@@ -206,7 +209,8 @@ function armarRequest({ trimestre, nivel, guia, fragmentos, datos, sesiones, sol
     { type: "text", text: `<guia programa="${trimestre} ${nivel}">\n${guia}\n</guia>` },
     ...(bibliografiaEnCache ? [{ type: "text", text: bibliografia }] : []),
   ];
-  system[system.length - 1].cache_control = { type: "ephemeral" };
+  // Escribir la caché cuesta un 25 % más: solo vale la pena si otras consultas del lote la van a leer.
+  if (bibliografiaEnCache) system[system.length - 1].cache_control = { type: "ephemeral" };
   return {
     model: MODELO,
     max_tokens: 32000,
@@ -261,11 +265,12 @@ async function planVigente(escaladorId, trimestre, nivel) {
 const tieneParams = s => (s.blocks || []).some(b => (b.params || []).some(([, v]) => numeros(v).length));
 
 /**
- * @param origen 'test_entrada' → una tarea por semana de entrenamiento (S1–S11) a partir de los resultados del S0.
+ * @param origen 'test_entrada' → una tarea por semana de entrenamiento (S1–S11) a partir de los resultados del S0
+ *               (soloSemanas: ['S2'] limita a esas semanas, p. ej. para una prueba de calidad barata).
  *               'reporte'      → una tarea para la sesión siguiente a la reportada.
  * @returns { loteId, tareas: [{ meta, firma, request }] } o null si no hay nada que consultar.
  */
-async function construirTareas({ escaladorId, origen, resultados = [], reporte = null }) {
+async function construirTareas({ escaladorId, origen, resultados = [], reporte = null, soloSemanas = null }) {
   const esc = await contextoEscalador(escaladorId);
   if (!esc) return null;
   const plan = await planVigente(escaladorId, esc.trimestre, esc.nivel);
@@ -280,7 +285,7 @@ async function construirTareas({ escaladorId, origen, resultados = [], reporte =
   let soloReducir = false;
   if (origen === "test_entrada") {
     grupos = plan.vigente
-      .filter(w => /^S([1-9]|1[01])$/.test(w.id))
+      .filter(w => /^S([1-9]|1[01])$/.test(w.id) && (!soloSemanas || soloSemanas.includes(w.id)))
       .map(w => ({ semana: w.id, sesiones: (w.sesiones || []).filter(tieneParams).map(s => ({ semana: w.id, s })) }))
       .filter(g => g.sesiones.length);
   } else {
@@ -299,13 +304,14 @@ async function construirTareas({ escaladorId, origen, resultados = [], reporte =
 
   // Test S0: todas las fuentes, compartidas y cacheadas entre las consultas del lote.
   // Reporte: una sola consulta, solo las secciones de los temas de esa sesión.
-  const todas = origen === "test_entrada";
+  // Con una sola consulta no hay caché que aprovechar: también se seleccionan las secciones por tema.
+  const todas = origen === "test_entrada" && grupos.length > 1;
   const loteId = crypto.randomUUID();
   const tareas = [];
   for (const g of grupos) {
     const sesiones = g.sesiones.map(x => x.s);
     const claves = todas
-      ? fuentesDe(Object.keys(mapa.temas))
+      ? fuentesDe(Object.keys(mapa.temas).filter(k => temaAplica(mapa.temas[k], origen)))
       : fuentesDe(temasDe(sesiones, { dolor: reporte?.dolor || 0, origen }));
     const { fragmentos, guia } = await leerFuentes(claves, esc.trimestre, esc.nivel);
     if (!guia) throw new Error(`Falta la guía ${esc.trimestre} ${esc.nivel} en fuente_guia (npm run fuentes:cargar)`);
