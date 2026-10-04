@@ -129,7 +129,7 @@ Render es el servidor que corre tu API (el cerebro de la app).
 
 | Campo | Valor |
 |-------|-------|
-| Name | `escalada-bogota-api` |
+| Name | `escalada-bogota` |
 | Region | Oregon (US West) |
 | Branch | `main` |
 | Root Directory | `backend` |
@@ -147,12 +147,13 @@ Render es el servidor que corre tu API (el cerebro de la app).
 | `JWT_EXPIRES_IN` | `7d` |
 | `NODE_ENV` | `production` |
 | `PORT` | `3001` |
+| `N8N_WEBHOOK_SECRET` | Secreto largo para la actualización semanal de planes con AI (mismo valor en la credencial de n8n; ver `n8n/README.md`) |
 
 7. Click en **Create Web Service**
 8. Espera 2-3 minutos. Verás un log que dice "Escalada Bogotá API · Puerto 3001"
 9. Arriba verás la URL de tu backend, algo como:
    ```
-   https://escalada-bogota-api.onrender.com
+   https://escalada-bogota.onrender.com
    ```
 10. **Copia esa URL. La necesitas en el paso 4.**
 
@@ -160,7 +161,7 @@ Render es el servidor que corre tu API (el cerebro de la app).
 
 Abre en tu navegador:
 ```
-https://escalada-bogota-api.onrender.com/api/health
+https://escalada-bogota.onrender.com/api/health
 ```
 Deberías ver: `{"status":"ok","service":"Escalada Bogotá API"}`
 
@@ -190,7 +191,7 @@ Vercel es donde vive la interfaz que ven tus escaladores.
 
 | Variable | Valor |
 |----------|-------|
-| `VITE_API_URL` | `https://escalada-bogota-api.onrender.com/api` |
+| `VITE_API_URL` | `https://escalada-bogota.onrender.com/api` |
 
 **IMPORTANTE:** Usa la URL de TU backend del paso 3, con `/api` al final.
 

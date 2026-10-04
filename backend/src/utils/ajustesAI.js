@@ -260,13 +260,17 @@ async function contextoEscalador(escaladorId) {
   );
   if (!rows.length) return null;
   const r = rows[0];
-  const perfil = await prisma.$queryRawUnsafe("SELECT datos FROM perfil_entrenamiento WHERE escalador_id = $1::uuid", escaladorId);
+  const perfil = (await prisma.$queryRawUnsafe("SELECT datos FROM perfil_entrenamiento WHERE escalador_id = $1::uuid", escaladorId))[0]?.datos || null;
+  // El rango "adulto" va de 16 años en adelante: la edad exacta sale del perfil (obligatoria en la app).
+  const edad = Number(perfil?.edad) > 0 ? Number(perfil.edad) : null;
+  const peso = r.peso_kg !== null ? Number(r.peso_kg) : Number(perfil?.peso) > 0 ? Number(perfil.peso) : null;
   return {
     nivel: r.nivel,
     trimestre: r.trimestre ? `T${r.trimestre}` : "T1",
-    pesoKg: r.peso_kg === null ? null : Number(r.peso_kg),
+    pesoKg: peso,
+    edad,
     rangoEtario: r.rango_etario,
-    perfil: perfil[0]?.datos || null,
+    perfil,
   };
 }
 
@@ -322,7 +326,10 @@ async function construirTareas({ escaladorId, origen, loteId = crypto.randomUUID
   if (!plan) return null;
 
   const datos = {
-    nivel: esc.nivel, rangoEtario: esc.rangoEtario, pesoKg: esc.pesoKg, perfil: esc.perfil,
+    nivel: esc.nivel, edad: esc.edad, rangoEtario: esc.rangoEtario, pesoKg: esc.pesoKg,
+    // Regla del programa: a partir de los 40 años el lastre del excéntrico es la mitad (ya aplicada por la app).
+    protocoloMayor40: esc.edad !== null && esc.edad >= 40,
+    perfil: esc.perfil,
     testEntradaS0: Object.fromEntries(resultados.map(r => [r.codigo, { valor: r.valor, unidad: r.unidad, prueba: DESCRIPCION_TEST[r.codigo] || r.metrica }])),
   };
   const semanasDe = filtro => plan.vigente
@@ -398,6 +405,12 @@ async function seleccionarSemanal() {
     const esc = await contextoEscalador(e.id);
     const plan = esc && await planVigente(e.id, esc.trimestre, esc.nivel);
     if (!plan) { omitidos.push({ escalador: e.nombre, motivo: "sin plan base para su nivel y trimestre" }); continue; }
+    // Sin edad exacta y peso no se consulta: la regla de los 40 años y las cargas relativas dependen de ellos.
+    const faltan = [esc.edad === null && "edad", esc.pesoKg === null && "peso"].filter(Boolean);
+    if (faltan.length) {
+      omitidos.push({ escalador: e.nombre, motivo: `falta ${faltan.join(" y ")} en su perfil: pídele que complete Mi Plan → Perfil` });
+      continue;
+    }
     const orden = plan.base.map(w => w.id);
 
     const regs = await prisma.$queryRawUnsafe(
