@@ -1183,7 +1183,9 @@ const REQ = new Set(["peso", "edad", "t2", "t4", "gradoMaxVista"]);
 
 function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
   const [draft, setDraft] = useState(() => {
-    const base = perfil || { ...PERFIL_VACIO, nombre: nombre || "", ...perfilDesdeTestS0(logs) };
+    const base = perfil
+      ? { ...perfil, nombre: nombre || perfil.nombre }
+      : { ...PERFIL_VACIO, nombre: nombre || "", ...perfilDesdeTestS0(logs) };
     return Object.fromEntries(Object.entries(base).map(([k, v]) =>
       [k, CAMPOS_NUM.includes(k) && v !== "" && v != null ? String(v) : v]));
   });
@@ -1199,11 +1201,15 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
   const faltan = camposFaltantes(normalizado);
   const calc = faltan.length === 0 ? calcularParametros(normalizado) : null;
 
-  const guardar = () => {
+  const [guardando, setGuardando] = useState(false);
+  const guardar = async () => {
     if (faltan.length) { setMsg(`Falta: ${faltan.join(", ")}`); return; }
-    try { onSave(normalizado); setMsg("✓ Perfil guardado"); }
-    catch { setMsg("Error al guardar"); }
-    setTimeout(() => setMsg(""), 2500);
+    if (!String(normalizado.nombre || "").trim()) { setMsg("Falta: Nombre"); return; }
+    setGuardando(true);
+    try { await onSave(normalizado); setMsg("✓ Perfil guardado"); }
+    catch (e) { setMsg(e?.message || "Error al guardar"); }
+    finally { setGuardando(false); }
+    setTimeout(() => setMsg(""), 3000);
   };
 
   const card = { background: C.card, borderRadius: 11, padding: "12px", marginBottom: 9 };
@@ -1253,7 +1259,12 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
       <div style={card}>
         <div style={titulo}>Datos personales</div>
         <div style={grid}>
-          <div style={{ gridColumn: "1 / -1" }}>{campo("nombre", "Nombre", null, "text")}</div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            {campo("nombre", "Nombre", null, "text")}
+            <div style={{ color: C.muted, fontSize: 10, marginTop: 3, fontFamily: "Poppins" }}>
+              Es el nombre de tu cuenta: se actualiza en toda la app.
+            </div>
+          </div>
           {campo("peso", "Peso", "kg")}
           {campo("edad", "Edad", "años")}
           <div style={{ gridColumn: "1 / -1" }}>
@@ -1345,7 +1356,7 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
           border: faltan.length ? `1px solid ${C.border}` : "none", borderRadius: 10, padding: "12px",
           cursor: "pointer", color: faltan.length ? C.sub : "#121212", fontSize: 14, fontWeight: 700,
           marginBottom: 20, fontFamily: "Poppins" }}>
-        {msg || (faltan.length ? `Falta: ${faltan.join(", ")}` : onboarding ? "Guardar y empezar" : "Guardar perfil")}
+        {guardando ? "Guardando…" : msg || (faltan.length ? `Falta: ${faltan.join(", ")}` : onboarding ? "Guardar y empezar" : "Guardar perfil")}
       </button>
     </div>
   );
@@ -1434,7 +1445,7 @@ const TABS = [
 ];
 
 export default function PlanTrackerPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [plan, setPlan]       = useState(null);
   const [error, setError]     = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1450,7 +1461,24 @@ export default function PlanTrackerPage() {
 
   useEffect(() => { if (user?.id) setPerfil(cargarPerfil(user.id)); }, [user?.id]);
 
-  const onSavePerfil = p => { guardarPerfil(user.id, p); setPerfil(cargarPerfil(user.id)); };
+  // Perfil: métricas de entrenamiento en el navegador; nombre y peso en la cuenta (BD),
+  // para que el saludo, el entrenador y los demás módulos vean el mismo dato.
+  const onSavePerfil = async p => {
+    const escId = user?.escalador?.id;
+    const nombre = String(p.nombre || "").trim();
+    if (escId) {
+      const datos = {};
+      if (nombre && nombre !== user.escalador.nombre) datos.nombre = nombre;
+      if (p.peso !== "" && p.peso != null && !isNaN(Number(p.peso))) datos.pesoKg = Number(p.peso);
+      if (Object.keys(datos).length) {
+        try { await api.updateEscalador(escId, datos); }
+        catch (e) { throw new Error(e?.error || "No se pudo actualizar tu cuenta. Intenta de nuevo."); }
+        if (datos.nombre) await refreshUser().catch(() => {});
+      }
+    }
+    guardarPerfil(user.id, { ...p, nombre });
+    setPerfil(cargarPerfil(user.id));
+  };
 
   // Override del semáforo rojo: queda registrado en el log de la sesión
   const onOverride = (activo, rojos) => {
@@ -1519,7 +1547,7 @@ export default function PlanTrackerPage() {
           </span>
         </div>
         <p style={{ color: C.sub, fontSize: "0.85rem", fontFamily: "Poppins" }}>
-          {plan.nombre} · {plan.semanas.length} semanas
+          {user?.escalador?.nombre || plan.nombre} · {plan.semanas.length} semanas
         </p>
         <span title={plan.fuente === "ai"
             ? `${plan.aiSesiones} sesiones ajustadas a tus resultados del test S0`
@@ -1587,7 +1615,7 @@ export default function PlanTrackerPage() {
         <MovilidadTab nivel={plan.nivel} />
       )}
       {tab === "perfil" && (
-        <PerfilTab key={perfil?.actualizado} perfil={perfil} logs={logs} nombre={user?.escalador?.nombre} onSave={onSavePerfil} />
+        <PerfilTab perfil={perfil} logs={logs} nombre={user?.escalador?.nombre} onSave={onSavePerfil} />
       )}
       </>}
     </div>
