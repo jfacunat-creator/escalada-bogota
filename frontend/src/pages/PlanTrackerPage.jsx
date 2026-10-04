@@ -528,10 +528,28 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
           {sd.ai && (
             <span style={{ background: C.tealA, color: C.teal, fontSize: 9,
               fontWeight: 700, padding: "2px 7px", borderRadius: 999, fontFamily: "Poppins" }}>
-              ✨ Personalizada{sd.aiRevisado ? " · revisada" : ""}
+              ✨ Ajustada por tu entrenador
             </span>
           )}
         </div>
+        {sd.aiAjustes?.length > 0 && (
+          <details style={{ marginBottom: 8 }}>
+            <summary style={{ color: C.teal, fontSize: 11, cursor: "pointer", fontFamily: "Poppins" }}>
+              Qué cambió y por qué ({sd.aiAjustes.length})
+            </summary>
+            {sd.aiAjustes.map((a, i) => (
+              <div key={i} style={{ marginTop: 6, padding: "7px 9px", background: C.card, borderRadius: 8,
+                fontSize: 11, lineHeight: 1.45, fontFamily: "Poppins" }}>
+                <div style={{ color: C.text }}>
+                  <b>{a.bloque} · {a.etiqueta}:</b>{" "}
+                  <span style={{ color: C.sub, textDecoration: "line-through" }}>{a.base}</span> → {a.valor}
+                </div>
+                <div style={{ color: C.sub, marginTop: 2 }}>{a.motivo}</div>
+                <div style={{ color: C.sub, marginTop: 2, fontStyle: "italic" }}>Fuente: {a.fuente}</div>
+              </div>
+            ))}
+          </details>
+        )}
         <div style={{ color: C.text, fontSize: 14, fontWeight: 700, marginBottom: 8,
           lineHeight: 1.3, fontFamily: "Antonio" }}>
           {sd.name}
@@ -1579,14 +1597,14 @@ export default function PlanTrackerPage() {
           {user?.escalador?.nombre || plan.nombre} · {plan.semanas.length} semanas
         </p>
         <span title={plan.fuente === "ai"
-            ? `${plan.aiSesiones} sesiones ajustadas a tus resultados del test S0`
-            : "Se personaliza cuando registres tu test S0"}
+            ? `${plan.aiSesiones} sesiones ajustadas por tu entrenador a partir de tus datos`
+            : "Se personaliza con tu test S0 y tus registros, tras la revisión de tu entrenador"}
           style={{ display: "inline-block", marginTop: 6, fontSize: 10, fontWeight: 700, padding: "3px 9px",
             borderRadius: 999, fontFamily: "Poppins",
             background: plan.fuente === "ai" ? C.tealA : C.cardAlt,
             color: plan.fuente === "ai" ? C.teal : C.sub,
             border: `1px solid ${plan.fuente === "ai" ? `${C.teal}55` : C.border}` }}>
-          {plan.fuente === "ai" ? "✨ Plan personalizado" : "Plan base · test S0 pendiente"}
+          {plan.fuente === "ai" ? "✨ Plan personalizado" : "Plan base"}
         </span>
       </div>
 

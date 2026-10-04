@@ -3,30 +3,12 @@ const router = express.Router();
 const prisma = require("../config/prisma");
 const { authenticate } = require("../middleware/auth");
 const { puedeVerEscalador } = require("../utils/acceso");
+const { aplicarAjustes, leerAprobados } = require("../utils/ajustesAI");
 
-async function sesionesAI(escaladorId, trimestre) {
-  return prisma.$queryRawUnsafe(
-    `SELECT semana, sesion_num, nombre, bloques, generado_at, revisado
-     FROM plan_ai_sesion
-     WHERE escalador_id = $1::uuid AND trimestre = $2
-     ORDER BY semana, sesion_num`,
-    escaladorId, trimestre
-  ).catch(err => { console.error("[plan_ai_sesion]", err.message); return []; });
-}
-
-// Superpone las sesiones AI sobre el plan base: reemplaza nombre y bloques,
-// conserva la estructura (PSE objetivo, tipo, calentamiento, avisos) del plan base.
-function fusionarPlan(semanas, ai) {
-  if (!ai.length) return semanas;
-  const porClave = new Map(ai.map(a => [`${a.semana}_${a.sesion_num}`, a]));
-  return semanas.map(w => ({
-    ...w,
-    sesiones: w.sesiones.map(s => {
-      const a = porClave.get(`${w.id}_${s.num}`);
-      if (!a || !Array.isArray(a.bloques)) return s;
-      return { ...s, name: a.nombre || s.name, blocks: a.bloques, ai: true, aiRevisado: !!a.revisado };
-    }),
-  }));
+// Ajustes AI aprobados por un entrenador o admin (los pendientes nunca llegan al escalador).
+async function ajustesAprobados(escaladorId, trimestre) {
+  return leerAprobados(escaladorId, trimestre)
+    .catch(err => { console.error("[plan_ai_ajuste]", err.message); return []; });
 }
 
 router.get("/my", authenticate, async (req, res) => {
@@ -107,15 +89,15 @@ router.get("/my", authenticate, async (req, res) => {
       semanaCode: idx === 0 ? 'S0' : 'S12',
     }));
 
-    const ai = await sesionesAI(req.user.escalador.id, trimestre);
+    const ajustes = await ajustesAprobados(req.user.escalador.id, trimestre);
     return res.json({
       trimestre,
       nivel,
       nombre: esc.nombre,
-      semanas: fusionarPlan(planRes[0].semanas, ai),
-      fuente: ai.length ? "ai" : "base",
-      aiSesiones: ai.length,
-      aiGeneradoAt: ai.reduce((max, a) => (!max || a.generado_at > max ? a.generado_at : max), null),
+      semanas: aplicarAjustes(planRes[0].semanas, ajustes),
+      fuente: ajustes.length ? "ai" : "base",
+      aiSesiones: new Set(ajustes.map(a => `${a.semana}_${a.sesion_num}`)).size,
+      aiGeneradoAt: ajustes.reduce((max, a) => (!max || a.revisado_at > max ? a.revisado_at : max), null),
       testSesiones,
     });
 
@@ -144,7 +126,7 @@ router.get("/contenido", authenticate, authorize("admin"), async (req, res) => {
 });
 
 // ─── GET /plan/ai/:escaladorId ───────────────────────────
-// Sesiones personalizadas por AI (sin fusionar). Para el escalador, su entrenador o admin.
+// Ajustes AI del escalador en todos los estados. Para el escalador, su entrenador o admin.
 router.get("/ai/:escaladorId", authenticate, async (req, res) => {
   const { escaladorId } = req.params;
   const { trimestre = "T1" } = req.query;
@@ -153,8 +135,15 @@ router.get("/ai/:escaladorId", authenticate, async (req, res) => {
     if (!(await puedeVerEscalador(req.user, escaladorId))) {
       return res.status(403).json({ error: "Acceso denegado" });
     }
-    const sesiones = await sesionesAI(escaladorId, trimestre);
-    res.json({ escaladorId, trimestre, sesiones });
+    const ajustes = await prisma.$queryRawUnsafe(
+      `SELECT id, semana, sesion_num, bloque, etiqueta, valor_base, valor_propuesto, motivo, fuente, pagina,
+              estado, origen, created_at, revisado_at
+       FROM plan_ai_ajuste WHERE escalador_id = $1::uuid AND trimestre = $2
+         AND ($3::boolean OR estado = 'aprobado')
+       ORDER BY created_at DESC`,
+      escaladorId, trimestre, req.user.rol !== "escalador"
+    );
+    res.json({ escaladorId, trimestre, ajustes });
   } catch (err) {
     console.error("[GET /api/plan/ai]", err.message);
     res.status(500).json({ error: "Error interno" });

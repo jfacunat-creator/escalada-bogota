@@ -17,6 +17,7 @@ model Usuario {
   updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
   entrenador   Entrenador?
   escalador    Escalador?
+  ajustesAiRevisados PlanAiAjuste[]
 
   @@map("usuario")
 }
@@ -45,6 +46,8 @@ model Escalador {
   puntosLiga         PuntosLiga[]
   remisiones         Remision[]
   planAiSesiones     PlanAiSesion[]
+  planAiAjustes      PlanAiAjuste[]
+  planAiConsultas    PlanAiConsulta[]
   registrosSesion    RegistroSesion[]
   perfilEntrenamiento PerfilEntrenamiento?
   responsable        Responsable?
@@ -571,4 +574,77 @@ model PerfilEntrenamiento {
   escalador   Escalador @relation(fields: [escaladorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("perfil_entrenamiento")
+}
+
+/// Ajuste de UN parámetro del plan base propuesto por la AI con cita bibliográfica.
+/// Solo se aplica al escalador cuando un entrenador o admin lo aprueba (estado = aprobado).
+model PlanAiAjuste {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  escaladorId    String    @map("escalador_id") @db.Uuid
+  trimestre      String    @db.VarChar(3)
+  semana         String    @db.VarChar(3)
+  sesionNum      Int       @map("sesion_num")
+  bloque         String
+  etiqueta       String
+  valorBase      String    @map("valor_base")
+  valorPropuesto String    @map("valor_propuesto")
+  motivo         String
+  fuente         String    @db.VarChar(40)
+  pagina         Int?
+  cita           String
+  origen         String    @db.VarChar(20)
+  loteId         String    @map("lote_id") @db.Uuid
+  estado         String    @default("pendiente") @db.VarChar(12)
+  revisadoPor    String?   @map("revisado_por") @db.Uuid
+  revisadoAt     DateTime? @map("revisado_at") @db.Timestamptz(6)
+  notaRevisor    String?   @map("nota_revisor")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  escalador      Escalador @relation(fields: [escaladorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  revisor        Usuario?  @relation(fields: [revisadoPor], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([escaladorId, trimestre, estado], map: "idx_plan_ai_ajuste_escalador")
+  @@map("plan_ai_ajuste")
+}
+
+/// Bitácora de cada consulta a la AI (aceptados, descartados con motivo, uso de tokens).
+model PlanAiConsulta {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  loteId      String    @map("lote_id") @db.Uuid
+  escaladorId String    @map("escalador_id") @db.Uuid
+  origen      String    @db.VarChar(20)
+  sesiones    String[]
+  aceptados   Int       @default(0)
+  descartados Json      @default("[]")
+  sinCambios  String?   @map("sin_cambios")
+  error       String?
+  uso         Json?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  escalador   Escalador @relation(fields: [escaladorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([loteId], map: "idx_plan_ai_consulta_lote")
+  @@map("plan_ai_consulta")
+}
+
+/// Secciones de los libros fuente (texto cargado con `npm run fuentes:cargar`, fuera del repo).
+model FuenteFragmento {
+  clave     String   @id @db.VarChar(40)
+  libro     String   @db.VarChar(20)
+  seccion   String
+  pagIni    Int      @map("pag_ini")
+  pagFin    Int      @map("pag_fin")
+  texto     String
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("fuente_fragmento")
+}
+
+/// Guía completa de cada plan base (trimestre × nivel).
+model FuenteGuia {
+  trimestre String   @db.VarChar(3)
+  nivel     String   @db.VarChar(20)
+  texto     String
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@id([trimestre, nivel])
+  @@map("fuente_guia")
 }

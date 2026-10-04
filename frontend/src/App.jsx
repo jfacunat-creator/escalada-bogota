@@ -28,6 +28,7 @@ import GruposAdminPage from './pages/GruposAdminPage';
 import MisPagosPage from './pages/MisPagosPage';
 import RRHHPage from './pages/RRHHPage';
 import PlanTrackerPage from './pages/PlanTrackerPage';
+import AjustesAIPage from './pages/AjustesAIPage';
 import { Loader2 } from 'lucide-react';
 
 const Spinner = () => (
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="pagos"          element={<PagosPage />} />
             <Route path="rrhh"           element={<RRHHPage />} />
             <Route path="mi-plan"        element={<PlanTrackerPage />} />
+            <Route path="ajustes-ai"     element={<AjustesAIPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
