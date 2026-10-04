@@ -1,42 +1,36 @@
-# Flujos n8n — plan personalizado con AI
+# n8n — ajustes del plan con AI, respaldo bibliográfico y aprobación
 
-| Archivo | Webhook | Se dispara desde |
+Un solo flujo, `flujo-ajustes-ai.json` (`POST /webhook/ajustes-ai`), atiende dos disparadores del backend:
+
+| Origen | Se dispara desde | Consultas |
 |---|---|---|
-| `flujo1-generar-plan.json` | `POST /webhook/generar-plan` | Backend, al registrar un test de **entrada** (S0): `POST /api/evaluaciones/mi-test` o `POST /api/evaluaciones/:id/resultados` |
-| `flujo2-ajustar-sesion.json` | `POST /webhook/ajustar-sesion` | Backend, al guardar un registro de sesión con PSE (`PUT /api/registros/:semana/:sesionNum`) |
+| `test_entrada` | Test de **entrada** S0 (`POST /api/evaluaciones/mi-test` o `/:id/resultados`) | Una por semana de entrenamiento (S1–S11) |
+| `reporte` | Registro de sesión con PSE (`PUT /api/registros/:semana/:sesionNum`) **si** hay notas, dolor 1–3 o PSE a 2+ puntos del objetivo | Una, sobre la sesión siguiente |
 
-Ambos escriben en la tabla `plan_ai_sesion` de Neon. `GET /api/plan/my` superpone esas sesiones sobre `plan_contenido`.
+## Cómo decide la AI (y qué no puede hacer)
+
+1. **El backend arma la consulta completa** (`backend/src/utils/ajustesAI.js`): la guía del programa del escalador (`fuente_guia`), las secciones de Hörst y Obradó que corresponden a los ejercicios de esa semana (`backend/src/fuentes/mapa-temas.json` → `fuente_fragmento`), sus datos (test S0, perfil, reportes) y el plan **vigente**. n8n solo la envía a Claude (`claude-opus-5-5`) y devuelve la respuesta.
+2. **Cada ajuste cambia el valor de UN parámetro existente** y debe traer `motivo` y una **cita literal** de la guía o del libro (con página). El backend la verifica contra el texto; si no aparece, se descarta.
+3. **Límites duros en código:** solo cambian números (el texto queda idéntico), máximo ±15 % por ajuste y ±30 % acumulado frente al plan base; con dolor o sobrecarga, solo se permite reducir.
+4. **Nada llega al escalador sin aprobación**: los ajustes válidos quedan `pendiente` en `plan_ai_ajuste` y un entrenador (de sus grupos) o admin los aprueba en **Ajustes AI** (`/app/ajustes-ai`). `GET /api/plan/my` solo aplica los aprobados.
+5. Las reglas automáticas de seguridad siguen en la app (`frontend/src/plan/adaptacion.js`): sobrecarga de PSE → −20 % series, semáforo de dolor → sustitución o suspensión.
+6. Cada consulta queda en `plan_ai_consulta`: aceptados, descartados con su motivo y tokens usados.
 
 ## Puesta en marcha
 
-1. En n8n: **Import from file** con cada JSON.
-2. Crear 3 credenciales y asignarlas en los nodos marcados `CONFIGURAR`:
-   - **Header Auth** `escalada-bogota webhook secret`: name `X-Webhook-Secret`, value = el mismo que `N8N_WEBHOOK_SECRET` en Render.
-   - **Postgres** `Neon escalada-bogota`: host del dashboard de Neon, puerto 5432, SSL **require**.
-   - **Anthropic** `Anthropic`: API key. Modelo configurado: `claude-opus-5-5` (cambiable en el nodo *Claude*).
-3. Activar los flujos y copiar las **Production URLs** de cada webhook.
-4. En Render → Environment:
-   - `N8N_WEBHOOK_URL` = URL de producción de `generar-plan`
-   - `N8N_WEBHOOK_AJUSTE_URL` = URL de producción de `ajustar-sesion` (déjala vacía para no activar el flujo 2)
-   - `N8N_WEBHOOK_SECRET` = el secreto del paso 2
+1. **Tablas** (una vez): ejecutar `backend/prisma/sql/2026-10-04_fuentes_y_ajustes_ai.sql` en Neon.
+2. **Fuentes** (una vez, y cada vez que cambie una guía o el mapa de temas). El texto de los libros no se versiona:
+   ```bash
+   cd backend && FUENTES_DIR="/ruta/a/Fuentes_AI" npm run fuentes:cargar
+   ```
+   `Fuentes_AI/` contiene `libros/{horst,obrado}_paginas.json` (páginas extraídas de los PDF) y `guias/T*_*_Guia_Completa.md`.
+3. **n8n:** *Import from file* → `flujo-ajustes-ai.json`. Asignar credenciales en los nodos marcados `CONFIGURAR`:
+   - **Header Auth** `escalada-bogota webhook secret` (name `X-Webhook-Secret`, value = `N8N_WEBHOOK_SECRET`): en *Webhook ajustes-ai* y en *Devolver al backend*.
+   - **Anthropic** `Anthropic` (API key): en el nodo *Claude*.
+4. Publicar el flujo y copiar la **Production URL** del webhook.
+5. **Variables del backend** (Render → Environment, o `backend/.env` en local):
+   - `N8N_WEBHOOK_URL` = Production URL del webhook
+   - `N8N_WEBHOOK_SECRET` = el secreto del paso 3
+   - `BACKEND_PUBLIC_URL` = URL del backend vista desde n8n (en local con Docker: `http://host.docker.internal:3001`)
 
-Con las variables vacías la integración queda apagada y la app usa el plan base.
-
-## Prueba manual del flujo 1
-
-```bash
-curl -X POST "$N8N_WEBHOOK_URL" -H "Content-Type: application/json" -H "X-Webhook-Secret: $N8N_WEBHOOK_SECRET" \
-  -d '{"escaladorId":"<uuid de un escalador>","nombre":"Prueba","pesoKg":59,"nivel":"avanzado","rangoEtario":"adulto",
-       "resultados":[{"metrica":"barras_lastre_kg","codigo":"T2","valor":50,"unidad":"kg"},{"metrica":"suspensiones_20mm_kg","codigo":"T4","valor":65,"unidad":"kg"}]}'
-```
-
-Debe responder `{"ok":true,"sesiones":16}` y dejar 16 filas (S1–S4) en `plan_ai_sesion` para ese escalador.
-
-## Reglas del flujo 2 (sin AI)
-
-Ajusta la **sesión siguiente** a la reportada:
-
-- **Dolor 4 o más:** no reescribe el plan, porque la app ya suspende esos ejercicios.
-- **Dolor 3, PSE ≥ 9 o PSE ≥ objetivo + 2:** reduce un 15% los kg y las series.
-- **Hay notas del escalador:** el AI ajusta los parámetros.
-- **Ninguna de las anteriores:** no cambia nada.
+Con cualquiera de las tres vacía la integración queda apagada y la app usa el plan base.

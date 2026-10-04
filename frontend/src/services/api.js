@@ -59,6 +59,11 @@ class ApiService {
   guardarRegistro(trimestre, semana, sesionNum, datos) { return this.request(`/registros/${semana}/${sesionNum}`, { method: 'PUT', body: JSON.stringify({ trimestre, datos }) }); }
   guardarPerfilEntrenamiento(datos) { return this.request('/registros/perfil', { method: 'PUT', body: JSON.stringify({ datos }) }); }
   getRegistrosEscalador(escaladorId, trimestre = 'T1') { return this.request(`/registros/escalador/${escaladorId}?trimestre=${encodeURIComponent(trimestre)}`); }
+  // Ajustes AI (revisión entrenador/admin)
+  getAjustesAI(estado = 'pendiente') { return this.request(`/ajustes-ai?estado=${encodeURIComponent(estado)}`); }
+  aprobarAjusteAI(id, nota) { return this.request(`/ajustes-ai/${id}/aprobar`, { method: 'POST', body: JSON.stringify({ nota }) }); }
+  rechazarAjusteAI(id, nota) { return this.request(`/ajustes-ai/${id}/rechazar`, { method: 'POST', body: JSON.stringify({ nota }) }); }
+  aprobarAjustesAI(ids) { return this.request('/ajustes-ai/aprobar', { method: 'POST', body: JSON.stringify({ ids }) }); }
   getPlanContenido(nivel) { return this.request(`/plan/contenido?nivel=${encodeURIComponent(nivel)}`); }
 
   // Catálogos

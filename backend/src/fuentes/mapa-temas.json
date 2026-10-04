@@ -1,0 +1,472 @@
+{
+  "_doc": "Mapa tema → secciones de los libros fuente. Solo referencias (páginas del PDF), nunca texto de los libros: el texto vive fuera del repo (Fuentes_AI) y en la BD. Un bloque del plan se asigna a los temas cuyas palabras clave aparecen en su nombre o sus params. El tema recuperacion_lesiones también se agrega siempre que el reporte semanal trae dolor ≥ 1 (flujo 2). Los temas con soloReportes no entran en las consultas del test S0: no sirven para justificar cambios de series, %, tiempos o descansos; sí en los reportes semanales, donde el escalador puede escribir notas sobre técnica, miedo o alimentación.",
+  "libros": {
+    "horst": "Eric Hörst — Cómo entrenar y escalar mejor (Ediciones Desnivel, manual recomendado por la EEAM-FEDME)",
+    "obrado": "Félix Obradó Carriedo — Manual básico de entrenamiento en escalada (FEDME-EEAM, 2015)"
+  },
+  "siempre": [
+    {
+      "libro": "horst",
+      "seccion": "Cap. 2 · Cómo entrenar: planificación, programación semanal y periodización",
+      "paginas": [
+        28,
+        31
+      ]
+    },
+    {
+      "libro": "obrado",
+      "seccion": "Cap. 9 · Nociones básicas sobre planificación",
+      "paginas": [
+        57,
+        58
+      ]
+    }
+  ],
+  "temas": {
+    "dedos": {
+      "claves": [
+        "suspensi",
+        "dedos",
+        "regleta",
+        "tabla",
+        "colgad",
+        "arqueado",
+        "half crimp",
+        "open hand",
+        "T4",
+        "T6"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 1 · Tabla de entrenamiento para los dedos",
+          "paginas": [
+            19,
+            21
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Los dedos",
+          "paginas": [
+            36,
+            38
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Repaso del entrenamiento de dedos",
+          "paginas": [
+            45,
+            48
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Entrenamiento de dedos avanzado",
+          "paginas": [
+            49,
+            51
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 3 · Consiguiendo un agarre",
+          "paginas": [
+            78,
+            80
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 3 · Entrenamiento de la fuerza (máxima)",
+          "paginas": [
+            13,
+            20
+          ]
+        }
+      ]
+    },
+    "traccion": {
+      "claves": [
+        "tracci",
+        "dominad",
+        "bloqueo",
+        "lastre",
+        "excéntric",
+        "excentric",
+        "T2",
+        "T5"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Ejercicios para los músculos de tracción",
+          "paginas": [
+            38,
+            42
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Repaso del bloqueo con una sola mano",
+          "paginas": [
+            43,
+            45
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 3 · Entrenamiento de la fuerza",
+          "paginas": [
+            13,
+            28
+          ]
+        }
+      ]
+    },
+    "potencia": {
+      "claves": [
+        "campus",
+        "explosiv",
+        "potencia",
+        "lanzamiento",
+        "dinámic",
+        "dinamic",
+        "powerslab",
+        "alcances",
+        "empujes",
+        "T7"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Súper reclutamiento / máxima potencia",
+          "paginas": [
+            51,
+            54
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 7 · Tabla campus",
+          "paginas": [
+            162,
+            165
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 3 · Fuerza explosiva",
+          "paginas": [
+            20,
+            28
+          ]
+        }
+      ]
+    },
+    "resistencia": {
+      "claves": [
+        "continuidad",
+        "circuito",
+        "resistencia",
+        "travesía",
+        "travesia",
+        "capilariz",
+        "densidad",
+        "intervalos",
+        "FR"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 3 · Entrenamiento de travesía",
+          "paginas": [
+            81,
+            84
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 7 · Tabla campus: entrenamiento de resistencia",
+          "paginas": [
+            164,
+            165
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 4 · Entrenamiento de la resistencia",
+          "paginas": [
+            29,
+            34
+          ]
+        }
+      ]
+    },
+    "boulder": {
+      "claves": [
+        "boulder",
+        "bloque al",
+        "bloques",
+        "coordinaci",
+        "rocódromo",
+        "rocodromo",
+        "proyecto",
+        "vías al máximo",
+        "vias al maximo"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Entrenando en las paredes",
+          "paginas": [
+            54,
+            56
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Entrenamientos eficaces en rocódromos",
+          "paginas": [
+            56,
+            60
+          ]
+        }
+      ],
+      "soloReportes": true
+    },
+    "tecnica": {
+      "claves": [
+        "técnica",
+        "tecnica",
+        "pies",
+        "flag",
+        "cambio de pie",
+        "lectura",
+        "agarres",
+        "caída",
+        "caida",
+        "ritmo",
+        "filmad"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 1 · Aprendizaje motor y práctica",
+          "paginas": [
+            8,
+            16
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 3 · Cómo entrenar y mejorar la técnica",
+          "paginas": [
+            73,
+            80
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 6 · Entrenamiento de la técnica",
+          "paginas": [
+            41,
+            44
+          ]
+        }
+      ],
+      "soloReportes": true
+    },
+    "tactica_mental": {
+      "claves": [
+        "a vista",
+        "táctica",
+        "tactica",
+        "mental",
+        "competencia",
+        "simulación",
+        "simulacion",
+        "protocolo watts",
+        "sensaciones",
+        "miedo",
+        "memoriza",
+        "beta",
+        "encadene",
+        "intentos",
+        "evento"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 3 · El miedo al escalar de primero",
+          "paginas": [
+            92,
+            95
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 4 · Entrenamiento mental",
+          "paginas": [
+            100,
+            122
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 7 · Entrenamiento de la estrategia o táctica",
+          "paginas": [
+            45,
+            50
+          ]
+        }
+      ],
+      "soloReportes": true
+    },
+    "antagonistas_flexibilidad": {
+      "claves": [
+        "antagonist",
+        "hombro",
+        "core",
+        "abdominal",
+        "estiramient",
+        "flexibilidad",
+        "movilidad",
+        "física general",
+        "fisica general",
+        "T9"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Ejercicios de tracción: todo el resto",
+          "paginas": [
+            42,
+            43
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Estirando para escalar",
+          "paginas": [
+            62,
+            72
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 5 · Entrenamiento de la flexibilidad",
+          "paginas": [
+            35,
+            40
+          ]
+        }
+      ]
+    },
+    "recuperacion_lesiones": {
+      "claves": [
+        "regenerativ",
+        "recuperaci",
+        "fisioterapia",
+        "lesión",
+        "lesion",
+        "masaje",
+        "vuelta a la calma",
+        "suave",
+        "mantenimiento"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 2 · Relajar la tensión por sobreentrenamiento / masaje deportivo",
+          "paginas": [
+            60,
+            62
+          ]
+        },
+        {
+          "libro": "horst",
+          "seccion": "Cap. 6 · Casos de lesiones",
+          "paginas": [
+            146,
+            156
+          ]
+        }
+      ]
+    },
+    "calentamiento": {
+      "claves": [
+        "calentamiento",
+        "activación",
+        "activacion"
+      ],
+      "fuentes": [
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 10 · Calentamiento",
+          "paginas": [
+            59,
+            66
+          ]
+        }
+      ]
+    },
+    "evaluacion": {
+      "claves": [
+        "test",
+        "evaluaci",
+        "revisión de resultados",
+        "revision de resultados",
+        "rúbrica",
+        "rubrica"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 9 · Test de condición física y cuestionario",
+          "paginas": [
+            197,
+            199
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 2 · Qué debo entrenar (puntos fuertes y débiles)",
+          "paginas": [
+            9,
+            12
+          ]
+        },
+        {
+          "libro": "obrado",
+          "seccion": "Cap. 8 · Cómo controlo las mejoras (Lehner y Heyters)",
+          "paginas": [
+            51,
+            56
+          ]
+        }
+      ]
+    },
+    "nutricion": {
+      "claves": [
+        "nutrici",
+        "dieta",
+        "hidrataci",
+        "comida",
+        "aliment"
+      ],
+      "fuentes": [
+        {
+          "libro": "horst",
+          "seccion": "Cap. 5 · Dieta y nutrición",
+          "paginas": [
+            123,
+            145
+          ]
+        }
+      ],
+      "soloReportes": true
+    }
+  }
+}

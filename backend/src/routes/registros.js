@@ -103,7 +103,7 @@ async function sesionSiguiente(escaladorId, trimestre, semana, sesionNum) {
 
 async function avisarN8n(escaladorId, trimestre, semana, sesionNum, datos) {
   const pse = pseDe(datos);
-  if (pse === null || !process.env.N8N_WEBHOOK_AJUSTE_URL) return;
+  if (pse === null || !process.env.N8N_WEBHOOK_URL) return;
   const zonas = Object.fromEntries(
     Object.entries(datos).filter(([k]) => k.startsWith("p_")).map(([k, v]) => [k.slice(2), Math.max(0, Math.min(4, Number(v) || 0))])
   );

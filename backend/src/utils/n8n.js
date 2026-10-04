@@ -1,14 +1,19 @@
 /**
- * Notificaciones a n8n (capa de AI). Fire-and-forget: nunca bloquea ni rompe
- * la respuesta HTTP. Si la URL no está configurada, no hace nada.
+ * Envío a n8n de las consultas de ajuste del plan (capa de AI). Fire-and-forget: nunca bloquea
+ * ni rompe la respuesta HTTP. Si falta configuración, no hace nada.
+ *
+ * El backend arma cada consulta completa (guía + fuentes + datos + plan vigente, ver utils/ajustesAI);
+ * n8n solo la ejecuta contra la API de Anthropic (guarda la API key) y devuelve la respuesta a
+ * POST {BACKEND_PUBLIC_URL}/api/ajustes-ai/n8n/resultado, donde se valida y queda pendiente de aprobación.
  *
  * Env:
- *   N8N_WEBHOOK_URL         → flujo 1 (generar-plan, tras test S0)
- *   N8N_WEBHOOK_AJUSTE_URL  → flujo 2 (ajustar-sesion, tras cada registro)
- *   N8N_WEBHOOK_SECRET      → se envía en X-Webhook-Secret; configurar el mismo
- *                             valor en la autenticación por header del webhook en n8n
+ *   N8N_WEBHOOK_URL      → webhook del flujo "Ajustes AI"
+ *   N8N_WEBHOOK_SECRET   → se envía en X-Webhook-Secret (mismo valor en la Header Auth del webhook)
+ *                          y firma la metadata de cada consulta
+ *   BACKEND_PUBLIC_URL   → URL de este backend vista desde n8n (local con Docker: http://host.docker.internal:3001)
  */
 const prisma = require("../config/prisma");
+const { construirTareas } = require("./ajustesAI");
 
 // Claves de resultado_test → códigos del protocolo Hörst que entiende el prompt
 const METRICA_CODIGO = {
@@ -23,39 +28,39 @@ const METRICA_CODIGO = {
   circuito_min: "Circuito",
 };
 
-function notificar(url, payload) {
-  if (!url) return;
-  const headers = { "Content-Type": "application/json" };
-  if (process.env.N8N_WEBHOOK_SECRET) headers["X-Webhook-Secret"] = process.env.N8N_WEBHOOK_SECRET;
-  fetch(url, { method: "POST", headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(10000) })
-    .then(r => { if (!r.ok) console.error(`[n8n] ${url} respondió ${r.status}`); })
-    .catch(err => console.error("[n8n] webhook error:", err.message));
+const configurado = () =>
+  process.env.N8N_WEBHOOK_URL && process.env.N8N_WEBHOOK_SECRET && process.env.BACKEND_PUBLIC_URL;
+
+async function enviar(params) {
+  const lote = await construirTareas(params);
+  if (!lote) return;
+  const res = await fetch(process.env.N8N_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Webhook-Secret": process.env.N8N_WEBHOOK_SECRET },
+    body: JSON.stringify({ ...lote, apiBase: process.env.BACKEND_PUBLIC_URL.replace(/\/$/, "") }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`n8n respondió ${res.status}`);
+  console.log(`[n8n] lote ${lote.loteId}: ${lote.tareas.length} consultas (${params.origen})`);
 }
 
-/** Flujo 1: generar plan personalizado a partir de una evaluación de entrada (S0). */
+/** Test de entrada (S0): una consulta por semana de entrenamiento. */
 async function notificarTestEntrada(evaluacionId) {
-  const url = process.env.N8N_WEBHOOK_URL;
-  if (!url) return;
+  if (!configurado()) return;
   try {
     const rows = await prisma.$queryRawUnsafe(
-      `SELECT e.id, e.nombre, e.peso_kg, e.nivel, e.rango_etario, ev.tipo
-       FROM evaluacion ev JOIN escalador e ON e.id = ev.escalador_id
-       WHERE ev.id = $1::uuid`,
+      "SELECT escalador_id, tipo FROM evaluacion WHERE id = $1::uuid",
       evaluacionId
     );
-    const esc = rows[0];
-    if (!esc || esc.tipo !== "entrada") return; // el test de salida (S12) no regenera el plan
+    const ev = rows[0];
+    if (!ev || ev.tipo !== "entrada") return; // el test de salida (S12) no ajusta el plan
     const resultados = await prisma.$queryRawUnsafe(
       "SELECT metrica, valor, unidad FROM resultado_test WHERE evaluacion_id = $1::uuid",
       evaluacionId
     );
-    notificar(url, {
-      evaluacionId,
-      escaladorId: esc.id,
-      nombre: esc.nombre,
-      pesoKg: esc.peso_kg === null ? null : Number(esc.peso_kg),
-      nivel: esc.nivel,
-      rangoEtario: esc.rango_etario,
+    await enviar({
+      escaladorId: ev.escalador_id,
+      origen: "test_entrada",
       resultados: resultados.map(r => ({
         metrica: r.metrica,
         codigo: METRICA_CODIGO[r.metrica] || r.metrica,
@@ -64,13 +69,25 @@ async function notificarTestEntrada(evaluacionId) {
       })),
     });
   } catch (err) {
-    console.error("[n8n] no se pudo preparar el test de entrada:", err.message);
+    console.error("[n8n] test de entrada:", err.message);
   }
 }
 
-/** Flujo 2: ajuste de la sesión siguiente tras un registro de sesión. */
-function notificarReporteSesion(payload) {
-  notificar(process.env.N8N_WEBHOOK_AJUSTE_URL, payload);
+/**
+ * Reporte de una sesión: consulta sobre la sesión siguiente, solo si hay algo que interpretar
+ * (notas, dolor, o PSE a 2+ puntos del objetivo). Con dolor 4+ no se consulta: la app ya suspende
+ * esos ejercicios. Las reglas automáticas (sobrecarga −20 %, semáforo) viven en la app.
+ */
+async function notificarReporteSesion(reporte) {
+  if (!configurado() || !reporte.siguiente) return;
+  const desvio = reporte.pseObjetivo == null ? 0 : Math.abs(reporte.pse - reporte.pseObjetivo);
+  if (reporte.dolor >= 4) return;
+  if (!reporte.notas && reporte.dolor < 1 && desvio < 2) return;
+  try {
+    await enviar({ escaladorId: reporte.escaladorId, origen: "reporte", reporte });
+  } catch (err) {
+    console.error("[n8n] reporte de sesión:", err.message);
+  }
 }
 
 module.exports = { notificarTestEntrada, notificarReporteSesion, METRICA_CODIGO };
