@@ -2,6 +2,48 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../config/prisma");
 const { authenticate } = require("../middleware/auth");
+const { notificarReporteSesion } = require("../utils/n8n");
+
+// ¿Puede el usuario ver el plan de este escalador?
+// escalador → el propio · entrenador → escaladores con inscripción activa en sus grupos · admin → todos
+async function puedeVerEscalador(user, escaladorId) {
+  if (user.rol === "admin") return true;
+  if (user.rol === "escalador") return user.escalador?.id === escaladorId;
+  if (user.rol === "entrenador" && user.entrenador?.id) {
+    const r = await prisma.$queryRawUnsafe(
+      `SELECT 1 FROM inscripcion i JOIN grupo g ON g.id = i.grupo_id
+       WHERE i.escalador_id = $1::uuid AND g.entrenador_id = $2::uuid AND i.estado = 'activa' LIMIT 1`,
+      escaladorId, user.entrenador.id
+    );
+    return r.length > 0;
+  }
+  return false;
+}
+
+async function sesionesAI(escaladorId, trimestre) {
+  return prisma.$queryRawUnsafe(
+    `SELECT semana, sesion_num, nombre, bloques, generado_at, revisado
+     FROM plan_ai_sesion
+     WHERE escalador_id = $1::uuid AND trimestre = $2
+     ORDER BY semana, sesion_num`,
+    escaladorId, trimestre
+  ).catch(err => { console.error("[plan_ai_sesion]", err.message); return []; });
+}
+
+// Superpone las sesiones AI sobre el plan base: reemplaza nombre y bloques,
+// conserva la estructura (PSE objetivo, tipo, calentamiento, avisos) del plan base.
+function fusionarPlan(semanas, ai) {
+  if (!ai.length) return semanas;
+  const porClave = new Map(ai.map(a => [`${a.semana}_${a.sesion_num}`, a]));
+  return semanas.map(w => ({
+    ...w,
+    sesiones: w.sesiones.map(s => {
+      const a = porClave.get(`${w.id}_${s.num}`);
+      if (!a || !Array.isArray(a.bloques)) return s;
+      return { ...s, name: a.nombre || s.name, blocks: a.bloques, ai: true, aiRevisado: !!a.revisado };
+    }),
+  }));
+}
 
 router.get("/my", authenticate, async (req, res) => {
   if (req.user.rol !== "escalador") {
@@ -81,11 +123,15 @@ router.get("/my", authenticate, async (req, res) => {
       semanaCode: idx === 0 ? 'S0' : 'S12',
     }));
 
+    const ai = await sesionesAI(req.user.escalador.id, trimestre);
     return res.json({
       trimestre,
       nivel,
       nombre: esc.nombre,
-      semanas: planRes[0].semanas,
+      semanas: fusionarPlan(planRes[0].semanas, ai),
+      fuente: ai.length ? "ai" : "base",
+      aiSesiones: ai.length,
+      aiGeneradoAt: ai.reduce((max, a) => (!max || a.generado_at > max ? a.generado_at : max), null),
       testSesiones,
     });
 
@@ -110,6 +156,75 @@ router.get("/contenido", authenticate, authorize("admin"), async (req, res) => {
   } catch (err) {
     console.error("[GET /api/plan/contenido]", err.message);
     res.status(500).json({ error: "Error al cargar el plan" });
+  }
+});
+
+// ─── GET /plan/ai/:escaladorId ───────────────────────────
+// Sesiones personalizadas por AI (sin fusionar). Para el escalador, su entrenador o admin.
+router.get("/ai/:escaladorId", authenticate, async (req, res) => {
+  const { escaladorId } = req.params;
+  const { trimestre = "T1" } = req.query;
+  if (!/^[0-9a-f-]{36}$/i.test(escaladorId)) return res.status(400).json({ error: "escaladorId inválido" });
+  try {
+    if (!(await puedeVerEscalador(req.user, escaladorId))) {
+      return res.status(403).json({ error: "Acceso denegado" });
+    }
+    const sesiones = await sesionesAI(escaladorId, trimestre);
+    res.json({ escaladorId, trimestre, sesiones });
+  } catch (err) {
+    console.error("[GET /api/plan/ai]", err.message);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ─── POST /plan/reporte ──────────────────────────────────
+// Reporte de una sesión (PSE, dolor por zona, notas) → n8n flujo 2 ajusta la sesión siguiente.
+// Los registros completos siguen en el navegador del escalador; esto solo dispara el ajuste.
+router.post("/reporte", authenticate, async (req, res) => {
+  if (!req.user.escalador) return res.status(403).json({ error: "Solo para escaladores" });
+  const { trimestre = "T1", semana, sesionNum, pse, pseObjetivo, dolor = {}, notas = "" } = req.body || {};
+  const pseN = Number(pse);
+  if (!/^S\d{1,2}$/.test(semana || "") || !Number.isInteger(Number(sesionNum)) || !(pseN >= 0 && pseN <= 10)) {
+    return res.status(400).json({ error: "semana, sesionNum y pse (0–10) son requeridos" });
+  }
+  const zonas = Object.fromEntries(
+    Object.entries(dolor).map(([k, v]) => [String(k).slice(0, 20), Math.max(0, Math.min(4, Number(v) || 0))])
+  );
+  try {
+    // Sesión siguiente en el orden del plan base: es la que n8n debe ajustar
+    const nivelRes = await prisma.$queryRawUnsafe(
+      `SELECT p.nivel FROM inscripcion i
+       JOIN grupo g ON g.id = i.grupo_id JOIN programa p ON p.id = g.programa_id
+       WHERE i.escalador_id = $1::uuid AND i.estado = 'activa'
+       ORDER BY i.created_at DESC LIMIT 1`,
+      req.user.escalador.id
+    );
+    let siguiente = null;
+    if (nivelRes.length) {
+      const planRes = await prisma.$queryRawUnsafe(
+        "SELECT semanas FROM plan_contenido WHERE trimestre = $1 AND nivel = $2",
+        trimestre, nivelRes[0].nivel
+      );
+      const orden = (planRes[0]?.semanas || []).flatMap(w => w.sesiones.map(s => ({ semana: w.id, sesionNum: s.num })));
+      const i = orden.findIndex(o => o.semana === semana && o.sesionNum === Number(sesionNum));
+      siguiente = i >= 0 ? orden[i + 1] || null : null;
+    }
+    notificarReporteSesion({
+      escaladorId: req.user.escalador.id,
+      trimestre,
+      semana,
+      sesionNum: Number(sesionNum),
+      pse: pseN,
+      pseObjetivo: pseObjetivo === undefined || pseObjetivo === null ? null : Number(pseObjetivo),
+      dolor: Math.max(0, ...Object.values(zonas)),
+      dolorZonas: zonas,
+      notas: String(notas).slice(0, 2000),
+      siguiente,
+    });
+    res.status(202).json({ ok: true, siguiente });
+  } catch (err) {
+    console.error("[POST /api/plan/reporte]", err.message);
+    res.status(500).json({ error: "Error interno" });
   }
 });
 
