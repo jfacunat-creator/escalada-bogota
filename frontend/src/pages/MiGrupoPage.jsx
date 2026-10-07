@@ -4,17 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, CreditCard, BookOpen, ChevronDown, ChevronUp, ClipboardList, CheckCircle2 } from 'lucide-react';
 import { IconoMuro, IconoCronometro, IconoEscalador, IconoCheck, IconoFalta } from '../components/Icons';
+import { HORARIO_LABEL as horarioLabel, fmtHora } from '../components/ui';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 const tipoColor  = { regular: '#D4AF37', juego_cierre: '#c084fc', test: '#f59e0b', checkpoint_fest: '#ef4444' };
 const tipoLabel  = { regular: 'Sesión', juego_cierre: 'Juego', test: 'Test', checkpoint_fest: 'Fest' };
-const horarioLabel = {
-  lun_mie_18_20: 'Lun y Mié · 18:00–20:00', lun_mie_20_22: 'Lun y Mié · 20:00–22:00',
-  mar_jue_18_20: 'Mar y Jue · 18:00–20:00', mar_jue_20_22: 'Mar y Jue · 20:00–22:00',
-  sab_dom_7_9:   'Sáb y Dom · 7:00–9:00',   sab_dom_9_11:  'Sáb y Dom · 9:00–11:00',
-  sab_dom_11_13: 'Sáb y Dom · 11:00–13:00',
-};
-
 // Definición de las pruebas del protocolo (fuente de verdad)
 const PRUEBAS_TEST = [
   { id: 'barras_lastre_kg',         label: 'T2 · Barras con máximo lastre',    unidad: 'kg',  desc: '1RM dominada con lastre adicional en barra' },
@@ -218,9 +212,9 @@ export default function MiGrupoPage() {
           </div>
           {grupo.ciclo?.fechaInicio && (
             <div style={{ fontFamily: 'Poppins', fontSize: '0.75rem', color: C.text2, marginTop: '4px' }}>
-              {new Date((grupo.ciclo.fechaInicio?.split('T')[0] ?? grupo.ciclo.fechaInicio) + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+              {new Date((grupo.ciclo.fechaInicio?.split('T')[0] ?? grupo.ciclo.fechaInicio) + 'T12:00:00').toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short' })}
               {' – '}
-              {new Date((grupo.ciclo.fechaFin?.split('T')[0] ?? grupo.ciclo.fechaFin) + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+              {new Date((grupo.ciclo.fechaFin?.split('T')[0] ?? grupo.ciclo.fechaFin) + 'T12:00:00').toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })}
             </div>
           )}
         </div>
@@ -252,8 +246,8 @@ export default function MiGrupoPage() {
               {semanaActual && <span style={{ fontSize: '1rem', color: C.text2, fontFamily: 'Poppins', fontWeight: 400, marginLeft: '12px' }}>Semana {semanaActual}{totalSemanas ? ` / ${totalSemanas}` : ''}</span>}
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: '0.82rem', color: C.text2, marginTop: '2px' }}>
-              {new Date((sesionActual.fecha?.split('T')[0] ?? sesionActual.fecha) + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
-              {' · '}{sesionActual.hora_inicio?.substring(0, 5)}–{sesionActual.hora_fin?.substring(0, 5)}
+              {new Date((sesionActual.fecha?.split('T')[0] ?? sesionActual.fecha) + 'T12:00:00').toLocaleDateString('es-CO', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' })}
+              {' · '}{fmtHora(sesionActual.hora_inicio)}–{fmtHora(sesionActual.hora_fin)}
             </div>
             {sesionActual.tipo === 'test' && !testsCompletados.has(sesionActual.id) && (
               <button
@@ -352,7 +346,7 @@ export default function MiGrupoPage() {
                 {/* Fecha */}
                 <div style={{ textAlign: 'center', width: '38px', flexShrink: 0 }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: '0.65rem', color: C.text2, textTransform: 'capitalize' }}>
-                    {d.toLocaleDateString('es-CO', { weekday: 'short' })}
+                    {d.toLocaleDateString('es-CO', { timeZone: 'UTC', weekday: 'short' })}
                   </div>
                   <div style={{ fontFamily: 'Antonio', fontSize: '1.1rem', color: C.text }}>{d.getDate()}</div>
                 </div>
@@ -370,7 +364,7 @@ export default function MiGrupoPage() {
                     {testDone && <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', color: '#22c55e', fontFamily: 'Poppins' }}><CheckCircle2 size={11} /> Registrado</span>}
                   </div>
                   <div style={{ fontFamily: 'Poppins', fontSize: '0.78rem', color: C.text2, marginTop: '2px' }}>
-                    {s.hora_inicio?.substring(0, 5)}–{s.hora_fin?.substring(0, 5)}
+                    {fmtHora(s.hora_inicio)}–{fmtHora(s.hora_fin)}
                   </div>
                 </div>
 

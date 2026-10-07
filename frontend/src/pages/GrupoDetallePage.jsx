@@ -1,17 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, ArrowLeft, Search } from 'lucide-react';
-import { IconoEscalador, IconoCronometro, IconoCheck, IconoFalta, IconoCohorte, IconoMagnesia, IconoCuerda } from '../components/Icons';
+import { IconoEscalador, IconoCheck, IconoFalta, IconoMagnesia, IconoCuerda } from '../components/Icons';
+import { HORARIO_LABEL as horarioLabel, fmtHora } from '../components/ui';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
-
-const horarioLabel = {
-  lun_mie_18_20: 'Lun y Mié · 18:00–20:00', lun_mie_20_22: 'Lun y Mié · 20:00–22:00',
-  mar_jue_18_20: 'Mar y Jue · 18:00–20:00', mar_jue_20_22: 'Mar y Jue · 20:00–22:00',
-  sab_dom_7_9: 'Sáb y Dom · 7:00–9:00', sab_dom_9_11: 'Sáb y Dom · 9:00–11:00', sab_dom_11_13: 'Sáb y Dom · 11:00–13:00',
-};
 
 const tipoColor = { regular: '#D4AF37', juego_cierre: '#c084fc', test: '#f59e0b', checkpoint_fest: '#ef4444' };
 const tipoLabel = { regular: 'Sesión', juego_cierre: 'Juego', test: 'Test', checkpoint_fest: 'Fest' };
@@ -60,7 +55,7 @@ function PanelAsistencia({ sesion, grupoId, onClose }) {
         <div>
           <div style={{ fontFamily: 'Antonio', fontSize: '1.1rem', color: '#F0EDE8' }}>Sesión #{sesion.numero_sesion}</div>
           <div style={{ fontSize: '0.82rem', color: C.accent, marginTop: '2px' }}>
-            {new Date(sesion.fecha).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })} · {sesion.hora_inicio?.substring(0, 5)}–{sesion.hora_fin?.substring(0, 5)}
+            {new Date(sesion.fecha).toLocaleDateString('es-CO', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' })} · {fmtHora(sesion.hora_inicio)}–{fmtHora(sesion.hora_fin)}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -182,11 +177,11 @@ function TabSesiones({ grupoId, isAdmin }) {
                     <span style={{ fontFamily: 'Antonio', fontSize: '1rem', color: C.accent, width: '32px' }}>#{s.numero_sesion}</span>
                     <div>
                       <div style={{ fontSize: '0.85rem', color: C.text, fontFamily: 'Poppins', fontWeight: 500 }}>
-                        {new Date(s.fecha).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        {new Date(s.fecha).toLocaleDateString('es-CO', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: C.text2, fontFamily: 'Poppins', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px' }}>
                         <span style={{ color: tipoColor[s.tipo] }}>{tipoLabel[s.tipo]}</span>
-                        <span>{s.hora_inicio?.substring(0, 5)}</span>
+                        <span>{fmtHora(s.hora_inicio)}</span>
                       </div>
                     </div>
                   </div>
@@ -218,6 +213,9 @@ function TabEscaladores({ grupoId, isAdmin }) {
   const [buscar, setBuscar] = useState('');
   const [showRemitir, setShowRemitir] = useState(null);
   const [aliados, setAliados] = useState([]);
+  const [remision, setRemision] = useState({ aliadoId: '', motivo: '' });
+  const [aviso, setAviso] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -227,8 +225,7 @@ function TabEscaladores({ grupoId, isAdmin }) {
       } catch (err) {
         console.error('Error cargando escaladores del grupo:', err);
       }
-      fetch('/api/catalogos/aliados-salud', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
-        .then(r => r.json()).then(setAliados).catch(() => {});
+      api.getAliadosSalud().then(setAliados).catch(() => setAliados([]));
       setLoading(false);
     };
     load();
@@ -236,12 +233,22 @@ function TabEscaladores({ grupoId, isAdmin }) {
 
   const cambiarEstado = async (escalador, nuevoEstado) => {
     const inscripcionId = escalador.inscripcion_id || escalador.inscripcion_activa_id;
-    if (!inscripcionId) { alert('No se encontró inscripción para este escalador'); return; }
+    if (!inscripcionId) { setError('No se encontró inscripción para este escalador'); return; }
+    setError(null);
     try {
       await api.cambiarEstadoInscripcion(inscripcionId, nuevoEstado);
       const e = await api.getEscaladores({ grupoId });
       setEscaladores(e);
-    } catch (err) { alert(err.error || 'Error'); }
+    } catch (err) { setError(err.error || 'Error'); }
+  };
+
+  const remitir = async () => {
+    setError(null);
+    try {
+      await api.crearRemision({ escaladorId: showRemitir.id, aliadoId: remision.aliadoId, motivo: remision.motivo });
+      setAviso(`Remisión de ${showRemitir.nombre} registrada.`);
+      setShowRemitir(null);
+    } catch (err) { setError(err.error || 'No se pudo registrar la remisión'); }
   };
 
   const filtrados = escaladores.filter(e => !buscar || `${e.nombre} ${e.apellido} ${e.email || ''}`.toLowerCase().includes(buscar.toLowerCase()));
@@ -262,6 +269,8 @@ function TabEscaladores({ grupoId, isAdmin }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {aviso && <div style={{ color: '#22c55e', fontSize: '0.82rem', fontFamily: 'Poppins', padding: '6px 2px' }}>{aviso}</div>}
+          {error && !showRemitir && <div style={{ color: '#fca5a5', fontSize: '0.82rem', fontFamily: 'Poppins', padding: '6px 2px' }}>{error}</div>}
           {filtrados.map(e => (
             <div key={e.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
@@ -293,7 +302,7 @@ function TabEscaladores({ grupoId, isAdmin }) {
                         Reactivar
                       </button>
                     )}
-                    <button onClick={() => setShowRemitir(e)}
+                    <button onClick={() => { setShowRemitir(e); setRemision({ aliadoId: aliados[0]?.id || '', motivo: '' }); setError(null); }}
                       style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${C.border}`, cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Poppins', fontWeight: 500, background: 'transparent', color: C.text2 }}>
                       Remitir
                     </button>
@@ -307,24 +316,94 @@ function TabEscaladores({ grupoId, isAdmin }) {
 
       {/* Modal remitir */}
       {showRemitir && (
-        <div onClick={() => setShowRemitir(null)} style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.65)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#1c1c1c', border: `1px solid ${C.border}`, borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '340px' }}>
-            <div style={{ fontFamily: 'Antonio', fontSize: '1.1rem', color: C.text, marginBottom: '4px' }}>Remitir escalador</div>
+        <div onClick={() => setShowRemitir(null)} style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', padding: '16px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1c1c1c', border: `1px solid ${C.border}`, borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '380px' }}>
+            <div style={{ fontFamily: 'Antonio', fontSize: '1.1rem', color: C.text, marginBottom: '4px' }}>Remitir a aliado de salud</div>
             <div style={{ fontFamily: 'Poppins', fontSize: '0.85rem', color: C.text2, marginBottom: '16px' }}>{showRemitir.nombre} {showRemitir.apellido}</div>
-            {aliados.length === 0 ? <p style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem' }}>Sin aliados de salud disponibles.</p> : aliados.map(a => (
-              <button key={a.id} onClick={() => { alert(`Remisión a ${a.nombre} registrada (pendiente implementación completa)`); setShowRemitir(null); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '12px 14px', borderRadius: '8px', border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', marginBottom: '8px', textAlign: 'left' }}>
-                {a.tipo === 'fisioterapia' ? <IconoCuerda style={{ width: '18px', height: '18px', color: '#f43f5e' }} /> : <IconoMagnesia style={{ width: '18px', height: '18px', color: '#22c55e' }} />}
-                <div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: '0.85rem', fontWeight: 600, color: C.text }}>{a.nombre}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: '0.75rem', color: C.text2, textTransform: 'capitalize' }}>{a.tipo}</div>
-                </div>
-              </button>
-            ))}
-            <button onClick={() => setShowRemitir(null)} style={{ marginTop: '8px', width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', fontFamily: 'Poppins', color: C.text2 }}>Cancelar</button>
+            {aliados.length === 0 ? (
+              <p style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem' }}>
+                No hay aliados de salud activos. {isAdmin ? 'Agrégalos en Configuración.' : 'Pide al administrador que los registre.'}
+              </p>
+            ) : (
+              <>
+                {aliados.map(a => (
+                  <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${remision.aliadoId === a.id ? C.accent : C.border}`, cursor: 'pointer', marginBottom: '8px' }}>
+                    <input type="radio" name="aliado" checked={remision.aliadoId === a.id} onChange={() => setRemision(r => ({ ...r, aliadoId: a.id }))} />
+                    {a.tipo === 'fisioterapia' ? <IconoCuerda style={{ width: '18px', height: '18px', color: '#f43f5e' }} /> : <IconoMagnesia style={{ width: '18px', height: '18px', color: '#22c55e' }} />}
+                    <div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: '0.85rem', fontWeight: 600, color: C.text }}>{a.nombre}</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: '0.75rem', color: C.text2 }}>{a.tipo === 'fisioterapia' ? 'Fisioterapia' : 'Nutrición'}{a.contacto ? ` · ${a.contacto}` : ''}</div>
+                    </div>
+                  </label>
+                ))}
+                <textarea className="input-dark" rows={3} placeholder="Motivo (obligatorio)" value={remision.motivo}
+                  onChange={e => setRemision(r => ({ ...r, motivo: e.target.value }))} style={{ width: '100%', marginTop: '4px', resize: 'vertical' }} />
+              </>
+            )}
+            {error && <div style={{ color: '#fca5a5', fontSize: '0.8rem', fontFamily: 'Poppins', marginTop: '8px' }}>{error}</div>}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+              <button onClick={() => setShowRemitir(null)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', fontFamily: 'Poppins', color: C.text2 }}>Cancelar</button>
+              {aliados.length > 0 && (
+                <button onClick={remitir} disabled={!remision.aliadoId || !remision.motivo.trim()} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: C.accent, color: '#121212', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700, opacity: (!remision.aliadoId || !remision.motivo.trim()) ? 0.5 : 1 }}>Remitir</button>
+              )}
+            </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── TAB EVALUACIONES ──────────────────────────────────────
+function TabEvaluaciones({ grupoId }) {
+  const [evaluaciones, setEvaluaciones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [abierta, setAbierta] = useState(null);
+  const [detalle, setDetalle] = useState({});
+
+  useEffect(() => {
+    api.getEvaluaciones({ cohorteId: grupoId }).then(setEvaluaciones).catch(console.error).finally(() => setLoading(false));
+  }, [grupoId]);
+
+  const abrir = async (ev) => {
+    if (abierta === ev.id) { setAbierta(null); return; }
+    setAbierta(ev.id);
+    if (!detalle[ev.id]) {
+      try { const d = await api.getEvaluacion(ev.id); setDetalle(p => ({ ...p, [ev.id]: d.resultados })); } catch { setDetalle(p => ({ ...p, [ev.id]: [] })); }
+    }
+  };
+
+  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}><Loader2 className="animate-spin" style={{ width: '24px', height: '24px', color: C.accent, margin: '0 auto' }} /></div>;
+  if (evaluaciones.length === 0) return (
+    <div style={{ padding: '40px', textAlign: 'center', color: C.text2, fontFamily: 'Poppins', fontSize: '0.9rem' }}>
+      Aún no hay evaluaciones. Los escaladores registran sus tests en las sesiones de tipo “Test” desde Mi Grupo.
+    </div>
+  );
+  const semColor = { verde: '#22c55e', amarillo: '#f59e0b', rojo: '#ef4444' };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {evaluaciones.map(ev => (
+        <div key={ev.id} style={{ border: `1px solid ${C.border}`, borderRadius: '10px' }}>
+          <button onClick={() => abrir(ev)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', flexWrap: 'wrap' }}>
+            <span style={{ flex: 1, fontFamily: 'Poppins', fontSize: '0.88rem', color: C.text, fontWeight: 600 }}>{ev.nombre} {ev.apellido}</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: '0.78rem', color: C.accent, textTransform: 'capitalize' }}>Test de {ev.tipo}</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: '0.78rem', color: C.text2 }}>{new Date(ev.fecha).toLocaleDateString('es-CO', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: '0.75rem', color: ev.estado === 'realizada' ? '#22c55e' : '#f59e0b' }}>{ev.estado === 'realizada' ? `${ev.num_resultados} resultado(s)` : 'Programada'}</span>
+          </button>
+          {abierta === ev.id && (
+            <div style={{ borderTop: `1px solid ${C.border}`, padding: '10px 14px' }}>
+              {!detalle[ev.id] ? <Loader2 className="animate-spin" style={{ width: '16px', color: C.accent }} />
+                : detalle[ev.id].length === 0 ? <div style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.82rem' }}>Sin resultados registrados.</div>
+                : detalle[ev.id].map(r => (
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontFamily: 'Poppins', fontSize: '0.82rem', borderBottom: '1px solid #242424' }}>
+                    <span style={{ color: C.text2 }}>{r.metrica}</span>
+                    <span style={{ color: semColor[r.semaforo] || C.text, fontWeight: 600 }}>{parseFloat(r.valor)} {r.unidad}</span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -381,9 +460,11 @@ export default function GrupoDetallePage() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [grupo, setGrupo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('sesiones');
+  const tab = searchParams.get('tab') || 'sesiones';
+  const setTab = (t) => setSearchParams({ tab: t }, { replace: true });
 
   const isAdmin = user?.rol === 'admin';
   const backTo = isAdmin ? '/app/grupos' : '/app/mis-grupos';
@@ -399,6 +480,7 @@ export default function GrupoDetallePage() {
     { id: 'sesiones', label: 'Sesiones y asistencia' },
     { id: 'escaladores', label: 'Escaladores' },
     { id: 'resumen', label: 'Resumen asistencia' },
+    { id: 'evaluaciones', label: 'Evaluaciones' },
   ];
 
   return (
@@ -415,9 +497,9 @@ export default function GrupoDetallePage() {
           <div style={{ fontFamily: 'Antonio', fontSize: '1.5rem', color: '#F0EDE8' }}>{grupo.programa_nombre}</div>
           <div style={{ fontFamily: 'Poppins', fontSize: '0.82rem', color: '#D4AF37', marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <span>{grupo.ciclo_codigo}</span>
-            <span>{horarioLabel[grupo.horario] || grupo.horario}</span>
+            <span>{horarioLabel[grupo.horario] || 'Horario libre (autónomo)'}</span>
             <span>{grupo.muro_nombre}</span>
-            <span style={{ color: '#22c55e' }}>{grupo.inscritos_actual || 0}/{grupo.cupo_maximo} cupos</span>
+            <span style={{ color: '#22c55e' }}>{grupo.inscritos_actual || 0}/{grupo.cupo_maximo} inscritos</span>
           </div>
         </div>
         {grupo.entrenador_nombre && (
@@ -445,6 +527,7 @@ export default function GrupoDetallePage() {
         {tab === 'sesiones' && <TabSesiones grupoId={id} isAdmin={isAdmin} />}
         {tab === 'escaladores' && <TabEscaladores grupoId={id} isAdmin={isAdmin} />}
         {tab === 'resumen' && <TabResumen grupoId={id} />}
+        {tab === 'evaluaciones' && <TabEvaluaciones grupoId={id} />}
       </div>
     </div>
   );

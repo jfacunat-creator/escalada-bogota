@@ -1,42 +1,68 @@
 const express = require("express");
-const crypto = require("crypto");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
+const {
+  DIA_VENCIMIENTO, tarifas, periodoDe, sincronizarPagos, generarMensualidades, aplicarEfectosDePago,
+} = require("../utils/pagos");
 
 const WOMPI_BASE = process.env.WOMPI_ENV === "production"
   ? "https://production.wompi.co/v1"
   : "https://sandbox.wompi.co/v1";
 const WOMPI_PRIVATE_KEY = process.env.WOMPI_PRIVATE_KEY;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const METODOS = ["transferencia", "efectivo", "wompi"];
+const ESTADOS = ["pendiente", "pagado", "vencido"];
 
 const router = express.Router();
 router.use(authenticate);
 
-// ─── GET /pagos/resumen ───────────────────────────────────
+function manejarError(res, err, ruta) {
+  if (err.status) return res.status(err.status).json({ error: err.message });
+  console.error(`Error ${ruta}:`, err);
+  res.status(500).json({ error: "Error interno" });
+}
+
+// ─── GET /pagos/config ────────────────────────────────────
+// Lo que el frontend necesita para mostrar opciones reales (sin botones de adorno).
+router.get("/config", async (req, res) => {
+  try {
+    res.json({ wompi: !!WOMPI_PRIVATE_KEY, tarifas: await tarifas(), diaVencimiento: DIA_VENCIMIENTO });
+  } catch (err) { manejarError(res, err, "GET /pagos/config"); }
+});
+
+// ─── GET /pagos/resumen?periodo=AAAA-MM ───────────────────
 router.get("/resumen", authorize("admin"), async (req, res) => {
   try {
-    const result = await prisma.$queryRawUnsafe(`
-      SELECT
-        COUNT(*) FILTER (WHERE i.estado = 'activa') AS activas,
-        COALESCE(SUM(p.monto), 0) AS ingresos_esperados,
-        COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS ingresos_recibidos,
-        COUNT(p.id) FILTER (WHERE p.estado = 'pendiente') AS pagos_pendientes,
-        CASE
-          WHEN SUM(p.monto) > 0
-          THEN ROUND(
-            SUM(p.monto) FILTER (WHERE p.estado = 'pagado') * 100.0 /
-            SUM(p.monto)
-          )
-          ELSE 0
-        END AS tasa_recaudo
-      FROM inscripcion i
-      LEFT JOIN pago p ON p.inscripcion_id = i.id
-    `);
-    res.json(result[0]);
-  } catch (err) {
-    console.error("Error GET /pagos/resumen:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+    await sincronizarPagos();
+    const periodo = periodoDe(req.query.periodo || new Date());
+    const mes = await prisma.$queryRawUnsafe(
+      `SELECT
+         COALESCE(SUM(monto), 0)                                   AS esperado,
+         COALESCE(SUM(monto) FILTER (WHERE estado = 'pagado'), 0)  AS recaudado,
+         COUNT(*) FILTER (WHERE estado = 'pagado')                 AS pagados,
+         COUNT(*) FILTER (WHERE estado = 'pendiente')              AS pendientes,
+         COUNT(*) FILTER (WHERE estado = 'vencido')                AS vencidos
+       FROM pago WHERE periodo = $1::date`,
+      periodo
+    );
+    const global = await prisma.$queryRawUnsafe(
+      `SELECT
+         (SELECT COUNT(*) FROM inscripcion WHERE estado = 'activa') AS inscripciones_activas,
+         COALESCE((SELECT SUM(monto) FROM pago WHERE estado = 'vencido'), 0) AS deuda_vencida,
+         (SELECT COUNT(*) FROM pago WHERE estado = 'vencido') AS pagos_vencidos`
+    );
+    const m = mes[0], g = global[0];
+    const esperado = parseFloat(m.esperado), recaudado = parseFloat(m.recaudado);
+    res.json({
+      periodo: periodo.slice(0, 7),
+      esperado, recaudado,
+      pagados: m.pagados, pendientes: m.pendientes, vencidos: m.vencidos,
+      tasa_recaudo: esperado > 0 ? Math.round((recaudado / esperado) * 100) : 0,
+      inscripciones_activas: g.inscripciones_activas,
+      deuda_vencida: parseFloat(g.deuda_vencida),
+      pagos_vencidos: g.pagos_vencidos,
+    });
+  } catch (err) { manejarError(res, err, "GET /pagos/resumen"); }
 });
 
 // ─── GET /pagos ───────────────────────────────────────────
@@ -45,13 +71,14 @@ router.get("/", async (req, res) => {
     return res.status(403).json({ error: "Sin acceso" });
   }
   try {
-    const { estado, grupoId } = req.query;
+    await sincronizarPagos();
+    const { estado, grupoId, periodo, modalidad, inscripcionId } = req.query;
     let sql = `
-      SELECT pg.*,
-             e.nombre, e.apellido,
-             e.id AS escalador_id,
-             pr.nombre AS programa,
-             g.modalidad, g.horario,
+      SELECT pg.*, to_char(pg.periodo, 'YYYY-MM') AS periodo_mes,
+             e.nombre, e.apellido, e.id AS escalador_id,
+             i.estado AS inscripcion_estado,
+             pr.nombre AS programa, pr.nivel,
+             g.modalidad, g.horario, g.id AS grupo_id,
              ci.codigo AS ciclo
       FROM pago pg
       JOIN inscripcion i ON pg.inscripcion_id = i.id
@@ -61,70 +88,82 @@ router.get("/", async (req, res) => {
       JOIN ciclo ci ON g.ciclo_id = ci.id
       WHERE 1=1`;
     const params = [];
-
-    if (estado) { params.push(estado); sql += ` AND pg.estado::text = $${params.length}`; }
-    if (grupoId) { params.push(grupoId); sql += ` AND i.grupo_id = $${params.length}`; }
-
+    if (estado)        { params.push(estado);              sql += ` AND pg.estado::text = $${params.length}`; }
+    if (grupoId)       { params.push(grupoId);             sql += ` AND i.grupo_id = $${params.length}`; }
+    if (inscripcionId) { params.push(inscripcionId);       sql += ` AND pg.inscripcion_id = $${params.length}`; }
+    if (modalidad)     { params.push(modalidad);           sql += ` AND g.modalidad::text = $${params.length}`; }
+    if (periodo)       { params.push(periodoDe(periodo));  sql += ` AND pg.periodo = $${params.length}::date`; }
     if (req.user.rol === "escalador") {
       params.push(req.user.escalador.id);
       sql += ` AND i.escalador_id = $${params.length}`;
     }
+    sql += " ORDER BY pg.periodo DESC, e.nombre, e.apellido";
+    res.json(await prisma.$queryRawUnsafe(sql, ...params));
+  } catch (err) { manejarError(res, err, "GET /pagos"); }
+});
 
-    sql += " ORDER BY pg.created_at DESC";
-    const result = await prisma.$queryRawUnsafe(sql, ...params);
-    res.json(result);
-  } catch (err) {
-    console.error("Error GET /pagos:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+// ─── POST /pagos/generar { periodo } ─────────────────────
+// Crea las mensualidades pendientes del mes para todas las inscripciones activas.
+router.post("/generar", authorize("admin"), async (req, res) => {
+  try {
+    const periodo = periodoDe(req.body.periodo || new Date());
+    const creadas = await generarMensualidades(periodo);
+    res.json({ message: `${creadas} mensualidad(es) generada(s) para ${periodo.slice(0, 7)}`, creadas });
+  } catch (err) { manejarError(res, err, "POST /pagos/generar"); }
 });
 
 // ─── POST /pagos ──────────────────────────────────────────
+// Registra el pago de UN mes de una inscripción. Si la mensualidad de ese mes ya existe
+// (pendiente/vencida) se marca como pagada; si no, se crea pagada.
 router.post("/", authorize("admin"), async (req, res) => {
   try {
-    const { inscripcionId, monto, metodo, referencia } = req.body;
-    if (!inscripcionId || !monto || parseFloat(monto) <= 0) {
-      return res.status(400).json({ error: "inscripcionId y monto son requeridos" });
-    }
-    const insc = await prisma.$queryRawUnsafe("SELECT id FROM inscripcion WHERE id = $1", inscripcionId);
-    if (!insc.length) return res.status(404).json({ error: "Inscripción no encontrada" });
+    const { inscripcionId, periodo, monto, metodo, referencia, fechaPago } = req.body;
+    if (!inscripcionId) return res.status(400).json({ error: "inscripcionId es requerido" });
+    if (metodo && !METODOS.includes(metodo)) return res.status(400).json({ error: "Método inválido" });
+    if (monto !== undefined && monto !== "" && !(parseFloat(monto) > 0)) return res.status(400).json({ error: "El monto debe ser mayor a 0" });
+    const mes = periodoDe(periodo || new Date());
 
-    const result = await prisma.$queryRawUnsafe(
-      `INSERT INTO pago (id, inscripcion_id, monto, estado, metodo, referencia, fecha_pago, fecha_vencimiento, updated_at)
-       VALUES (gen_random_uuid(), $1, $2, 'pagado', $3, $4, CURRENT_DATE, CURRENT_DATE, NOW())
-       RETURNING *`,
-      inscripcionId, parseFloat(monto), metodo || "transferencia", referencia || null
-    );
+    const pago = await prisma.$transaction(async (tx) => {
+      const insc = await tx.$queryRawUnsafe(
+        `SELECT i.id, t.precio_mensual FROM inscripcion i
+         JOIN grupo g ON g.id = i.grupo_id JOIN tarifa t ON t.modalidad = g.modalidad
+         WHERE i.id = $1`,
+        inscripcionId
+      );
+      if (!insc.length) throw Object.assign(new Error("Inscripción no encontrada"), { status: 404 });
+      const valor = monto ? parseFloat(monto) : parseFloat(insc[0].precio_mensual);
 
-    const escCheck = await prisma.$queryRawUnsafe(
-      `SELECT e.id, e.estado, i.estado as insc_estado, i.grupo_id FROM inscripcion i
-       JOIN escalador e ON i.escalador_id = e.id
-       WHERE i.id = $1`,
-      inscripcionId
-    );
-    if (escCheck.length) {
-      const row = escCheck[0];
-      if (row.insc_estado === "reservada") {
-        await prisma.$executeRawUnsafe("UPDATE inscripcion SET estado='activa', updated_at=NOW() WHERE id=$1", inscripcionId);
-        await prisma.$executeRawUnsafe("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", row.grupo_id);
+      const existente = await tx.$queryRawUnsafe(
+        "SELECT id, estado FROM pago WHERE inscripcion_id = $1 AND periodo = $2::date", inscripcionId, mes
+      );
+      if (existente[0]?.estado === "pagado") {
+        throw Object.assign(new Error(`La mensualidad de ${mes.slice(0, 7)} ya está pagada`), { status: 409 });
       }
-      if (row.estado === "pendiente") {
-        await prisma.$executeRawUnsafe("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", row.id);
-      }
-    }
-
-    res.status(201).json(result[0]);
-  } catch (err) {
-    console.error("Error POST /pagos:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+      const fila = existente.length
+        ? await tx.$queryRawUnsafe(
+            `UPDATE pago SET estado = 'pagado', monto = $1, metodo = $2::"MetodoPago", referencia = $3,
+                    fecha_pago = COALESCE($4::date, CURRENT_DATE), updated_at = NOW()
+             WHERE id = $5 RETURNING *`,
+            valor, metodo || "transferencia", referencia || null, fechaPago || null, existente[0].id
+          )
+        : await tx.$queryRawUnsafe(
+            `INSERT INTO pago (inscripcion_id, monto, estado, metodo, referencia, periodo, fecha_pago, fecha_vencimiento)
+             VALUES ($1, $2, 'pagado', $3::"MetodoPago", $4, $5::date, COALESCE($6::date, CURRENT_DATE), $5::date + ($7::int - 1))
+             RETURNING *`,
+            inscripcionId, valor, metodo || "transferencia", referencia || null, mes, fechaPago || null, DIA_VENCIMIENTO
+          );
+      await aplicarEfectosDePago(fila[0].id, tx);
+      return fila[0];
+    });
+    res.status(201).json(pago);
+  } catch (err) { manejarError(res, err, "POST /pagos"); }
 });
 
 // ─── GET /pagos/:id ───────────────────────────────────────
 router.get("/:id", authorize("admin"), async (req, res) => {
   try {
     const result = await prisma.$queryRawUnsafe(
-      `SELECT pg.*,
+      `SELECT pg.*, to_char(pg.periodo, 'YYYY-MM') AS periodo_mes,
               e.nombre || ' ' || e.apellido AS escalador_nombre,
               p.nombre AS programa, ci.codigo AS ciclo,
               g.modalidad, g.horario, m.nombre AS muro
@@ -134,70 +173,48 @@ router.get("/:id", authorize("admin"), async (req, res) => {
        JOIN grupo g ON i.grupo_id = g.id
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
-       JOIN muro_aliado m ON g.muro_id = m.id
+       LEFT JOIN muro_aliado m ON g.muro_id = m.id
        WHERE pg.id = $1`,
       req.params.id
     );
     if (!result.length) return res.status(404).json({ error: "Pago no encontrado" });
     res.json(result[0]);
-  } catch (err) {
-    console.error("Error:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+  } catch (err) { manejarError(res, err, "GET /pagos/:id"); }
 });
 
 // ─── PATCH /pagos/:id ─────────────────────────────────────
 router.patch("/:id", authorize("admin"), async (req, res) => {
   try {
-    const { estado, referencia, metodo } = req.body;
+    const { estado, referencia, metodo, monto, fechaPago, fechaVencimiento } = req.body;
+    if (estado && !ESTADOS.includes(estado)) return res.status(400).json({ error: "Estado inválido (pendiente | pagado | vencido)" });
+    if (metodo && !METODOS.includes(metodo)) return res.status(400).json({ error: "Método inválido" });
+    if (monto !== undefined && !(parseFloat(monto) > 0)) return res.status(400).json({ error: "El monto debe ser mayor a 0" });
+
     const sets = [], params = [];
-
+    const set = (sql, v) => { params.push(v); sets.push(sql.replace("?", `$${params.length}`)); };
     if (estado) {
-      if (!["pendiente", "pagado", "vencido"].includes(estado)) {
-        return res.status(400).json({ error: "Estado inválido (pendiente | pagado | vencido)" });
-      }
-      params.push(estado);
-      sets.push(`estado = $${params.length}`);
-      if (estado === "pagado") {
-        sets.push(`fecha_pago = CURRENT_DATE`);
-      }
-    }
-    if (referencia) { params.push(referencia); sets.push(`referencia = $${params.length}`); }
-    if (metodo) { params.push(metodo); sets.push(`metodo = $${params.length}`); }
-
+      set(`estado = ?::"EstadoPago"`, estado);
+      if (estado === "pagado") set("fecha_pago = COALESCE(?::date, CURRENT_DATE)", fechaPago || null);
+      else sets.push("fecha_pago = NULL");
+    } else if (fechaPago) set("fecha_pago = ?::date", fechaPago);
+    if (referencia !== undefined) set("referencia = ?", referencia || null);
+    if (metodo) set(`metodo = ?::"MetodoPago"`, metodo);
+    if (monto !== undefined) set("monto = ?", parseFloat(monto));
+    if (fechaVencimiento) set("fecha_vencimiento = ?::date", fechaVencimiento);
     if (!sets.length) return res.status(400).json({ error: "Nada que actualizar" });
+    sets.push("updated_at = NOW()");
 
-    params.push(req.params.id);
-    const result = await prisma.$queryRawUnsafe(
-      `UPDATE pago SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
-      ...params
-    );
-
-    if (estado === "pagado") {
-      const escCheck = await prisma.$queryRawUnsafe(
-        `SELECT e.id, e.estado, i.id as insc_id, i.estado as insc_estado, i.grupo_id FROM pago p
-         JOIN inscripcion i ON p.inscripcion_id = i.id
-         JOIN escalador e ON i.escalador_id = e.id
-         WHERE p.id = $1`,
-        req.params.id
+    const result = await prisma.$transaction(async (tx) => {
+      params.push(req.params.id);
+      const r = await tx.$queryRawUnsafe(
+        `UPDATE pago SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`, ...params
       );
-      if (escCheck.length) {
-        const row = escCheck[0];
-        if (row.insc_estado === "reservada") {
-          await prisma.$executeRawUnsafe("UPDATE inscripcion SET estado='activa', updated_at=NOW() WHERE id=$1", row.insc_id);
-          await prisma.$executeRawUnsafe("UPDATE grupo SET inscritos_actual = inscritos_actual + 1 WHERE id=$1", row.grupo_id);
-        }
-        if (row.estado === "pendiente") {
-          await prisma.$executeRawUnsafe("UPDATE escalador SET estado='activo', updated_at=NOW() WHERE id=$1", row.id);
-        }
-      }
-    }
-
-    res.json(result[0]);
-  } catch (err) {
-    console.error("Error:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+      if (!r.length) throw Object.assign(new Error("Pago no encontrado"), { status: 404 });
+      if (estado === "pagado") await aplicarEfectosDePago(r[0].id, tx);
+      return r[0];
+    });
+    res.json(result);
+  } catch (err) { manejarError(res, err, "PATCH /pagos/:id"); }
 });
 
 // ─── POST /pagos/:id/link-pago ────────────────────────────
@@ -209,75 +226,60 @@ router.post("/:id/link-pago", async (req, res) => {
 
     const pagoId = req.params.id;
     const pago = await prisma.$queryRawUnsafe(
-      `SELECT pa.id, pa.monto, pa.estado, pa.inscripcion_id,
-              i.escalador_id, e.nombre, e.apellido,
-              p.nombre AS programa, ci.codigo AS ciclo
+      `SELECT pa.id, pa.monto, pa.estado, to_char(pa.periodo, 'YYYY-MM') AS periodo_mes,
+              i.escalador_id, e.nombre, e.apellido, p.nombre AS programa
        FROM pago pa
        JOIN inscripcion i ON pa.inscripcion_id = i.id
        JOIN escalador e ON i.escalador_id = e.id
        JOIN grupo g ON i.grupo_id = g.id
        JOIN programa p ON g.programa_id = p.id
-       JOIN ciclo ci ON g.ciclo_id = ci.id
        WHERE pa.id = $1`,
       pagoId
     );
-
     if (!pago.length) return res.status(404).json({ error: "Pago no encontrado" });
     const p = pago[0];
 
-    if (req.user.rol === "escalador" && req.user.escalador.id !== p.escalador_id) {
+    if (req.user.rol === "escalador" && req.user.escalador?.id !== p.escalador_id) {
       return res.status(403).json({ error: "Sin permiso sobre este pago" });
     }
+    if (req.user.rol === "entrenador") return res.status(403).json({ error: "Sin acceso" });
     if (p.estado === "pagado") return res.status(400).json({ error: "Este pago ya fue procesado" });
 
-    const amountInCents = Math.round(parseFloat(p.monto) * 100);
     const wompiRes = await fetch(`${WOMPI_BASE}/payment_links`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${WOMPI_PRIVATE_KEY}` },
       body: JSON.stringify({
-        name: `${p.programa} · ${p.ciclo}`,
-        description: `Mensualidad de ${p.nombre} ${p.apellido} — EscaladaBogotá`,
+        name: `${p.programa} · ${p.periodo_mes}`,
+        description: `Mensualidad ${p.periodo_mes} de ${p.nombre} ${p.apellido} — EscaladaBogotá`,
         single_use: true,
         collect_shipping: false,
         currency: "COP",
-        amount_in_cents: amountInCents,
+        amount_in_cents: Math.round(parseFloat(p.monto) * 100),
         redirect_url: `${FRONTEND_URL}/app/mis-pagos?pago=${pagoId}&status=redirect`,
         sku: pagoId,
       }),
     });
-
     const wompiData = await wompiRes.json();
     if (!wompiRes.ok) {
       console.error("Error Wompi API:", wompiData);
       return res.status(502).json({ error: "Error al generar el link de pago. Intenta de nuevo." });
     }
 
-    const linkData = wompiData.data;
-    const paymentUrl = `https://checkout.wompi.co/l/${linkData.id}`;
+    const linkId = wompiData.data.id;
     await prisma.$executeRawUnsafe(
-      "UPDATE pago SET referencia = $1 WHERE id = $2",
-      `wompi_link:${linkData.id}`, pagoId
+      "UPDATE pago SET referencia = $1, updated_at = NOW() WHERE id = $2", `wompi_link:${linkId}`, pagoId
     );
-
-    res.json({ payment_url: paymentUrl, link_id: linkData.id, amount: parseFloat(p.monto) });
-  } catch (err) {
-    console.error("Error generando link de pago:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+    res.json({ payment_url: `https://checkout.wompi.co/l/${linkId}`, link_id: linkId, amount: parseFloat(p.monto) });
+  } catch (err) { manejarError(res, err, "POST /pagos/:id/link-pago"); }
 });
 
 // ─── DELETE /pagos/:id ────────────────────────────────────
 router.delete("/:id", authorize("admin"), async (req, res) => {
   try {
-    const check = await prisma.$queryRawUnsafe("SELECT id FROM pago WHERE id = $1", req.params.id);
-    if (!check.length) return res.status(404).json({ error: "Pago no encontrado" });
-
-    await prisma.$executeRawUnsafe("DELETE FROM pago WHERE id = $1", req.params.id);
+    const r = await prisma.$queryRawUnsafe("DELETE FROM pago WHERE id = $1 RETURNING id", req.params.id);
+    if (!r.length) return res.status(404).json({ error: "Pago no encontrado" });
     res.json({ message: "Pago eliminado" });
-  } catch (err) {
-    console.error("Error DELETE /pagos/:id:", err);
-    res.status(500).json({ error: "Error interno" });
-  }
+  } catch (err) { manejarError(res, err, "DELETE /pagos/:id"); }
 });
 
 module.exports = router;

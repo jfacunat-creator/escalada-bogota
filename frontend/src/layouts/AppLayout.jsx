@@ -11,7 +11,7 @@ const nav = {
     { to: '/app/mi-grupo',     icon: IconoMuro,       label: 'Mi Grupo'    },
     { to: '/app/mis-pagos',    icon: IconoRoca,       label: 'Mis Pagos'   },
     { to: '/app/contenido',    icon: IconoPlanEntreno, label: 'Contenido'   },
-    { to: '/app/mi-plan',      icon: IconoPlanEntreno, label: 'Mi Plan'     },  // ← NUEVO
+    { to: '/app/mi-plan',      icon: IconoPlanEntreno, label: 'Mi Plan'     },
     { to: '/app/mi-progreso',  icon: IconoRoca,        label: 'Mi Progreso' },
   ],
   entrenador: [
@@ -29,6 +29,7 @@ const nav = {
     { to: '/app/ajustes-ai',   icon: IconoPlanEntreno, label: 'Ajustes AI'   },
     { to: '/app/pagos',        icon: IconoRoca,       label: 'Pagos'        },
     { to: '/app/rrhh',         icon: IconoCronometro, label: 'RRHH'         },
+    { to: '/app/configuracion', icon: IconoMuro,      label: 'Configuración' },
   ],
 };
 

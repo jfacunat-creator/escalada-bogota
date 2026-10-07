@@ -5,10 +5,10 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { Loader2, Search, Plus, Trash2, Pencil, X } from 'lucide-react';
-import { IconoEscalador, IconoMuro, IconoCronometro, IconoPresa } from '../components/Icons';
+import { IconoEscalador, IconoMuro, IconoPresa } from '../components/Icons';
+import { HORARIO_LABEL } from '../components/ui';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
-function fmt(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0); }
 
 export default function EntrenadoresAdminPage() {
   const [entrenadores, setEntrenadores] = useState([]);
@@ -22,7 +22,9 @@ export default function EntrenadoresAdminPage() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const FORM_VACIO = { nombre: '', apellido: '', email: '', password: '', especialidad: '', maxGrupos: 4 };
+  const FORM_VACIO = { nombre: '', apellido: '', email: '', password: '', telefono: '', licenciaLey181: '', especialidad: '', maxGrupos: 4 };
+  const [deleteError, setDeleteError] = useState(null);
+  const [toggleError, setToggleError] = useState(null);
   const [form, setForm] = useState(FORM_VACIO);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -47,7 +49,7 @@ export default function EntrenadoresAdminPage() {
       setForm(FORM_VACIO);
       load();
     } catch (err) {
-      setFormError(err?.error || err?.errors?.[0]?.msg || 'Error al crear');
+      setFormError(err?.error || 'Error al crear');
     } finally {
       setSaving(false);
     }
@@ -59,6 +61,9 @@ export default function EntrenadoresAdminPage() {
       await api.updateEntrenador(editando.id, {
         nombre: form.nombre,
         apellido: form.apellido,
+        email: form.email,
+        telefono: form.telefono,
+        licenciaLey181: form.licenciaLey181,
         especialidad: form.especialidad,
         maxGrupos: form.maxGrupos,
       });
@@ -75,15 +80,26 @@ export default function EntrenadoresAdminPage() {
   };
 
   const handleDelete = async () => {
-    setDeleting(true);
+    setDeleting(true); setDeleteError(null);
     try {
       await api.deleteEntrenador(confirmDelete.id);
       setConfirmDelete(null);
       load();
     } catch (err) {
-      alert(err?.error || 'Error al eliminar');
+      setDeleteError(err?.error || 'Error al eliminar');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const toggleActivo = async (ent) => {
+    setToggleError(null);
+    try {
+      await api.updateEntrenador(ent.id, { activo: !ent.activo });
+      setDetalles(prev => { const d = { ...prev }; delete d[ent.id]; return d; });
+      load();
+    } catch (err) {
+      setToggleError(`${ent.nombre}: ${err?.error || 'No se pudo cambiar el estado'}`);
     }
   };
 
@@ -135,7 +151,7 @@ export default function EntrenadoresAdminPage() {
       {/* KPIs rápidos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' }}>
         {[
-          [entrenadores.length, 'Entrenadores', C.accent, IconoEscalador],
+          [entrenadores.filter(e => e.activo).length, 'Entrenadores activos', C.accent, IconoEscalador],
           [totalGrupos, 'Grupos activos', '#22c55e', IconoMuro],
           [totalEscaladores, 'Escaladores asignados', '#60a5fa', IconoPresa],
         ].map(([v, l, color, Icon]) => (
@@ -150,6 +166,12 @@ export default function EntrenadoresAdminPage() {
           </div>
         ))}
       </div>
+
+      {toggleError && (
+        <div style={{ marginBottom: '14px', padding: '10px 12px', borderRadius: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5', fontSize: '0.82rem', fontFamily: 'Poppins' }}>
+          {toggleError}
+        </div>
+      )}
 
       {/* Buscador */}
       <div style={{ position: 'relative', marginBottom: '20px', maxWidth: '360px' }}>
@@ -177,8 +199,13 @@ export default function EntrenadoresAdminPage() {
                 </div>
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: C.text, fontSize: '0.95rem', fontFamily: 'Poppins' }}>{ent.nombre}{ent.apellido ? ` ${ent.apellido}` : ''}</div>
-                  <div style={{ fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins' }}>{ent.email} · {ent.licencia_ley181 || 'Sin licencia'}</div>
+                  <div style={{ fontWeight: 600, color: C.text, fontSize: '0.95rem', fontFamily: 'Poppins' }}>
+                    {ent.nombre}{ent.apellido ? ` ${ent.apellido}` : ''}
+                    {!ent.activo && <span style={{ marginLeft: '8px', fontSize: '0.7rem', padding: '1px 8px', borderRadius: '20px', background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>Desactivado</span>}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins' }}>
+                    {ent.email} · {ent.licencia_ley181 ? `Lic. ${ent.licencia_ley181}` : 'Sin licencia'}{ent.telefono ? ` · ${ent.telefono}` : ''}{ent.especialidad ? ` · ${ent.especialidad}` : ''}
+                  </div>
                 </div>
                 {/* Stats inline */}
                 <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexShrink: 0 }}>
@@ -203,10 +230,13 @@ export default function EntrenadoresAdminPage() {
                     <div style={{ fontSize: '0.65rem', color: C.text3, fontFamily: 'Poppins' }}>carga</div>
                   </div>
                   <div style={{ color: C.text3, fontSize: '18px', transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</div>
-                  <button onClick={ev => { ev.stopPropagation(); setEditando(ent); setForm({ nombre: ent.nombre || '', apellido: ent.apellido || '', email: ent.email || '', password: '', especialidad: ent.especialidad || '', maxGrupos: ent.max_grupos || 4 }); setFormError(null); }} title="Editar" style={{
+                  <button onClick={ev => { ev.stopPropagation(); toggleActivo(ent); }} title={ent.activo ? 'Desactivar (no podrá iniciar sesión)' : 'Reactivar'} style={{
+                    background: 'transparent', border: `1px solid ${C.border}`, color: ent.activo ? C.text2 : '#22c55e', cursor: 'pointer', borderRadius: '6px', padding: '4px 8px', flexShrink: 0, fontSize: '0.72rem', fontFamily: 'Poppins',
+                  }}>{ent.activo ? 'Desactivar' : 'Activar'}</button>
+                  <button onClick={ev => { ev.stopPropagation(); setEditando(ent); setForm({ nombre: ent.nombre || '', apellido: ent.apellido || '', email: ent.email || '', password: '', telefono: ent.telefono || '', licenciaLey181: ent.licencia_ley181 || '', especialidad: ent.especialidad || '', maxGrupos: ent.max_grupos || 4 }); setFormError(null); }} title="Editar" style={{
                     background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, cursor: 'pointer', borderRadius: '6px', padding: '5px 7px', flexShrink: 0,
                   }}><Pencil size={13} /></button>
-                  <button onClick={ev => { ev.stopPropagation(); setConfirmDelete(ent); }} title="Eliminar" style={{
+                  <button onClick={ev => { ev.stopPropagation(); setDeleteError(null); setConfirmDelete(ent); }} title="Eliminar" style={{
                     background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', borderRadius: '6px', padding: '5px 7px', flexShrink: 0,
                   }}><Trash2 size={13} /></button>
                 </div>
@@ -231,7 +261,7 @@ export default function EntrenadoresAdminPage() {
                           <div>
                             <div style={{ fontSize: '0.88rem', fontWeight: 600, color: C.text, fontFamily: 'Poppins' }}>{g.programa_nombre}</div>
                             <div style={{ fontSize: '0.75rem', color: C.text2, fontFamily: 'Poppins', marginTop: '2px' }}>
-                              {g.ciclo_codigo} · {g.horario} · {g.muro_nombre}
+                              {[g.ciclo_codigo, HORARIO_LABEL[g.horario] || 'Horario libre', g.muro_nombre].filter(Boolean).join(' · ')}
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -250,7 +280,7 @@ export default function EntrenadoresAdminPage() {
                     </div>
                   )}
                   <div style={{ marginTop: '12px', padding: '10px 14px', background: '#0a0a0a', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins' }}>
-                    Fecha de ingreso: {(detalle?.fecha_ingreso || ent.fecha_ingreso) ? new Date(detalle?.fecha_ingreso || ent.fecha_ingreso).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
+                    Fecha de ingreso: {(detalle?.fecha_ingreso || ent.fecha_ingreso) ? new Date(detalle?.fecha_ingreso || ent.fecha_ingreso).toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
                   </div>
                 </div>
               )}
@@ -293,18 +323,24 @@ export default function EntrenadoresAdminPage() {
                     </div>
                   ))}
                 </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Email (usuario de ingreso) *</label>
+                  <input value={form.email} onChange={e => setF('email', e.target.value)} type="email" className="input-dark" style={{ width: '100%' }} />
+                </div>
                 {!isEditing && (
-                  <>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Email *</label>
-                      <input value={form.email} onChange={e => setF('email', e.target.value)} type="email" className="input-dark" style={{ width: '100%' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Contraseña *</label>
-                      <input value={form.password} onChange={e => setF('password', e.target.value)} type="password" placeholder="mín. 6 caracteres" className="input-dark" style={{ width: '100%' }} />
-                    </div>
-                  </>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Contraseña *</label>
+                    <input value={form.password} onChange={e => setF('password', e.target.value)} type="password" placeholder="mín. 6 caracteres" className="input-dark" style={{ width: '100%' }} />
+                  </div>
                 )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {[['telefono', 'Teléfono', 'tel', '300 000 0000'], ['licenciaLey181', 'Licencia Ley 181', 'text', 'COL-0000-XXX']].map(([k, label, type, ph]) => (
+                    <div key={k}>
+                      <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>{label}</label>
+                      <input value={form[k]} onChange={e => setF(k, e.target.value)} type={type} placeholder={ph} className="input-dark" style={{ width: '100%' }} />
+                    </div>
+                  ))}
+                </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' }}>Especialidad</label>
                   <input value={form.especialidad} onChange={e => setF('especialidad', e.target.value)} placeholder="Ej: Búlder, Deportiva..." className="input-dark" style={{ width: '100%' }} />
@@ -348,8 +384,10 @@ export default function EntrenadoresAdminPage() {
           }}>
             <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#ef4444', marginBottom: '8px' }}>Eliminar entrenador</div>
             <p style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem', marginBottom: '16px' }}>
-              Se eliminará a <strong style={{ color: C.text }}>{confirmDelete.nombre}</strong> junto con todos sus grupos, sesiones, inscripciones y pagos.
+              Se eliminará a <strong style={{ color: C.text }}>{confirmDelete.nombre}</strong> y su usuario. Solo es posible si no tiene grupos;
+              si los tiene, reasígnalos a otro entrenador (Grupos → editar) o desactívalo.
             </p>
+            {deleteError && <div style={{ color: '#fca5a5', fontSize: '0.82rem', fontFamily: 'Poppins', marginBottom: '14px' }}>{deleteError}</div>}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setConfirmDelete(null)} style={{
                 flex: 1, padding: '10px', borderRadius: '8px', background: 'transparent',

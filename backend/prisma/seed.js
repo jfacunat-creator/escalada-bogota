@@ -7,6 +7,11 @@ const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
 
 async function main() {
+  // El seed VACÍA la base de datos: solo se permite contra una BD local salvo SEED_FORCE=1.
+  const url = process.env.DATABASE_URL || "";
+  if (!/@(localhost|127\.0\.0\.1)[:/]/.test(url) && process.env.SEED_FORCE !== "1") {
+    throw new Error("seed.js borra todos los datos y DATABASE_URL no es local. Usa SEED_FORCE=1 solo si de verdad quieres vaciar esa base.");
+  }
   console.log("🗑️  Limpiando base de datos...\n");
 
   // Vaciar tablas en orden de dependencias (hijos antes que padres)
@@ -139,26 +144,26 @@ async function main() {
       modalidad: "autonomo",
       horario: "mar_jue_18_20",          // Mar y Jue 18–20 h
       cupoMaximo: 6,
-      inscritosActual: 1,               // se actualiza al crear inscripción
+      inscritosActual: 1,
       estado: "en_curso",
     },
   });
   console.log("✓ Grupo: Avanzado Adulto | Autónomo | Mar-Jue 18-20 | T3 | en curso");
 
-  // ─── 7. INSCRIPCIÓN ──────────────────────────────────────────────────────
-  // avanzado autónomo: 180 000/mes × 3 meses = 540 000/ciclo
-  const PRECIO_CICLO = 540_000;
-  const PRECIO_MES   = 180_000;
+  // ─── 7. TARIFAS + INSCRIPCIÓN ────────────────────────────────────────────
+  // Tarifa mensual única por modalidad (no depende del nivel ni del ciclo).
+  await prisma.tarifa.upsert({ where: { modalidad: "autonomo" }, update: {}, create: { modalidad: "autonomo", precioMensual: 120_000 } });
+  await prisma.tarifa.upsert({ where: { modalidad: "acompanado" }, update: {}, create: { modalidad: "acompanado", precioMensual: 350_000 } });
+  const PRECIO_MES = 120_000;
 
   const inscripcion = await prisma.inscripcion.create({
     data: {
       escaladorId: escalador.id,
       grupoId: grupo.id,
       estado: "activa",
-      precioCiclo: PRECIO_CICLO,
     },
   });
-  console.log("✓ Inscripción activa | Precio ciclo: $", PRECIO_CICLO.toLocaleString("es-CO"));
+  console.log("✓ Inscripción activa | Mensualidad autónomo: $", PRECIO_MES.toLocaleString("es-CO"));
 
   // ─── 8. PAGO (primera mensualidad — pagada) ───────────────────────────────
   await prisma.pago.create({
@@ -168,8 +173,9 @@ async function main() {
       estado: "pagado",
       metodo: "transferencia",
       referencia: "REF-T3-001",
+      periodo: new Date("2026-07-01"),
       fechaPago: new Date("2026-07-07"),
-      fechaVencimiento: new Date("2026-07-07"),
+      fechaVencimiento: new Date("2026-07-05"),
     },
   });
   console.log("✓ Pago mes 1: $", PRECIO_MES.toLocaleString("es-CO"), "| pagado | transferencia");

@@ -6,8 +6,90 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Loader2, Search, X, ChevronRight, Trash2 } from 'lucide-react';
+import { Loader2, Search, ChevronRight, Trash2 } from 'lucide-react';
 import { IconoEscalador, IconoPresa, IconoMuro, IconoCronometro } from '../components/Icons';
+import { Btn, Modal, Field, Input, Select, Aviso, Badge, fmtMes, ESTADO_PAGO, ESTADO_INSC, MODALIDAD, NIVEL } from '../components/ui';
+
+const ESTADO_ESC = { activo: 'Activo', pendiente: 'Pendiente de activación', congelado: 'Congelado', inactivo: 'Inactivo' };
+
+function ModalEditarEscalador({ escalador, onClose, onGuardado }) {
+  const [form, setForm] = useState({
+    nombre: escalador.nombre || '', apellido: escalador.apellido || '', email: escalador.email || '',
+    telefono: escalador.telefono || '', contactoEmergencia: escalador.contacto_emergencia || '',
+    fechaNacimiento: escalador.fecha_nacimiento?.slice(0, 10) || '', pesoKg: escalador.peso_kg ?? '',
+  });
+  const [error, setError] = useState(null);
+  const [guardando, setGuardando] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const guardar = async () => {
+    setGuardando(true); setError(null);
+    try { await api.updateEscalador(escalador.id, form); onGuardado(); onClose(); }
+    catch (e) { setError(e.error); } finally { setGuardando(false); }
+  };
+  return (
+    <Modal title={`Editar · ${escalador.nombre} ${escalador.apellido}`} onClose={onClose} footer={<>
+      <Btn variant="secondary" onClick={onClose}>Cancelar</Btn>
+      <Btn onClick={guardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</Btn>
+    </>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <Field label="Nombre" required><Input value={form.nombre} onChange={e => set('nombre', e.target.value)} /></Field>
+          <Field label="Apellido" required><Input value={form.apellido} onChange={e => set('apellido', e.target.value)} /></Field>
+        </div>
+        <Field label="Email (usuario de ingreso)" required><Input type="email" value={form.email} onChange={e => set('email', e.target.value)} /></Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <Field label="Teléfono"><Input value={form.telefono} onChange={e => set('telefono', e.target.value)} /></Field>
+          <Field label="Peso (kg)"><Input type="number" value={form.pesoKg} onChange={e => set('pesoKg', e.target.value)} /></Field>
+        </div>
+        <Field label="Contacto de emergencia" required><Input value={form.contactoEmergencia} onChange={e => set('contactoEmergencia', e.target.value)} /></Field>
+        <Field label="Fecha de nacimiento" hint="Recalcula el rango de edad (adulto / menor)."><Input type="date" value={form.fechaNacimiento} onChange={e => set('fechaNacimiento', e.target.value)} /></Field>
+      </div>
+      <Aviso>{error}</Aviso>
+    </Modal>
+  );
+}
+
+function ModalInscribir({ escalador, onClose, onHecho }) {
+  const [grupos, setGrupos] = useState(null);
+  const [grupoId, setGrupoId] = useState('');
+  const [error, setError] = useState(null);
+  const [guardando, setGuardando] = useState(false);
+  useEffect(() => {
+    api.getGruposDisponibles().then(g => {
+      const aptos = g.filter(x => (escalador.rango_etario === 'adulto') === (x.poblacion === 'adulto') && (!escalador.nivel || x.nivel === escalador.nivel));
+      setGrupos(aptos); setGrupoId(aptos[0]?.id || '');
+    }).catch(e => setError(e.error));
+  }, [escalador]);
+  const inscribir = async () => {
+    setGuardando(true); setError(null);
+    try { await api.crearInscripcion({ escaladorId: escalador.id, grupoId }); onHecho(); onClose(); }
+    catch (e) { setError(e.error); } finally { setGuardando(false); }
+  };
+  const g = grupos?.find(x => x.id === grupoId);
+  return (
+    <Modal title={`Inscribir · ${escalador.nombre} ${escalador.apellido}`} onClose={onClose} footer={<>
+      <Btn variant="secondary" onClick={onClose}>Cancelar</Btn>
+      <Btn onClick={inscribir} disabled={!grupoId || guardando}>{guardando ? 'Inscribiendo…' : 'Inscribir'}</Btn>
+    </>}>
+      {!grupos ? <Loader2 className="animate-spin" style={{ color: C.accent }} />
+        : grupos.length === 0 ? <div style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem' }}>
+            No hay grupos abiertos {escalador.nivel ? `de nivel ${NIVEL[escalador.nivel]}` : ''} para su rango de edad. Crea uno en Grupos.
+          </div>
+        : <>
+          <Field label="Grupo" required>
+            <Select value={grupoId} onChange={e => setGrupoId(e.target.value)}>
+              {grupos.map(x => <option key={x.id} value={x.id}>{x.programa_nombre} · {x.ciclo_codigo} · {MODALIDAD[x.modalidad]} · {x.entrenador_nombre} ({x.inscritos_actual}/{x.cupo_maximo})</option>)}
+            </Select>
+          </Field>
+          {g && <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins', marginTop: '10px', lineHeight: 1.6 }}>
+            Mensualidad: <strong style={{ color: C.accent }}>{fmt(g.precio_mensual)}</strong>. Queda inscrito como <strong>activo</strong> con la mensualidad de este mes pendiente (vence en 5 días).
+            {!escalador.nivel && <> Su nivel quedará como <strong>{NIVEL[g.nivel]}</strong>.</>}
+          </div>}
+        </>}
+      <Aviso>{error}</Aviso>
+    </Modal>
+  );
+}
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 function fmt(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0); }
@@ -29,6 +111,10 @@ export default function EscaladoresAdminPage() {
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [editar, setEditar] = useState(null);
+  const [inscribir, setInscribir] = useState(null);
+  const [avisos, setAvisos] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => { load(); }, [buscar, estado, rangoEtario, nivel]);
 
@@ -55,7 +141,8 @@ export default function EscaladoresAdminPage() {
       setDetalle(null);
       load();
     } catch (err) {
-      alert(err?.error || 'Error al eliminar');
+      setError(err?.error || 'Error al eliminar');
+      setConfirmDelete(null);
     } finally {
       setDeleting(false);
     }
@@ -72,15 +159,33 @@ export default function EscaladoresAdminPage() {
     finally { setLoadingDetalle(false); }
   };
 
+  const recargarDetalle = async (id) => {
+    load();
+    if (selected === id) setDetalle(await api.getEscalador(id));
+  };
+
   const cambiarNivel = async (escaladorId, nuevoNivel) => {
+    setError(null); setAvisos([]);
     try {
-      await api.asignarNivel(escaladorId, nuevoNivel);
-      load();
-      if (selected === escaladorId) {
-        const d = await api.getEscalador(escaladorId);
-        setDetalle(d);
-      }
-    } catch (err) { alert(err?.error || 'Error al cambiar nivel'); }
+      const r = await api.asignarNivel(escaladorId, nuevoNivel);
+      setAvisos(r.avisos || []);
+      await recargarDetalle(escaladorId);
+    } catch (err) { setError(err?.error || 'Error al cambiar nivel'); }
+  };
+
+  const cambiarEstado = async (escaladorId, nuevoEstado) => {
+    setError(null); setAvisos([]);
+    try {
+      const r = await api.cambiarEstadoEscalador(escaladorId, nuevoEstado);
+      setAvisos(r.avisos || []);
+      await recargarDetalle(escaladorId);
+    } catch (err) { setError(err?.error || 'Error al cambiar estado'); }
+  };
+
+  const cambiarEstadoInscripcion = async (inscId, escaladorId, nuevo) => {
+    setError(null); setAvisos([]);
+    try { await api.cambiarEstadoInscripcion(inscId, nuevo); await recargarDetalle(escaladorId); }
+    catch (err) { setError(err?.error || 'Error al cambiar la inscripción'); }
   };
 
   // KPIs
@@ -125,6 +230,7 @@ export default function EscaladoresAdminPage() {
         </div>
         <select value={estado} onChange={e => setEstado(e.target.value)} className="input-dark" style={{ width: 'auto', minWidth: '140px' }}>
           <option value="">Todos los estados</option>
+          <option value="pendiente">Pendiente</option>
           <option value="activo">Activo</option>
           <option value="inactivo">Inactivo</option>
           <option value="congelado">Congelado</option>
@@ -147,6 +253,9 @@ export default function EscaladoresAdminPage() {
             style={{ background: 'none', border: `1px solid ${C.border}`, color: '#ef4444', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' }}>✕ Limpiar</button>
         )}
       </div>
+
+      <Aviso tipo="ok" onClose={() => setAvisos([])}>{avisos}</Aviso>
+      <Aviso onClose={() => setError(null)}>{error}</Aviso>
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}><Loader2 className="animate-spin" style={{ width: '28px', height: '28px', color: C.accent }} /></div>
@@ -242,12 +351,21 @@ export default function EscaladoresAdminPage() {
                               </select>
                             </div>
                           )}
+                          {isAdmin && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: `1px solid #1a1a1a` }}>
+                              <span style={{ fontSize: '0.82rem', color: C.text2, fontFamily: 'Poppins' }}>Estado</span>
+                              <select value={detalle.estado} onChange={ev => cambiarEstado(detalle.id, ev.target.value)} className="input-dark" style={{ fontSize: '0.78rem', padding: '2px 6px', height: 'auto' }}>
+                                {Object.entries(ESTADO_ESC).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                              </select>
+                            </div>
+                          )}
                           {[
-                            ['Teléfono', detalle.telefono || '—'],
+                            ['Teléfono', detalle.telefono ? <a href={`tel:${detalle.telefono}`} style={{ color: C.accent }}>{detalle.telefono}</a> : '—'],
                             ['Contacto emergencia', detalle.contacto_emergencia || '—'],
+                            ['Nacimiento', detalle.fecha_nacimiento ? new Date(detalle.fecha_nacimiento).toLocaleDateString('es-CO', { timeZone: 'UTC' }) : '—'],
                             ['Peso', detalle.peso_kg ? `${detalle.peso_kg} kg` : '—'],
-                            ['Estado', detalle.estado],
-                            ['Total pagado', fmt(e.total_pagado || 0)],
+                            ...(isAdmin ? [] : [['Estado', ESTADO_ESC[detalle.estado] || detalle.estado]]),
+                            ...(isAdmin ? [['Total pagado', fmt(e.total_pagado || 0)]] : []),
                             ['Entrenador', e.entrenador_activo || '—'],
                           ].map(([k, v]) => (
                             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: `1px solid #1a1a1a`, fontSize: '0.82rem', fontFamily: 'Poppins' }}>
@@ -267,17 +385,46 @@ export default function EscaladoresAdminPage() {
                                   fontSize: '0.7rem', padding: '1px 7px', borderRadius: '20px', fontWeight: 600, fontFamily: 'Poppins',
                                   background: insc.estado === 'activa' ? 'rgba(34,197,94,0.1)' : insc.estado === 'reservada' ? 'rgba(212,175,55,0.1)' : 'rgba(100,100,100,0.1)',
                                   color: insc.estado === 'activa' ? '#22c55e' : insc.estado === 'reservada' ? '#D4AF37' : '#666',
-                                }}>{insc.estado === 'reservada' ? '⏳ Cupo reservado' : insc.estado}</span>
+                                }}>{ESTADO_INSC[insc.estado]?.label || insc.estado}</span>
                               </div>
                               <div style={{ fontSize: '0.75rem', color: C.text2, fontFamily: 'Poppins' }}>
                                 {insc.ciclo} · {insc.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'} · {insc.muro}
                               </div>
-                              <div style={{ fontSize: '0.78rem', color: C.accent, fontFamily: 'Antonio', marginTop: '4px' }}>{fmt(insc.precio_ciclo)}</div>
+                              <div style={{ fontSize: '0.78rem', color: C.accent, fontFamily: 'Antonio', marginTop: '4px' }}>{fmt(insc.precio_mensual)} / mes</div>
+                              {isAdmin && (
+                                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                                  {insc.estado === 'activa' && <Btn small variant="secondary" onClick={() => cambiarEstadoInscripcion(insc.id, detalle.id, 'congelada')}>Congelar</Btn>}
+                                  {insc.estado === 'congelada' && <Btn small variant="secondary" onClick={() => cambiarEstadoInscripcion(insc.id, detalle.id, 'activa')}>Reactivar</Btn>}
+                                  {['activa', 'reservada', 'congelada'].includes(insc.estado) && <Btn small variant="secondary" onClick={() => cambiarEstadoInscripcion(insc.id, detalle.id, 'cancelada')}>Cancelar inscripción</Btn>}
+                                </div>
+                              )}
                             </div>
                           )) : (
                             <div style={{ color: C.text3, fontFamily: 'Poppins', fontSize: '0.85rem', padding: '12px' }}>Sin inscripciones registradas.</div>
                           )}
                         </div>
+                        {isAdmin && (
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                              <Btn small variant="secondary" onClick={() => setEditar(detalle)}>Editar datos</Btn>
+                              {!detalle.inscripciones?.some(i => ['activa', 'reservada'].includes(i.estado)) && (
+                                <Btn small variant="dark" onClick={() => setInscribir(detalle)}>Inscribir en un grupo</Btn>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: C.text2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '8px', fontFamily: 'Poppins' }}>Mensualidades</div>
+                            {detalle.pagos?.length ? (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {detalle.pagos.map(p => (
+                                  <div key={p.id} style={{ background: '#242424', borderRadius: '8px', padding: '6px 10px', fontFamily: 'Poppins', fontSize: '0.78rem', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <span style={{ color: C.text, textTransform: 'capitalize' }}>{fmtMes(p.periodo_mes)}</span>
+                                    <span style={{ color: C.text2 }}>{fmt(p.monto)}</span>
+                                    <Badge color={ESTADO_PAGO[p.estado].color}>{ESTADO_PAGO[p.estado].label}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : <div style={{ color: C.text3, fontFamily: 'Poppins', fontSize: '0.82rem' }}>Sin mensualidades.</div>}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div style={{ color: C.text3, fontFamily: 'Poppins', fontSize: '0.85rem' }}>Error cargando detalle.</div>
@@ -289,6 +436,9 @@ export default function EscaladoresAdminPage() {
           })}
         </div>
       )}
+
+      {editar && <ModalEditarEscalador escalador={editar} onClose={() => setEditar(null)} onGuardado={() => recargarDetalle(editar.id)} />}
+      {inscribir && <ModalInscribir escalador={inscribir} onClose={() => setInscribir(null)} onHecho={() => recargarDetalle(inscribir.id)} />}
 
       {/* Confirm delete escalador */}
       {confirmDelete && (

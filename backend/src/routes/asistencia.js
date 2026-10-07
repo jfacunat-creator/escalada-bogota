@@ -9,6 +9,13 @@ router.use(authenticate);
 // ─── GET /asistencia/sesion/:sesionId ─────────────────────
 router.get("/sesion/:sesionId", authorize("entrenador", "admin"), async (req, res) => {
   try {
+    if (req.user.rol === "entrenador") {
+      const propia = await prisma.$queryRawUnsafe(
+        "SELECT 1 FROM sesion s JOIN grupo g ON g.id = s.grupo_id WHERE s.id = $1 AND g.entrenador_id = $2",
+        req.params.sesionId, req.user.entrenador?.id
+      );
+      if (!propia.length) return res.status(403).json({ error: "Esta sesión no es de tus grupos" });
+    }
     const result = await prisma.$queryRawUnsafe(
       `SELECT a.*, e.nombre, e.apellido
        FROM asistencia a
@@ -40,6 +47,13 @@ router.post(
 
     try {
       const { sesionId, registros } = req.body;
+      const sesion = await prisma.$queryRawUnsafe(
+        "SELECT s.grupo_id, g.entrenador_id FROM sesion s JOIN grupo g ON g.id = s.grupo_id WHERE s.id = $1", sesionId
+      );
+      if (!sesion.length) return res.status(404).json({ error: "Sesión no encontrada" });
+      if (req.user.rol === "entrenador" && sesion[0].entrenador_id !== req.user.entrenador?.id) {
+        return res.status(403).json({ error: "Esta sesión no es de tus grupos" });
+      }
 
       for (const reg of registros) {
         await prisma.$executeRawUnsafe(

@@ -2,6 +2,7 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
+const { puedeVerEscalador } = require("../utils/acceso");
 
 const router = express.Router();
 router.use(authenticate);
@@ -11,27 +12,31 @@ router.get("/", async (req, res) => {
   try {
     const { escaladorId, cohorteId, tipo } = req.query;
 
-    if (req.user.rol === "escalador" && escaladorId !== req.user.escalador.id) {
+    if (req.user.rol === "escalador" && escaladorId && escaladorId !== req.user.escalador.id) {
       return res.status(403).json({ error: "Solo puedes ver tus propias evaluaciones" });
     }
 
     let sql = `
       SELECT ev.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo,
-             g.horario, m.nombre as muro_nombre,
+             g.horario, m.nombre as muro_nombre, es.nombre, es.apellido,
              (SELECT COUNT(*) FROM resultado_test rt WHERE rt.evaluacion_id = ev.id) as num_resultados
       FROM evaluacion ev
       JOIN grupo g ON ev.grupo_id = g.id
       JOIN programa p ON g.programa_id = p.id
       JOIN ciclo ci ON g.ciclo_id = ci.id
-      JOIN muro_aliado m ON g.muro_id = m.id
+      LEFT JOIN muro_aliado m ON g.muro_id = m.id
+      JOIN escalador es ON es.id = ev.escalador_id
       WHERE 1=1
     `;
     const params = [];
 
     if (escaladorId) { params.push(escaladorId); sql += ` AND ev.escalador_id = $${params.length}`; }
     if (cohorteId) { params.push(cohorteId); sql += ` AND ev.grupo_id = $${params.length}`; }
-    if (tipo) { params.push(tipo); sql += ` AND ev.tipo = $${params.length}`; }
-
+    if (tipo) { params.push(tipo); sql += ` AND ev.tipo::text = $${params.length}`; }
+    if (req.user.rol === "escalador") {
+      params.push(req.user.escalador.id);
+      sql += ` AND ev.escalador_id = $${params.length}`;
+    }
     if (req.user.rol === "entrenador") {
       params.push(req.user.entrenador.id);
       sql += ` AND g.entrenador_id = $${params.length}`;
@@ -58,9 +63,15 @@ router.post("/", authorize("entrenador", "admin"), [
 
   try {
     const { escaladorId, cohorteId, tipo, fecha, notas } = req.body;
+    if (req.user.rol === "entrenador") {
+      const propio = await prisma.$queryRawUnsafe(
+        "SELECT 1 FROM grupo WHERE id = $1 AND entrenador_id = $2", cohorteId, req.user.entrenador?.id
+      );
+      if (!propio.length) return res.status(403).json({ error: "Este grupo no es tuyo" });
+    }
     const result = await prisma.$queryRawUnsafe(
       `INSERT INTO evaluacion (escalador_id, grupo_id, tipo, fecha, notas)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+       VALUES ($1, $2, $3::"TipoEvaluacion", $4::date, $5) RETURNING *`,
       escaladorId, cohorteId, tipo, fecha, notas || null
     );
     res.status(201).json(result[0]);
@@ -95,7 +106,7 @@ router.post("/mi-test", async (req, res) => {
     const tipo = Number(tests_previos) === 0 ? 'entrada' : 'salida';
 
     const existente = await prisma.$queryRawUnsafe(
-      "SELECT id FROM evaluacion WHERE escalador_id=$1 AND grupo_id=$2 AND fecha=$3 AND tipo=$4",
+      "SELECT id FROM evaluacion WHERE escalador_id=$1 AND grupo_id=$2 AND fecha=$3::date AND tipo::text=$4",
       req.user.escalador.id, grupo_id, fecha, tipo
     );
     if (existente.length) {
@@ -104,7 +115,7 @@ router.post("/mi-test", async (req, res) => {
 
     const ev = await prisma.$queryRawUnsafe(
       `INSERT INTO evaluacion (escalador_id, grupo_id, tipo, fecha, estado)
-       VALUES ($1, $2, $3, $4, 'realizada') RETURNING id`,
+       VALUES ($1, $2, $3::"TipoEvaluacion", $4::date, 'realizada') RETURNING id`,
       req.user.escalador.id, grupo_id, tipo, fecha
     );
     const evalId = ev[0].id;
@@ -113,7 +124,7 @@ router.post("/mi-test", async (req, res) => {
       if (!r.metrica || r.valor === undefined || r.valor === null || r.valor === '') continue;
       const sem = r.semaforo && ['verde','amarillo','rojo'].includes(r.semaforo) ? r.semaforo : 'verde';
       await prisma.$executeRawUnsafe(
-        "INSERT INTO resultado_test (evaluacion_id, metrica, valor, unidad, semaforo) VALUES ($1,$2,$3,$4,$5)",
+        `INSERT INTO resultado_test (evaluacion_id, metrica, valor, unidad, semaforo) VALUES ($1,$2,$3,$4,$5::"Semaforo")`,
         evalId, r.metrica, parseFloat(r.valor), r.unidad, sem
       );
     }
@@ -130,8 +141,8 @@ router.get("/progreso/:escaladorId", async (req, res) => {
   try {
     const { escaladorId } = req.params;
 
-    if (req.user.rol === "escalador" && req.user.escalador.id !== escaladorId) {
-      return res.status(403).json({ error: "Solo puedes ver tu propio progreso" });
+    if (!(await puedeVerEscalador(req.user, escaladorId))) {
+      return res.status(403).json({ error: "Sin acceso al progreso de este escalador" });
     }
 
     const result = await prisma.$queryRawUnsafe(
@@ -234,7 +245,7 @@ router.get("/comparar/:cohorteId", authorize("entrenador", "admin"), async (req,
 router.get("/:id", async (req, res) => {
   try {
     const ev = await prisma.$queryRawUnsafe(
-      `SELECT ev.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo,
+      `SELECT ev.*, p.nombre as programa_nombre, ci.codigo as ciclo_codigo, g.entrenador_id,
               e.nombre as escalador_nombre, e.apellido as escalador_apellido
        FROM evaluacion ev
        JOIN grupo g ON ev.grupo_id = g.id
@@ -245,6 +256,10 @@ router.get("/:id", async (req, res) => {
       req.params.id
     );
     if (ev.length === 0) return res.status(404).json({ error: "Evaluación no encontrada" });
+    if ((req.user.rol === "escalador" && ev[0].escalador_id !== req.user.escalador?.id)
+      || (req.user.rol === "entrenador" && ev[0].entrenador_id !== req.user.entrenador?.id)) {
+      return res.status(403).json({ error: "Sin acceso a esta evaluación" });
+    }
 
     const resultados = await prisma.$queryRawUnsafe(
       "SELECT * FROM resultado_test WHERE evaluacion_id = $1 ORDER BY metrica",
@@ -280,7 +295,7 @@ router.post("/:id/resultados", authorize("entrenador", "admin"), [
     for (const r of resultados) {
       await prisma.$executeRawUnsafe(
         `INSERT INTO resultado_test (evaluacion_id, metrica, valor, unidad, semaforo, percentil)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+         VALUES ($1, $2, $3, $4, $5::"Semaforo", $6::int)`,
         evalId, r.metrica, r.valor, r.unidad, r.semaforo, r.percentil || null
       );
       insertados++;

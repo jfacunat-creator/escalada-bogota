@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { HORARIO_LABEL } from '../components/ui';
 import { Loader2 } from 'lucide-react';
 import { IconoEscalador, IconoPresa, IconoCronometro, IconoMuro } from '../components/Icons';
 
@@ -31,19 +32,10 @@ export default function EntrenadorDashboard() {
       api.getEntrenador(user.entrenador.id).then(setData).catch(console.error).finally(() => setLoading(false));
     } else { setLoading(false); }
 
-    // Escaladores sin grupo — informativo para el entrenador
-    const fetchPendientes = async () => {
-      try {
-        const res = await fetch('/api/escaladores', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        if (res.ok) {
-          const todos = await res.json();
-          setPendientes(todos.filter(e => e.estado === 'pendiente'));
-        }
-      } catch (_) {}
-    };
-    fetchPendientes();
+    // Nuevos registros pendientes de activación: el entrenador los contacta para la evaluación inicial.
+    api.getEscaladores({ estado: 'pendiente' })
+      .then(l => setPendientes(l.filter(e => !Number(e.grupos_activos) && !Number(e.reservas_pendientes))))
+      .catch(() => setPendientes([]));
   }, [user?.entrenador?.id]);
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: '#D4AF37' }} /></div>;
@@ -88,17 +80,22 @@ export default function EntrenadorDashboard() {
               </div>
               <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ fontSize: '0.85rem', color: '#A09A8C', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <IconoCronometro style={{ width: '14px', height: '14px' }} /> {g.horario}
+                  <IconoCronometro style={{ width: '14px', height: '14px' }} /> {HORARIO_LABEL[g.horario] || 'Horario libre (autónomo)'}
                 </div>
-                <div style={{ fontSize: '0.85rem', color: '#A09A8C', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <IconoMuro style={{ width: '14px', height: '14px' }} /> {g.muro_nombre}
-                </div>
+                {g.muro_nombre && (
+                  <div style={{ fontSize: '0.85rem', color: '#A09A8C', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <IconoMuro style={{ width: '14px', height: '14px' }} /> {g.muro_nombre}
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #2e2e2e' }}>
                   <span style={{ fontSize: '0.85rem', color: '#A09A8C' }}>Inscritos</span>
                   <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: parseInt(g.inscritos) >= g.cupo_maximo ? '#f87171' : '#D4AF37' }}>
                     {g.inscritos}/{g.cupo_maximo}
                   </span>
                 </div>
+                <button onClick={() => navigate(`/app/mis-grupos/${g.id}`)} style={{ marginTop: '4px', padding: '7px', borderRadius: '6px', background: '#4A2F0F', border: 'none', color: '#D4AF37', fontFamily: 'Poppins', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                  Gestionar grupo →
+                </button>
               </div>
             </div>
           ))}
@@ -144,7 +141,7 @@ export default function EntrenadorDashboard() {
       <div style={{ marginTop: '32px', background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '20px' }}>
         <h3 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: '#F0EDE8', marginBottom: '16px' }}>Mis datos</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
-          {[['Email', data?.email], ['Teléfono', data?.telefono || '—'], ['Licencia Ley 181', data?.licencia_ley181 || '—'], ['Desde', data?.fecha_ingreso ? new Date(data.fecha_ingreso).toLocaleDateString('es-CO') : '—']].map(([k, v]) => (
+          {[['Email', data?.email], ['Teléfono', data?.telefono || '—'], ['Licencia Ley 181', data?.licencia_ley181 || '—'], ['Desde', data?.fecha_ingreso ? new Date(data.fecha_ingreso).toLocaleDateString('es-CO', { timeZone: 'UTC' }) : '—']].map(([k, v]) => (
             <div key={k}>
               <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>{k}</div>
               <div style={{ fontSize: '0.9rem', color: '#F0EDE8', fontWeight: 500 }}>{v}</div>

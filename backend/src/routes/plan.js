@@ -108,17 +108,18 @@ router.get("/my", authenticate, async (req, res) => {
 });
 
 // ─── GET /plan/contenido?nivel=xxx ───────────────────────
+// Plan base completo del nivel: los 4 mesociclos (T1–T4) de 13 semanas cada uno.
 const { authorize } = require("../middleware/auth");
-router.get("/contenido", authenticate, authorize("admin"), async (req, res) => {
+router.get("/contenido", authenticate, authorize("admin", "entrenador"), async (req, res) => {
   const { nivel } = req.query;
   if (!nivel) return res.status(400).json({ error: "nivel requerido" });
   try {
     const rows = await prisma.$queryRawUnsafe(
-      `SELECT trimestre, nivel, semanas FROM plan_contenido WHERE nivel = $1 ORDER BY trimestre LIMIT 1`,
+      `SELECT trimestre, semanas FROM plan_contenido WHERE nivel = $1 ORDER BY trimestre`,
       nivel
     );
     if (!rows.length) return res.status(404).json({ error: "Plan no encontrado" });
-    res.json(rows[0]);
+    res.json({ nivel, trimestres: rows });
   } catch (err) {
     console.error("[GET /api/plan/contenido]", err.message);
     res.status(500).json({ error: "Error al cargar el plan" });

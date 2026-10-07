@@ -1,4 +1,10 @@
+import { useState, useEffect } from 'react';
 import { C, T, Section, SectionLabel, Divider, PageHeader, BtnPrimary, CheckItem } from './shared';
+import api from '../../services/api';
+
+// Tarifa mensual única por modalidad: se lee de la BD (la misma que se cobra). Respaldo si la API no responde.
+const TARIFAS_RESPALDO = { autonomo: 120000, acompanado: 350000 };
+const fmtPrecio = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
 
 const niveles = [
   {
@@ -23,13 +29,13 @@ const niveles = [
 
 const planes = [
   {
-    nombre: 'Plan Autónomo', precio: '$120.000 – $180.000', periodo: 'mes · solo con suscripción activa',
+    nombre: 'Plan Autónomo', modalidad: 'autonomo', periodo: 'por mes · cualquier nivel',
     desc: 'Para el escalador disciplinado que prefiere entrenar en sus horarios. Acceso completo al plan digital del ciclo vigente, videoteca técnica y tests presenciales en cada empalme.',
     incluye: ['Plan digital del ciclo vigente', 'Videoteca técnica completa', 'Revisión asincrónica de 2 videos/mes', 'Tests presenciales en cada empalme', 'Acceso activo mientras dure la suscripción'],
     color: '#9E721D', destacado: false,
   },
   {
-    nombre: 'Plan Acompañado', precio: '$350.000 – $600.000', periodo: 'mes · ciclos de 13 semanas',
+    nombre: 'Plan Acompañado', modalidad: 'acompanado', periodo: 'por mes · cualquier nivel',
     desc: '2 a 3 sesiones presenciales por semana en muro aliado, con entrenador asignado, evaluación trimestral, Liga interna, Check-Point Fest y salidas a roca.',
     incluye: ['2–3 sesiones presenciales/semana', 'Plan periodizado con entrenador asignado', 'Evaluación trimestral con informe', 'Tarifas preferenciales con fisio y nutrición', 'Liga interna, Fest y salida trimestral a Suesca'],
     color: '#D4AF37', destacado: true,
@@ -86,13 +92,15 @@ function NivelesSection() {
 }
 
 function PlanesSection() {
+  const [tarifas, setTarifas] = useState(TARIFAS_RESPALDO);
+  useEffect(() => { api.getTarifas().then(setTarifas).catch(() => {}); }, []);
   return (
     <div style={{ background: '#1c1c1c', borderTop: '1px solid #2e2e2e', borderBottom: '1px solid #2e2e2e' }}>
       <Section>
         <div style={{ textAlign: 'center', marginBottom: '48px' }}>
           <SectionLabel>Modalidades</SectionLabel>
           <h2 style={{ ...T.h2, marginBottom: '12px' }}>Elige cómo entrenar</h2>
-          <p style={{ ...T.body, maxWidth: '500px', margin: '0 auto' }}>Comprás ciclos de 13 semanas, no meses. La renovación ocurre en la semana de empalme, junto con tu informe de resultados.</p>
+          <p style={{ ...T.body, maxWidth: '500px', margin: '0 auto' }}>Pagás una mensualidad fija según la modalidad, sin importar tu nivel. El entrenamiento se organiza en ciclos de 13 semanas con informe de resultados en cada empalme.</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', maxWidth: '820px', margin: '0 auto' }} className="planes-grid">
           <style>{`@media(max-width:640px){.planes-grid{grid-template-columns:1fr!important}}`}</style>
@@ -109,7 +117,7 @@ function PlanesSection() {
               </div>
               <h3 style={{ fontFamily: 'Antonio', fontSize: '1.3rem', color: '#F0EDE8', marginBottom: '6px' }}>{p.nombre}</h3>
               <div style={{ marginBottom: '16px' }}>
-                <span style={{ fontFamily: 'Antonio', fontSize: '1.7rem', color: p.color }}>{p.precio}</span>
+                <span style={{ fontFamily: 'Antonio', fontSize: '1.7rem', color: p.color }}>{fmtPrecio(tarifas[p.modalidad])}</span>
                 <div style={{ fontFamily: 'Poppins', fontSize: '0.78rem', color: '#666', marginTop: '2px' }}>{p.periodo}</div>
               </div>
               <p style={{ ...T.body, fontSize: '0.85rem', marginBottom: '20px', lineHeight: 1.7 }}>{p.desc}</p>

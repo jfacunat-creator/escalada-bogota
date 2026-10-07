@@ -8,13 +8,13 @@ datasource db {
 }
 
 model Usuario {
-  id           String      @id @default(uuid()) @db.Uuid
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email        String      @unique @db.VarChar(255)
   passwordHash String      @map("password_hash") @db.VarChar(255)
   rol          RolUsuario
   activo       Boolean     @default(true)
   createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   entrenador   Entrenador?
   escalador    Escalador?
   ajustesAiRevisados PlanAiAjuste[]
@@ -23,7 +23,7 @@ model Usuario {
 }
 
 model Escalador {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   usuarioId          String              @unique @map("usuario_id") @db.Uuid
   nombre             String              @db.VarChar(100)
   apellido           String              @db.VarChar(100)
@@ -35,7 +35,7 @@ model Escalador {
   estado             EstadoEscalador     @default(activo)
   fotoUrl            String?             @map("foto_url") @db.VarChar(500)
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   nivel              NivelPrograma?
   asistencias        Asistencia[]
   consentimientos    Consentimiento[]
@@ -58,7 +58,7 @@ model Escalador {
 }
 
 model Responsable {
-  id              String           @id @default(uuid()) @db.Uuid
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   escaladorId     String           @unique @map("escalador_id") @db.Uuid
   nombreCompleto  String           @map("nombre_completo") @db.VarChar(200)
   cedula          String           @db.VarChar(20)
@@ -73,17 +73,17 @@ model Responsable {
 }
 
 model Entrenador {
-  id             String   @id @default(uuid()) @db.Uuid
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   usuarioId      String   @unique @map("usuario_id") @db.Uuid
   nombre         String   @db.VarChar(200)
   apellido       String?  @db.VarChar(100)
   especialidad   String?  @db.VarChar(200)
   licenciaLey181 String?  @map("licencia_ley181") @db.VarChar(50)
   maxGrupos      Int      @default(6) @map("max_grupos")
-  fechaIngreso   DateTime @default(now()) @map("fecha_ingreso") @db.Date
+  fechaIngreso   DateTime @default(dbgenerated("CURRENT_DATE")) @map("fecha_ingreso") @db.Date
   telefono       String?  @db.VarChar(20)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   usuario        Usuario  @relation(fields: [usuarioId], references: [id])
   grupos         Grupo[]
 
@@ -91,7 +91,7 @@ model Entrenador {
 }
 
 model Programa {
-  id               String            @id @default(uuid()) @db.Uuid
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre           String            @db.VarChar(100)
   poblacion        PoblacionPrograma
   rangoEtarioMenor RangoEtario?      @map("rango_etario_menor")
@@ -109,7 +109,7 @@ model Programa {
 }
 
 model Ciclo {
-  id              String           @id @default(uuid()) @db.Uuid
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   codigo          String           @unique @db.VarChar(10)
   anio            Int
   trimestre       Int
@@ -124,8 +124,17 @@ model Ciclo {
   @@map("ciclo")
 }
 
+/// Tarifa mensual única por modalidad (editable por el admin). Ver prisma/sql/2026-10-07_validacion_integral.sql
+model Tarifa {
+  modalidad     ModalidadPlan @id
+  precioMensual Decimal       @map("precio_mensual") @db.Decimal(10, 2)
+  updatedAt     DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("tarifa")
+}
+
 model MuroAliado {
-  id               String   @id @default(uuid()) @db.Uuid
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre           String   @db.VarChar(100)
   direccion        String   @db.VarChar(300)
   contacto         String?  @db.VarChar(200)
@@ -140,7 +149,7 @@ model MuroAliado {
 }
 
 model Grupo {
-  id              String        @id(map: "cohorte_pkey") @default(uuid()) @db.Uuid
+  id              String        @id(map: "cohorte_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   programaId      String        @map("programa_id") @db.Uuid
   cicloId         String        @map("ciclo_id") @db.Uuid
   entrenadorId    String        @map("entrenador_id") @db.Uuid
@@ -151,7 +160,7 @@ model Grupo {
   inscritosActual Int           @default(0) @map("inscritos_actual")
   estado          EstadoGrupo   @default(abierta)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   evaluaciones    Evaluacion[]
   ciclo           Ciclo         @relation(fields: [cicloId], references: [id], map: "cohorte_ciclo_id_fkey")
   entrenador      Entrenador    @relation(fields: [entrenadorId], references: [id], map: "cohorte_entrenador_id_fkey")
@@ -169,15 +178,15 @@ model Grupo {
 }
 
 model Inscripcion {
-  id                String            @id @default(uuid()) @db.Uuid
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   escaladorId       String            @map("escalador_id") @db.Uuid
   grupoId           String            @map("grupo_id") @db.Uuid
   fechaInscripcion  DateTime          @default(now()) @map("fecha_inscripcion") @db.Date
   estado            EstadoInscripcion @default(activa)
-  precioCiclo       Decimal           @map("precio_ciclo") @db.Decimal(10, 2)
+  precioCiclo       Decimal?          @map("precio_ciclo") @db.Decimal(10, 2)
   descuentoAplicado String?           @map("descuento_aplicado") @db.VarChar(100)
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   grupo             Grupo             @relation(fields: [grupoId], references: [id], map: "inscripcion_cohorte_id_fkey")
   escalador         Escalador         @relation(fields: [escaladorId], references: [id])
   pagos             Pago[]
@@ -190,26 +199,29 @@ model Inscripcion {
 }
 
 model Pago {
-  id               String      @id @default(uuid()) @db.Uuid
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   inscripcionId    String      @map("inscripcion_id") @db.Uuid
   monto            Decimal     @db.Decimal(10, 2)
   fechaPago        DateTime?   @map("fecha_pago") @db.Date
   fechaVencimiento DateTime?   @map("fecha_vencimiento") @db.Date
+  /// Mes que cubre el pago (primer día del mes). Las mensualidades se cobran por mes.
+  periodo          DateTime    @default(dbgenerated("(date_trunc('month'::text, (CURRENT_DATE)::timestamp with time zone))::date")) @db.Date
   metodo           MetodoPago?
   estado           EstadoPago  @default(pendiente)
   referencia       String?     @db.VarChar(100)
   comprobanteUrl   String?     @map("comprobante_url") @db.VarChar(500)
   createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   inscripcion      Inscripcion @relation(fields: [inscripcionId], references: [id])
 
+  @@unique([inscripcionId, periodo], map: "pago_inscripcion_periodo_key")
   @@index([inscripcionId])
   @@index([estado])
   @@map("pago")
 }
 
 model Sesion {
-  id              String       @id @default(uuid()) @db.Uuid
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   grupoId         String       @map("grupo_id") @db.Uuid
   fecha           DateTime     @db.Date
   horaInicio      DateTime     @map("hora_inicio") @db.Time(6)
@@ -228,7 +240,7 @@ model Sesion {
 }
 
 model Asistencia {
-  id            String    @id @default(uuid()) @db.Uuid
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sesionId      String    @map("sesion_id") @db.Uuid
   escaladorId   String    @map("escalador_id") @db.Uuid
   asistio       Boolean
@@ -277,7 +289,7 @@ model ResultadoTest {
 }
 
 model Consentimiento {
-  id            String             @id @default(uuid()) @db.Uuid
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   escaladorId   String             @map("escalador_id") @db.Uuid
   responsableId String?            @map("responsable_id") @db.Uuid
   tipo          TipoConsentimiento
@@ -295,7 +307,7 @@ model Consentimiento {
 }
 
 model AliadoSalud {
-  id         String          @id @default(uuid()) @db.Uuid
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre     String          @db.VarChar(200)
   tipo       TipoAliadoSalud
   direccion  String?         @db.VarChar(300)
@@ -308,7 +320,7 @@ model AliadoSalud {
 }
 
 model Remision {
-  id           String         @id @default(uuid()) @db.Uuid
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   escaladorId  String         @map("escalador_id") @db.Uuid
   aliadoId     String         @map("aliado_id") @db.Uuid
   evaluacionId String?        @map("evaluacion_id") @db.Uuid
@@ -317,7 +329,7 @@ model Remision {
   estado       EstadoRemision @default(pendiente)
   notasAliado  String?        @map("notas_aliado")
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   aliado       AliadoSalud    @relation(fields: [aliadoId], references: [id])
   escalador    Escalador      @relation(fields: [escaladorId], references: [id])
   evaluacion   Evaluacion?    @relation(fields: [evaluacionId], references: [id])
@@ -327,7 +339,7 @@ model Remision {
 }
 
 model PuntosLiga {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   escaladorId String    @map("escalador_id") @db.Uuid
   grupoId     String    @map("grupo_id") @db.Uuid
   sesionId    String?   @map("sesion_id") @db.Uuid
@@ -342,7 +354,7 @@ model PuntosLiga {
 }
 
 model ContenidoCiclo {
-  id          String              @id @default(uuid()) @db.Uuid
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   cicloId     String              @map("ciclo_id") @db.Uuid
   programaId  String?             @map("programa_id") @db.Uuid
   tipo        TipoContenido
@@ -355,7 +367,7 @@ model ContenidoCiclo {
   orden       Int                 @default(0)
   visible     Boolean             @default(true)
   createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt   DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   ciclo       Ciclo               @relation(fields: [cicloId], references: [id])
   programa    Programa?           @relation(fields: [programaId], references: [id])
   progresos   ProgresoContenido[]
@@ -367,14 +379,14 @@ model ContenidoCiclo {
 }
 
 model ProgresoContenido {
-  id           String         @id @default(uuid()) @db.Uuid
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   escaladorId  String         @map("escalador_id") @db.Uuid
   contenidoId  String         @map("contenido_id") @db.Uuid
   visto        Boolean        @default(false)
   progresoPct  Int            @default(0) @map("progreso_pct")
   ultimoAcceso DateTime?      @map("ultimo_acceso") @db.Timestamptz(6)
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   contenido    ContenidoCiclo @relation(fields: [contenidoId], references: [id])
   escalador    Escalador      @relation(fields: [escaladorId], references: [id])
 
@@ -467,6 +479,7 @@ enum EstadoPago {
 enum MetodoPago {
   transferencia
   efectivo
+  wompi
 }
 
 enum TipoEvaluacion {
