@@ -4,6 +4,7 @@ const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 const { recontarGrupo, liberarMensualidades } = require("../utils/pagos");
 const { borrarEscalador } = require("../utils/borrado");
+const { esMenor, validarConsentimiento, guardarConsentimiento, consentimientoVigente } = require("../utils/consentimiento");
 
 const router = express.Router();
 router.use(authenticate);
@@ -143,8 +144,30 @@ router.get("/:id", async (req, res) => {
       );
     }
 
-    res.json({ ...result[0], inscripciones, pagos });
+    const menor = esMenor(result[0].fecha_nacimiento);
+    const consentimiento = await consentimientoVigente(id);
+    res.json({ ...result[0], inscripciones, pagos, es_menor: menor, consentimiento });
   } catch (e) { manejarError(res, e, "GET /escaladores/:id"); }
+});
+
+// ─── POST /escaladores/:id/consentimiento ─────────────────
+// El representante legal de un escalador menor de edad diligencia el formato (Ley 1098/2006)
+// desde la cuenta del escalador, o el admin lo registra en su nombre. Reemplaza al vigente.
+router.post("/:id/consentimiento", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.rol === "entrenador" || (req.user.rol === "escalador" && req.user.escalador?.id !== id)) {
+      return res.status(403).json({ error: "No puedes diligenciar el consentimiento de otro escalador" });
+    }
+    const e = await prisma.$queryRawUnsafe("SELECT fecha_nacimiento FROM escalador WHERE id = $1::uuid", id);
+    if (!e.length) return res.status(404).json({ error: "Escalador no encontrado" });
+    if (!esMenor(e[0].fecha_nacimiento)) return res.status(400).json({ error: "El escalador es mayor de edad: no requiere consentimiento de menores" });
+
+    const v = validarConsentimiento(req.body);
+    if (v.error) return res.status(400).json({ error: v.error });
+    await prisma.$transaction(tx => guardarConsentimiento(tx, id, v.datos, req.ip));
+    res.status(201).json({ message: "Consentimiento registrado", consentimiento: await consentimientoVigente(id) });
+  } catch (e) { manejarError(res, e, "POST /escaladores/:id/consentimiento"); }
 });
 
 // ─── PUT /escaladores/:id ─────────────────────────────────

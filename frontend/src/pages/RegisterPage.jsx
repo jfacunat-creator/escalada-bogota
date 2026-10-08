@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { IconoMuro } from '../components/Icons';
 import { ArrowLeft } from 'lucide-react';
+import ConsentimientoMenor, { CONSENTIMIENTO_VACIO, MAYORIA_EDAD, edadDe } from '../components/ConsentimientoMenor';
 
 // FIX 3: Field definido FUERA del componente padre.
 // Si se define adentro, cada render (cada tecleo) crea una nueva
@@ -38,6 +39,11 @@ export default function RegisterPage() {
     contactoEmergenciaTelefono: '',
   });
 
+  // Menor de edad (16–17): el representante legal diligencia el consentimiento (Ley 1098/2006).
+  const [consentimiento, setConsentimiento] = useState(CONSENTIMIENTO_VACIO);
+  const edad = edadDe(form.fechaNacimiento);
+  const esMenor = edad != null && edad < MAYORIA_EDAD;
+
   // FIX 3 (complemento): usar actualización funcional para evitar
   // closures obsoletos cuando varios campos cambian rápidamente.
   const set = f => e => {
@@ -45,8 +51,10 @@ export default function RegisterPage() {
     setForm(prev => ({ ...prev, [f]: value }));
   };
 
-  // FIX 1: calcular fecha máxima = hoy, y mínima = 1940
-  const today = new Date().toISOString().split('T')[0];
+  // FIX 1: rango de fechas válido. Solo adultos (16+) por ahora → máximo = hace 16 años.
+  const hace16 = new Date();
+  hace16.setFullYear(hace16.getFullYear() - 16);
+  const fechaMax = hace16.toISOString().split('T')[0];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -60,6 +68,7 @@ export default function RegisterPage() {
       const data = {
         ...rest,
         contactoEmergencia: `${contactoEmergenciaNombre} - ${contactoEmergenciaTelefono}`,
+        ...(esMenor ? { consentimiento } : {}),
       };
       await register(data);
       navigate('/bienvenida');
@@ -121,10 +130,15 @@ export default function RegisterPage() {
                 onChange={set('fechaNacimiento')}
                 required
                 min="1940-01-01"
-                max={today}
+                max={fechaMax}
                 className="input-dark"
               />
             </Field>
+
+            {esMenor && (
+              <ConsentimientoMenor value={consentimiento} onChange={setConsentimiento}
+                nombreMenor={form.nombre ? `${form.nombre} ${form.apellido}`.trim() : null} />
+            )}
 
             <Field label="Teléfono">
               <input type="tel" value={form.telefono} onChange={set('telefono')} className="input-dark" placeholder="300 123 4567" />

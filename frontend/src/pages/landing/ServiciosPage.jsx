@@ -50,7 +50,7 @@ function NivelesSection() {
         <h2 style={{ ...T.h2, marginBottom: '12px' }}>¿En qué nivel estás?</h2>
         <p style={{ ...T.body, maxWidth: '520px', margin: '0 auto' }}>El discurso cambia porque el dolor del escalador cambia por nivel. Todos los grupos tienen test de entrada y test de cierre — la curva de progreso es el producto.</p>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '40px' }} className="niv-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }} className="niv-grid">
         <style>{`@media(max-width:900px){.niv-grid{grid-template-columns:1fr!important}}`}</style>
         {niveles.map(n => (
           <div key={n.nivel} style={{ background: '#1c1c1c', border: `1px solid #2e2e2e`, borderRadius: '14px', overflow: 'hidden' }}>
@@ -69,24 +69,6 @@ function NivelesSection() {
         ))}
       </div>
 
-      {/* Menores */}
-      <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '14px', padding: '24px 28px' }}>
-        <div style={{ display: 'flex', alignItems: 'start', gap: '24px', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: '220px' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c084fc', marginBottom: '6px' }}>Programa Menores</div>
-            <h3 style={{ fontFamily: 'Antonio', fontSize: '1.3rem', color: '#F0EDE8', marginBottom: '10px' }}>Para niños y jóvenes</h3>
-            <p style={{ ...T.body, fontSize: '0.85rem' }}>Ratios 1:6 y 1:8 según edad. Protocolo de protección (Ley 1098/2006). Cero campus ni lastre antes de los 16. Fases sensibles del desarrollo motor respetadas por rango.</p>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {[['6–9 años', '2 niveles'], ['10–12 años', '2 niveles'], ['13–15 años', '2 niveles']].map(([r, n]) => (
-              <div key={r} style={{ padding: '14px 18px', background: '#242424', borderRadius: '10px', border: '1px solid #2e2e2e', textAlign: 'center' }}>
-                <div style={{ fontFamily: 'Antonio', fontSize: '1rem', color: '#c084fc' }}>{r}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: '0.75rem', color: '#666', marginTop: '4px' }}>{n}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
     </Section>
   );
 }

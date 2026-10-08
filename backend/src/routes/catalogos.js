@@ -54,7 +54,8 @@ router.put("/tarifas/:modalidad", authenticate, authorize("admin"), async (req, 
 router.get("/programas", async (req, res) => {
   try {
     const { poblacion, nivel } = req.query;
-    let sql = "SELECT * FROM programa WHERE activo = true";
+    // Por ahora solo se ofrecen programas de adultos; los de menores quedan en la BD sin mostrarse.
+    let sql = "SELECT * FROM programa WHERE activo = true AND poblacion::text = 'adulto'";
     const params = [];
     if (poblacion) { params.push(poblacion); sql += ` AND poblacion::text = $${params.length}`; }
     if (nivel) { params.push(nivel); sql += ` AND nivel::text = $${params.length}`; }

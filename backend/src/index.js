@@ -35,6 +35,7 @@ app.use("/api/evaluaciones", require("./routes/evaluaciones"));
 app.use("/api/remisiones",   require("./routes/remisiones"));
 app.use("/api/plan",         require("./routes/plan"));
 app.use("/api/registros",    require("./routes/registros"));
+app.use("/api/videos",       require("./routes/videos"));
 app.use("/api/ajustes-ai",   require("./routes/ajustesAI"));
 app.use("/api/webhooks",     require("./routes/webhooks"));
 

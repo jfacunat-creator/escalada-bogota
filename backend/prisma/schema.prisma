@@ -18,6 +18,7 @@ model Usuario {
   entrenador   Entrenador?
   escalador    Escalador?
   ajustesAiRevisados PlanAiAjuste[]
+  observacionesVideo VideoObservacion[]
 
   @@map("usuario")
 }
@@ -51,6 +52,7 @@ model Escalador {
   registrosSesion    RegistroSesion[]
   perfilEntrenamiento PerfilEntrenamiento?
   responsable        Responsable?
+  videosRevision     VideoRevision[]
 
   @@index([estado])
   @@index([rangoEtario])
@@ -62,6 +64,7 @@ model Responsable {
   escaladorId     String           @unique @map("escalador_id") @db.Uuid
   nombreCompleto  String           @map("nombre_completo") @db.VarChar(200)
   cedula          String           @db.VarChar(20)
+  tipoDocumento   String?          @map("tipo_documento") @db.VarChar(10)
   telefono        String           @db.VarChar(20)
   parentesco      String           @db.VarChar(50)
   email           String?          @db.VarChar(255)
@@ -296,9 +299,13 @@ model Consentimiento {
   responsableId String?            @map("responsable_id") @db.Uuid
   tipo          TipoConsentimiento
   fechaFirma    DateTime           @map("fecha_firma") @db.Date
-  documentoUrl  String             @map("documento_url") @db.VarChar(500)
+  documentoUrl  String?            @map("documento_url") @db.VarChar(500)
   vigente       Boolean            @default(true)
   notas         String?
+  /// Formato digital (Ley 1098/2006): nombre escrito como firma, momento e IP. Ver prisma/sql/2026-10-09_consentimiento_y_videos.sql
+  firma         String?            @db.VarChar(200)
+  firmadoAt     DateTime?          @map("firmado_at") @db.Timestamptz(6)
+  ip            String?            @db.VarChar(64)
   createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   escalador     Escalador          @relation(fields: [escaladorId], references: [id])
   responsable   Responsable?       @relation(fields: [responsableId], references: [id])
@@ -675,4 +682,39 @@ model PlanAiCorrida {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("plan_ai_corrida")
+}
+
+/// Video (enlace de YouTube o Google Drive) que sube el escalador para revisión de una sesión puntual del plan.
+/// Siempre visible para el escalador, su entrenador y el admin. Ver prisma/sql/2026-10-09_consentimiento_y_videos.sql
+model VideoRevision {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  escaladorId   String             @map("escalador_id") @db.Uuid
+  trimestre     String             @db.VarChar(3)
+  semana        String             @db.VarChar(3)
+  sesionNum     Int                @map("sesion_num")
+  sesionNombre  String?            @map("sesion_nombre") @db.VarChar(160)
+  url           String
+  plataforma    String             @db.VarChar(10)
+  descripcion   String?
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  escalador     Escalador          @relation(fields: [escaladorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  observaciones VideoObservacion[]
+
+  @@index([escaladorId, createdAt(sort: Desc)], map: "idx_video_revision_escalador")
+  @@map("video_revision")
+}
+
+/// Observación del entrenador o del admin sobre un video de revisión.
+model VideoObservacion {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  videoId   String        @map("video_id") @db.Uuid
+  usuarioId String        @map("usuario_id") @db.Uuid
+  autorRol  String        @map("autor_rol") @db.VarChar(12)
+  texto     String
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  video     VideoRevision @relation(fields: [videoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuario   Usuario       @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([videoId, createdAt], map: "idx_video_observacion_video")
+  @@map("video_observacion")
 }

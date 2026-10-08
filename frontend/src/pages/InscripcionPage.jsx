@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { whatsappUrl } from '../config';
 import { HORARIO_LABEL, fmtRango } from '../components/ui';
+import ConsentimientoMenor, { CONSENTIMIENTO_VACIO } from '../components/ConsentimientoMenor';
 
 const NIVEL_LABEL = {
   iniciacion: 'Principiante',
@@ -428,6 +429,37 @@ function CupoReservado({ inscripcion }) {
   );
 }
 
+// ─── Pantalla: menor de edad sin consentimiento (Ley 1098/2006) ──────────────
+function ConsentimientoPendiente({ escalador, onFirmado }) {
+  const [form, setForm] = useState(CONSENTIMIENTO_VACIO);
+  const [error, setError] = useState(null);
+  const [guardando, setGuardando] = useState(false);
+  const enviar = async (e) => {
+    e.preventDefault();
+    setGuardando(true); setError(null);
+    try { await api.firmarConsentimiento(escalador.id, form); await onFirmado(); }
+    catch (err) { setError(err?.error || 'No se pudo guardar el consentimiento'); }
+    finally { setGuardando(false); }
+  };
+  return (
+    <form onSubmit={enviar} style={{ maxWidth: '560px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div>
+        <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8' }}>Antes de inscribirte</h1>
+        <p style={{ color: '#A09A8C', fontSize: '0.9rem', fontFamily: 'Poppins' }}>
+          Eres menor de edad: para inscribirte en un grupo tu representante legal debe diligenciar este formato.
+        </p>
+      </div>
+      <ConsentimientoMenor value={form} onChange={setForm} nombreMenor={`${escalador.nombre} ${escalador.apellido}`} />
+      {error && (
+        <div style={{ background: '#2e0a0a', border: '1px solid #5a1a1a', borderRadius: '8px', padding: '12px', color: '#f87171', fontSize: '0.85rem', fontFamily: 'Poppins' }}>{error}</div>
+      )}
+      <button type="submit" disabled={guardando} className="btn-primary" style={{ fontFamily: 'Poppins' }}>
+        {guardando ? 'Guardando…' : 'Firmar consentimiento'}
+      </button>
+    </form>
+  );
+}
+
 // ─── Pantalla: cuenta en revisión (sin nivel aún) ────────────────────────────
 function CuentaPendiente() {
   return (
@@ -474,7 +506,7 @@ function InscripcionPendientePago({ inscripcion }) {
 
 // ─── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────
 export default function InscripcionPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [grupos, setGrupos]           = useState([]);
   const [inscActiva, setInscActiva]       = useState(null);
   const [loading, setLoading]             = useState(true);
@@ -554,6 +586,11 @@ export default function InscripcionPage() {
     setModalError(null);
     if (confirmado) setConfirmado(false);
   };
+
+  // Menor de edad sin consentimiento del representante legal → primero el formato
+  if (user?.escalador?.consentimientoPendiente && !inscActiva && !inscReservada) {
+    return <ConsentimientoPendiente escalador={user.escalador} onFirmado={refreshUser} />;
+  }
 
   // Escalador pendiente sin nivel → esperando contacto del equipo
   if (user?.escalador?.estado === 'pendiente' && !user?.escalador?.nivel) {

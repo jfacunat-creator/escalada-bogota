@@ -94,6 +94,8 @@ router.get("/my", authenticate, async (req, res) => {
       mesVigente,
       meses: acc.meses,
       semanasTotales: planRes[0].semanas.length,
+      // Carga planificada (PSE) de las 13 semanas del plan base, para el mapa del ciclo. Sin contenido de sesiones.
+      curva: planRes[0].semanas.map(w => ({ id: w.id, pse: w.pse ?? null })),
       semanas,
       fuente: ajustes.length ? "ai" : "base",
       aiSesiones: new Set(ajustes.map(a => `${a.semana}_${a.sesion_num}`)).size,

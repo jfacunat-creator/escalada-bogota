@@ -88,7 +88,7 @@ function CTASection() {
         <SectionLabel>¿Listo para empezar?</SectionLabel>
         <h2 style={{ ...T.h2, marginBottom: '16px' }}>Conoce nuestros programas y planes</h2>
         <p style={{ ...T.body, maxWidth: '480px', margin: '0 auto 32px' }}>
-          Iniciación, Intermedio, Avanzado y programas para menores. Plan Autónomo o Plan Acompañado. Encuentra el que es para ti.
+          Iniciación, Intermedio y Avanzado para adultos. Plan Autónomo o Plan Acompañado. Encuentra el que es para ti.
         </p>
         <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <BtnPrimary to="/registro">Inscribirme</BtnPrimary>

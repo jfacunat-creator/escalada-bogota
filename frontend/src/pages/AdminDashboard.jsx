@@ -138,9 +138,6 @@ function FilterBar({ filtro, setFiltro, ciclos, meses, entrenadores }) {
         style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text2, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
         <option value="">Todos los rangos</option>
         <option value="adulto">Adultos</option>
-        <option value="menor_6_9">Menores 6–9</option>
-        <option value="menor_10_12">Menores 10–12</option>
-        <option value="menor_13_15">Menores 13–15</option>
       </select>
       {/* Limpiar */}
       {Object.values(filtro).some(v => v) && (
@@ -360,7 +357,7 @@ export default function AdminDashboard() {
       {/* ── OPERACIÓN ────────────────────── */}
       <SectionTitle color={C.accent2}>Operación</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
-        <StatCard icon={IconoEscalador} label="Escaladores activos" value={data.escaladores_activos} sub={`${data.escaladores_total} registrados · ${data.adultos} adultos · ${data.menores} menores`} color="#22c55e" onClick={() => navigate('/app/escaladores')} />
+        <StatCard icon={IconoEscalador} label="Escaladores activos" value={data.escaladores_activos} sub={`${data.escaladores_total} registrados`} color="#22c55e" onClick={() => navigate('/app/escaladores')} />
         <StatCard icon={IconoPresa} label={fm ? 'Inscritos del mes' : 'Inscripciones activas'} value={data.inscripciones_activas} sub={fm ? `${data.inscripciones_pagadas} con el mes pagado` : `${data.inscripciones_total} total`} color={C.accent} />
         <StatCard icon={IconoMuro} label="Grupos abiertos" value={data.grupos_abiertos} sub={`${data.grupos_en_curso} en curso`} color="#60a5fa" onClick={() => navigate('/app/grupos')} />
         <StatCard icon={IconoPlanEntreno} label="Capacidad" value={`${data.total_inscritos}/${data.capacidad_total}`} sub={`${data.ocupacion_pct}% ocupación`} color={data.ocupacion_pct >= 70 ? '#22c55e' : '#f59e0b'} />

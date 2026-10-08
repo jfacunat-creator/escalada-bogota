@@ -109,7 +109,7 @@ function Footer() {
           <span style={{ fontFamily: 'Antonio', fontSize: '0.85rem', color: C.text2, letterSpacing: '0.06em' }}>ESCALADA BOGOTÁ</span>
         </div>
         <p style={{ fontFamily: 'Poppins', fontSize: '0.78rem', color: C.text3, textAlign: 'center' }}>
-          © 2025 Escalada Bogotá · PI registrada (DNDA) · Habilitación Ley 181/1995
+          © 2025 Escalada Bogotá · PI registrada (DNDA)
         </p>
         <div style={{ display: 'flex', gap: '16px' }}>
           {[['Términos', '#'], ['Privacidad', '#']].map(([l]) => (

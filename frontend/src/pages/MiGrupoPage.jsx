@@ -6,6 +6,7 @@ import { Loader2, CreditCard, BookOpen, Dumbbell, ChevronDown, ChevronUp, Clipbo
 import { IconoMuro, IconoCronometro, IconoEscalador, IconoCheck, IconoFalta } from '../components/Icons';
 import { HORARIO_LABEL as horarioLabel, fmtHora, fmtRango, ESTADO_PAGO } from '../components/ui';
 import CalendarioPlan from '../components/CalendarioPlan';
+import MapaCiclo from '../components/MapaCiclo';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 const tipoColor  = { regular: '#D4AF37', juego_cierre: '#c084fc', test: '#f59e0b', checkpoint_fest: '#ef4444' };
@@ -346,6 +347,9 @@ export default function MiGrupoPage() {
           </div>
         </button>
       </div>
+
+      {/* Mapa del ciclo: objetivo del mesociclo, de cada mes y de cada semana */}
+      {plan?.nivel && <MapaCiclo key={`${plan.trimestre}_${plan.nivel}`} plan={plan} />}
 
       {/* Calendario del mes con la sugerencia de cuándo hacer cada sesión del plan */}
       <CalendarioPlan plan={plan} sesionesGrupo={sesionesOrdenadas} asistMap={asistMap} />
