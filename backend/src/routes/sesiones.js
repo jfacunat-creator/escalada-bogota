@@ -1,7 +1,7 @@
 const express = require("express");
-const { randomUUID } = require("crypto");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
+const { generarSesiones, borrarSesiones } = require("../utils/sesiones");
 
 const router = express.Router();
 router.use(authenticate);
@@ -52,102 +52,17 @@ router.get("/", async (req, res) => {
 router.post("/generar", authorize("admin", "entrenador"), async (req, res) => {
   const { grupoId } = req.body;
   if (!grupoId) return res.status(400).json({ error: "grupoId requerido" });
-
   try {
-    const grupoRes = await prisma.$queryRawUnsafe(
-      `SELECT g.horario, g.estado,
-              ci.fecha_inicio, ci.fecha_fin,
-              p.nivel
-       FROM grupo g
-       JOIN ciclo ci ON g.ciclo_id = ci.id
-       JOIN programa p ON g.programa_id = p.id
-       WHERE g.id = $1`,
-      grupoId
-    );
-    if (!grupoRes.length) return res.status(404).json({ error: "Grupo no encontrado" });
-
-    const existentes = await prisma.$queryRawUnsafe(
-      "SELECT COUNT(*) AS n FROM sesion WHERE grupo_id = $1",
-      grupoId
-    );
-    if (Number(existentes[0].n) > 0) {
-      return res.status(409).json({ error: "Este grupo ya tiene sesiones generadas" });
+    if (req.user.rol === "entrenador") {
+      const propio = await prisma.$queryRawUnsafe(
+        "SELECT 1 FROM grupo WHERE id = $1 AND entrenador_id = $2", grupoId, req.user.entrenador?.id
+      );
+      if (!propio.length) return res.status(403).json({ error: "Este grupo no es tuyo" });
     }
-
-    const { horario, fecha_inicio, fecha_fin, nivel } = grupoRes[0];
-
-    const HORARIO_MAP = {
-      lun_mie_18_20: { days: [1, 3], inicio: '18:00', fin: '20:00' },
-      lun_mie_20_22: { days: [1, 3], inicio: '20:00', fin: '22:00' },
-      mar_jue_18_20: { days: [2, 4], inicio: '18:00', fin: '20:00' },
-      mar_jue_20_22: { days: [2, 4], inicio: '20:00', fin: '22:00' },
-      sab_dom_7_9:   { days: [6, 0], inicio: '07:00', fin: '09:00' },
-      sab_dom_9_11:  { days: [6, 0], inicio: '09:00', fin: '11:00' },
-      sab_dom_11_13: { days: [6, 0], inicio: '11:00', fin: '13:00' },
-    };
-
-    const fechas = [];
-    let horaInicio, horaFin;
-
-    if (horario) {
-      const info = HORARIO_MAP[horario];
-      if (!info) return res.status(400).json({ error: "Horario no reconocido: " + horario });
-
-      horaInicio = info.inicio;
-      horaFin = info.fin;
-
-      const cur = new Date(fecha_inicio);
-      cur.setUTCHours(0, 0, 0, 0);
-      const finDate = new Date(fecha_fin);
-      while (cur <= finDate) {
-        if (info.days.includes(cur.getUTCDay())) {
-          fechas.push(cur.toISOString().split('T')[0]);
-        }
-        cur.setUTCDate(cur.getUTCDate() + 1);
-      }
-    } else {
-      horaInicio = '08:00';
-      horaFin = '20:00';
-      const TARGET = 26;
-      const msInicio = new Date(fecha_inicio).getTime();
-      const msFin = new Date(fecha_fin).getTime();
-      const totalDays = Math.floor((msFin - msInicio) / 86400000);
-      const step = Math.max(1, Math.floor(totalDays / TARGET));
-      const cur = new Date(fecha_inicio);
-      cur.setUTCHours(0, 0, 0, 0);
-      const finDate = new Date(fecha_fin);
-      while (cur <= finDate && fechas.length < TARGET) {
-        fechas.push(cur.toISOString().split('T')[0]);
-        cur.setUTCDate(cur.getUTCDate() + step);
-      }
-    }
-
-    if (fechas.length === 0) return res.status(400).json({ error: "No hay fechas válidas para este horario en el rango del ciclo" });
-
-    const total = fechas.length;
-    const getTipo = (i) => {
-      if (i === 0) return 'test';
-      if (i === total - 1) return 'test';
-      if (i === Math.floor(total * 0.6)) return 'juego_cierre';
-      if (nivel === 'avanzado' && i === Math.floor(total * 0.3)) return 'checkpoint_fest';
-      return 'regular';
-    };
-
-    const paramSets = [];
-    const vals = [];
-    fechas.forEach((fecha, i) => {
-      const b = i * 7;
-      paramSets.push(`($${b+1}, $${b+2}, $${b+3}, $${b+4}::time, $${b+5}::time, $${b+6}, $${b+7}::"TipoSesion")`);
-      vals.push(randomUUID(), grupoId, fecha, horaInicio, horaFin, i + 1, getTipo(i));
-    });
-
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO sesion (id, grupo_id, fecha, hora_inicio, hora_fin, numero_sesion, tipo) VALUES ${paramSets.join(', ')}`,
-      ...vals
-    );
-
+    const total = await prisma.$transaction((tx) => generarSesiones(tx, grupoId));
     res.status(201).json({ message: `${total} sesiones generadas`, total });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     console.error("Error POST /sesiones/generar:", err);
     res.status(500).json({ error: "Error interno" });
   }
@@ -210,15 +125,8 @@ router.delete("/", authorize("admin"), async (req, res) => {
   const { grupoId } = req.query;
   if (!grupoId) return res.status(400).json({ error: "grupoId requerido" });
   try {
-    const sesiones = await prisma.$queryRawUnsafe(
-      "SELECT id FROM sesion WHERE grupo_id = $1", grupoId
-    );
-    if (sesiones.length) {
-      const ids = sesiones.map(s => s.id);
-      await prisma.$executeRawUnsafe(`DELETE FROM asistencia WHERE sesion_id = ANY($1::uuid[])`, ids);
-      await prisma.$executeRawUnsafe("DELETE FROM sesion WHERE grupo_id = $1", grupoId);
-    }
-    res.json({ message: `${sesiones.length} sesiones eliminadas` });
+    const n = await prisma.$transaction((tx) => borrarSesiones(tx, grupoId));
+    res.json({ message: `${n} sesiones eliminadas` });
   } catch (err) {
     console.error("Error DELETE /sesiones:", err);
     res.status(500).json({ error: "Error interno" });

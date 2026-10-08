@@ -88,7 +88,7 @@ export default function RRHHPage() {
             <div key={ent.id} style={{ padding: '12px 18px', borderBottom: `1px solid #1a1a1a`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 600, color: C.text, fontFamily: 'Poppins' }}>{ent.nombre}</div>
-                <div style={{ fontSize: '0.75rem', color: C.text2, fontFamily: 'Poppins' }}>{ent.licencia_ley181 || 'Sin licencia'} · Ingreso: {ent.fecha_ingreso ? new Date(ent.fecha_ingreso).toLocaleDateString('es-CO', { month: 'short', year: 'numeric' }) : '—'}</div>
+                <div style={{ fontSize: '0.75rem', color: C.text2, fontFamily: 'Poppins' }}>{ent.licencia_ley181 || 'Sin licencia'} · Ingreso: {ent.fecha_ingreso ? new Date(ent.fecha_ingreso).toLocaleDateString('es-CO', { timeZone: 'UTC', month: 'short', year: 'numeric' }) : '—'}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontFamily: 'Antonio', fontSize: '1.1rem', color: C.accent }}>{ent.grupos_activos || 0}/{ent.max_grupos}</div>

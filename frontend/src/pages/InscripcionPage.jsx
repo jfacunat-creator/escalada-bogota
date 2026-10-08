@@ -11,6 +11,8 @@ import { useState, useEffect } from 'react';
 import { Loader2, MapPin, Clock, Calendar, ChevronRight, CheckCircle2, AlertCircle, Hourglass } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { whatsappUrl } from '../config';
+import { HORARIO_LABEL } from '../components/ui';
 
 const NIVEL_LABEL = {
   iniciacion: 'Principiante',
@@ -34,7 +36,7 @@ function formatCOP(n) {
 
 function formatFecha(dateStr) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('es-CO', {
+  return new Date(dateStr).toLocaleDateString('es-CO', { timeZone: 'UTC',
     day: 'numeric', month: 'short', year: 'numeric',
   });
 }
@@ -90,7 +92,7 @@ function GrupoCard({ grupo, onInscribirse, tieneInscripcionActiva }) {
     ya_inscrito, precio_mensual,
   } = grupo;
 
-  const lleno = estado !== 'abierta' || inscritos_actual >= cupo_maximo;
+  const lleno = !['abierta', 'en_curso'].includes(estado) || inscritos_actual >= cupo_maximo;
   const nivelColor = NIVEL_COLOR[nivel] || '#D4AF37';
   const modalidadLabel = modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo';
   const modalidadColor = modalidad === 'acompanado' ? '#D4AF37' : '#60a5fa';
@@ -155,7 +157,7 @@ function GrupoCard({ grupo, onInscribirse, tieneInscripcionActiva }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <InfoRow icon={Clock}>{horario}</InfoRow>
+          <InfoRow icon={Clock}>{HORARIO_LABEL[horario] || (horario ? horario : 'Horario libre (autónomo)')}</InfoRow>
           <InfoRow icon={MapPin}>{muro_nombre}{muro_direccion ? ` · ${muro_direccion}` : ''}</InfoRow>
           <InfoRow icon={Calendar}>{formatFecha(fecha_inicio)} → {formatFecha(fecha_fin)}</InfoRow>
         </div>
@@ -224,11 +226,10 @@ function ModalConfirmacion({ grupo, onConfirmar, onCerrar, loading, error, confi
     ['Ciclo',       grupo.ciclo_codigo],
     ['Entrenador',  grupo.entrenador_nombre],
     ['Muro',        grupo.muro_nombre],
-    ['Horario',     grupo.horario],
+    ['Horario',     HORARIO_LABEL[grupo.horario] || 'Horario libre (autónomo)'],
     ['Inicio',      formatFecha(grupo.fecha_inicio)],
     ['Fin',         formatFecha(grupo.fecha_fin)],
-    ['Mensualidad', formatCOP(grupo.precio_mensual)],
-    ['Ciclo completo (3 meses)', formatCOP(grupo.precio_ciclo)],
+    ['Mensualidad', `${formatCOP(grupo.precio_mensual)} / mes`],
   ];
 
   return (
@@ -291,7 +292,7 @@ function ModalConfirmacion({ grupo, onConfirmar, onCerrar, loading, error, confi
             }}>
               Al confirmar acepto el <span style={{ color: '#D4AF37' }}>consentimiento informado</span>,
               la <span style={{ color: '#D4AF37' }}>política de tratamiento de datos personales</span> (Ley 1581/2012)
-              y las condiciones del ciclo trimestral. La renovación se ofrece en semana de empalme (S12).
+              y el pago de una mensualidad fija por mes según la modalidad, que vence el día 5 de cada mes.
             </div>
 
             {error && (
@@ -361,7 +362,7 @@ function InscripcionActivaCard({ inscripcion }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {inscripcion.muro && <InfoRow icon={MapPin}>{inscripcion.muro}</InfoRow>}
-            {inscripcion.horario && <InfoRow icon={Clock}>{inscripcion.horario}</InfoRow>}
+            <InfoRow icon={Clock}>{HORARIO_LABEL[inscripcion.horario] || 'Horario libre (autónomo)'}</InfoRow>
             {inscripcion.entrenador_nombre && <InfoRow icon={Clock}>Entrenador: {inscripcion.entrenador_nombre}</InfoRow>}
           </div>
         </div>
@@ -411,7 +412,7 @@ function CupoReservado({ inscripcion }) {
         </div>
       )}
       <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-        <a href="https://wa.me/573001234567?text=Hola%2C+tengo+un+cupo+reservado+y+quiero+enviar+mi+soporte+de+pago."
+        <a href={whatsappUrl(`Hola, tengo un cupo reservado en ${inscripcion.programa} y quiero enviar mi soporte de pago.`)}
           target="_blank" rel="noopener noreferrer"
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 18px', borderRadius: '8px', background: '#25D366', color: '#fff', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}>
           📱 Enviar soporte por WhatsApp
@@ -601,7 +602,7 @@ export default function InscripcionPage() {
           {nivelFijo ? 'Elige tu grupo' : 'Inscríbete en el próximo ciclo'}
         </h1>
         <p style={{ fontSize: '0.85rem', color: '#A09A8C' }}>
-          {gruposFiltrados.filter(c => c.inscritos_actual < c.cupo_maximo).length} grupos con cupos disponibles
+          {gruposFiltrados.filter(c => Number(c.inscritos_actual) < c.cupo_maximo).length} grupos con cupos disponibles
         </p>
       </div>
 

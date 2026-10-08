@@ -1,14 +1,17 @@
 /**
  * MisPagosPage.jsx
- * Vista de pagos del escalador: pendientes, historial, botón de pago Wompi.
+ * Mensualidades del escalador: pendientes e historial.
+ * Pago: link de Wompi si la pasarela está configurada; si no, soporte de transferencia por WhatsApp.
  * Consume:
- *   GET  /api/pagos
+ *   GET  /api/pagos, /api/pagos/config
  *   POST /api/pagos/:id/link-pago
  */
 
 import { useState, useEffect } from 'react';
-import { Loader2, CreditCard, CheckCircle2, Clock, AlertCircle, ExternalLink } from 'lucide-react';
+import { Loader2, CreditCard, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import api from '../services/api';
+import { whatsappUrl } from '../config';
+import { fmtMes } from '../components/ui';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 
@@ -19,7 +22,7 @@ function formatCOP(v) {
 
 function formatFecha(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(d).toLocaleDateString('es-CO', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 const ESTADO_PAGO = {
@@ -28,10 +31,10 @@ const ESTADO_PAGO = {
   vencido:   { icon: AlertCircle,    color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  label: 'Vencido' },
 };
 
-function PagoCard({ pago, onPagar, pagando }) {
+function PagoCard({ pago, onPagar, pagando, wompi }) {
   const est = ESTADO_PAGO[pago.estado] || ESTADO_PAGO.pendiente;
   const Icon = est.icon;
-  const vencido = pago.fecha_vencimiento && new Date(pago.fecha_vencimiento) < new Date() && pago.estado === 'pendiente';
+  const vencido = pago.estado === 'vencido';
 
   return (
     <div style={{
@@ -41,11 +44,11 @@ function PagoCard({ pago, onPagar, pagando }) {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: C.text }}>
-            {pago.programa}
+          <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: C.text, textTransform: 'capitalize' }}>
+            Mensualidad {fmtMes(pago.periodo_mes)}
           </div>
           <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins' }}>
-            {pago.ciclo} · {pago.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'}
+            {pago.programa} · {pago.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'}
           </div>
         </div>
         <span style={{
@@ -86,8 +89,18 @@ function PagoCard({ pago, onPagar, pagando }) {
         </div>
       )}
 
-      {/* Botón de pago */}
-      {pago.estado !== 'pagado' && (
+      {/* Pago: Wompi (si está configurado) o soporte de transferencia por WhatsApp */}
+      {pago.estado !== 'pagado' && !wompi && (
+        <a href={whatsappUrl(`Hola, envío el soporte de pago de mi mensualidad de ${fmtMes(pago.periodo_mes)} (${formatCOP(pago.monto)}) — ${pago.nombre} ${pago.apellido}.`)}
+          target="_blank" rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px',
+            background: '#25D366', color: '#fff', fontFamily: 'Poppins', fontSize: '0.9rem', fontWeight: 700, textDecoration: 'none',
+          }}>
+          Enviar soporte de pago por WhatsApp
+        </a>
+      )}
+      {pago.estado !== 'pagado' && wompi && (
         <button
           onClick={() => onPagar(pago.id)}
           disabled={pagando === pago.id}
@@ -117,10 +130,11 @@ export default function MisPagosPage() {
   const [loading, setLoading] = useState(true);
   const [pagando, setPagando] = useState(null);
   const [error, setError] = useState(null);
+  const [wompi, setWompi] = useState(false);
 
   useEffect(() => {
-    api.getPagos()
-      .then(setPagos)
+    Promise.all([api.getPagos(), api.getPagosConfig().catch(() => ({ wompi: false }))])
+      .then(([p, cfg]) => { setPagos(p); setWompi(!!cfg.wompi); })
       .catch(() => setError('No se pudieron cargar tus pagos.'))
       .finally(() => setLoading(false));
   }, []);
@@ -198,7 +212,7 @@ export default function MisPagosPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px', marginBottom: '32px' }}>
             {pendientes.map(p => (
-              <PagoCard key={p.id} pago={p} onPagar={handlePagar} pagando={pagando} />
+              <PagoCard key={p.id} pago={p} onPagar={handlePagar} pagando={pagando} wompi={wompi} />
             ))}
           </div>
         </>
@@ -212,7 +226,7 @@ export default function MisPagosPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
             {pagados.map(p => (
-              <PagoCard key={p.id} pago={p} onPagar={handlePagar} pagando={pagando} />
+              <PagoCard key={p.id} pago={p} onPagar={handlePagar} pagando={pagando} wompi={wompi} />
             ))}
           </div>
         </>
@@ -225,7 +239,7 @@ export default function MisPagosPage() {
             Sin pagos registrados
           </div>
           <p style={{ color: '#666', fontSize: '0.85rem', fontFamily: 'Poppins' }}>
-            Tus pagos aparecerán aquí una vez te inscribas en una cohorte.
+            Tus mensualidades aparecerán aquí una vez te inscribas en un grupo.
           </p>
         </div>
       )}

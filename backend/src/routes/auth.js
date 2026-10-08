@@ -192,24 +192,27 @@ router.get(
              ci.id   AS ciclo_id,     ci.codigo AS ciclo_codigo,
              ci.fecha_inicio,         ci.fecha_fin,      ci.semana_empalme,
              m.id    AS muro_id,      m.nombre  AS muro_nombre, m.direccion AS muro_dir,
-             ent.id  AS entrenador_id, ent.nombre AS entrenador_nombre
+             ent.id  AS entrenador_id, ent.nombre AS entrenador_nombre,
+             t.precio_mensual
            FROM inscripcion i
            JOIN grupo g     ON i.grupo_id      = g.id
            JOIN programa p  ON g.programa_id   = p.id
            JOIN ciclo ci    ON g.ciclo_id      = ci.id
            LEFT JOIN muro_aliado m ON g.muro_id     = m.id
            JOIN entrenador ent ON g.entrenador_id = ent.id
+           LEFT JOIN tarifa t ON t.modalidad = g.modalidad
            WHERE i.escalador_id = $1
-           ORDER BY i.fecha_inscripcion DESC`,
+           ORDER BY i.fecha_inscripcion DESC, i.created_at DESC`,
           row.esc_id
         );
         const pagosRes = await prisma.$queryRawUnsafe(
           `SELECT pa.id, pa.inscripcion_id, pa.monto, pa.fecha_pago,
-                  pa.fecha_vencimiento, pa.metodo, pa.estado, pa.referencia
+                  pa.fecha_vencimiento, pa.metodo, pa.estado, pa.referencia,
+                  to_char(pa.periodo, 'YYYY-MM') AS periodo
            FROM pago pa
            JOIN inscripcion i ON pa.inscripcion_id = i.id
            WHERE i.escalador_id = $1
-           ORDER BY pa.created_at DESC`,
+           ORDER BY pa.periodo DESC`,
           row.esc_id
         );
         const pagosByInsc = {};
@@ -223,13 +226,14 @@ router.get(
             metodo: p.metodo,
             estado: p.estado,
             referencia: p.referencia,
+            periodo: p.periodo,
           });
         }
         const inscripciones = inscRes.map((r) => ({
           id: r.id,
           estado: r.estado,
           fechaInscripcion: r.fecha_inscripcion,
-          precioCiclo: parseFloat(r.precio_ciclo),
+          precioMensual: r.precio_mensual != null ? parseFloat(r.precio_mensual) : null,
           descuentoAplicado: r.descuento_aplicado,
           pagos: pagosByInsc[r.id] || [],
           cohorte: {

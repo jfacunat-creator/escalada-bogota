@@ -180,7 +180,7 @@ function ModalAsignarNivel({ escalador, onCerrar, onAsignado }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: '#252525', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '0.82rem' }}>
-          {[['Teléfono', escalador.telefono || '—'], ['Emergencia', escalador.contacto_emergencia || '—'], ['Rango', escalador.rango_etario === 'adulto' ? 'Adulto' : (escalador.rango_etario || '—').replace('menor_', 'Menor ')], ['Registro', new Date(escalador.created_at).toLocaleDateString('es-CO')]].map(([k, v]) => (
+          {[['Teléfono', escalador.telefono || '—'], ['Emergencia', escalador.contacto_emergencia || '—'], ['Rango', escalador.rango_etario === 'adulto' ? 'Adulto' : (escalador.rango_etario || '—').replace('menor_', 'Menor ')], ['Registro', new Date(escalador.created_at).toLocaleDateString('es-CO', { timeZone: 'UTC' })]].map(([k, v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '4px 0', borderBottom: '1px solid #2e2e2e' }}>
               <span style={{ color: C.text2 }}>{k}</span>
               <span style={{ color: C.text, fontWeight: 600 }}>{v}</span>
@@ -298,10 +298,10 @@ export default function AdminDashboard() {
       {/* ── FINANCIERO ────────────────────── */}
       <SectionTitle>Flujo de Caja</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '4px' }}>
-        <StatCard icon={IconoRoca} label="Ingresos recibidos" value={fmt(data.ingresos_recibidos)} color="#22c55e" />
-        <StatCard icon={IconoCuerda} label="Gastos estimados" value={fmt(data.gastos_entrenadores_estimado)} sub={`${data.n_entrenadores} entrenador(es)`} color="#9E721D" />
-        <StatCard icon={data.margen_estimado >= 0 ? TrendingUp : TrendingDown} label="Margen estimado" value={fmt(data.margen_estimado)} sub="Ingresos − gastos" color={data.margen_estimado >= 0 ? '#22c55e' : '#ef4444'} />
-        <StatCard icon={IconoCronometro} label="Pagos pendientes" value={data.pagos_pendientes} sub={fmt(data.ingresos_vencidos) + " vencido"} color="#f59e0b" />
+        <StatCard icon={IconoRoca} label="Recaudado este mes" value={fmt(data.recaudado_mes)} sub={`de ${fmt(data.esperado_mes)} esperado`} color="#22c55e" onClick={() => navigate('/app/pagos')} />
+        <StatCard icon={data.recaudado_mes >= data.esperado_mes ? TrendingUp : TrendingDown} label="Por recaudar este mes" value={fmt(Math.max(0, data.esperado_mes - data.recaudado_mes))} color={data.recaudado_mes >= data.esperado_mes ? '#22c55e' : '#f59e0b'} onClick={() => navigate('/app/pagos')} />
+        <StatCard icon={IconoCuerda} label="Recaudado histórico" value={fmt(data.ingresos_recibidos)} sub="Todas las mensualidades pagadas" color="#9E721D" />
+        <StatCard icon={IconoCronometro} label="Mensualidades sin pagar" value={data.pagos_pendientes} sub={fmt(data.ingresos_vencidos) + " vencido"} color="#f59e0b" onClick={() => navigate('/app/pagos')} />
       </div>
 
       {/* Distribución + gráfico */}
@@ -402,7 +402,7 @@ export default function AdminDashboard() {
                   {e.contacto_emergencia && <span>🆘 {e.contacto_emergencia}</span>}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: C.text3 }}>
-                  Registro: {new Date(e.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  Registro: {new Date(e.created_at).toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })}
                 </div>
                 <button
                   onClick={() => setEscaladorActivar(e)}

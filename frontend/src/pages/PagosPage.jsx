@@ -1,335 +1,333 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+/**
+ * PagosPage.jsx — Mensualidades (admin).
+ * Cada inscripción activa paga una tarifa por MES según su modalidad (autónomo / acompañado).
+ * Consume: /pagos, /pagos/resumen, /pagos/generar, /inscripciones, /catalogos/tarifas
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { Loader2, ChevronLeft, ChevronRight, Search, Trash2 } from 'lucide-react';
 import api from '../services/api';
-import { Loader2, Trash2 } from 'lucide-react';
-import { IconoPresa, IconoMagnesia, IconoCuerda, IconoCheck, IconoFalta } from '../components/Icons';
+import {
+  C, fmtCOP, fmtFecha, fmtMes, mesActual, sumarMeses, MODALIDAD, ESTADO_PAGO, ESTADO_INSC,
+  Btn, Modal, Field, Input, Select, Aviso, Badge, Confirmar,
+} from '../components/ui';
 
-const estadoInscColor = {
-  activa: 'bg-green-100 text-green-700',
-  congelada: 'bg-amber-100 text-amber-700',
-  cancelada: 'bg-red-100 text-red-700',
-  completada: 'bg-teal-100 text-teal-700',
-};
-const estadoPagoColor = {
-  pagado:    'bg-green-100 text-green-700',
-  pendiente: 'bg-amber-100 text-amber-700',
-  vencido:   'bg-red-100 text-red-700',
-};
+const hoy = () => new Date().toISOString().slice(0, 10);
 
-function formatCOP(val) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(val);
+function Kpi({ label, value, color = C.text, sub }) {
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '14px' }}>
+      <div style={{ fontFamily: 'Antonio', fontSize: '1.35rem', color, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins', marginTop: '3px' }}>{label}</div>
+      {sub && <div style={{ fontSize: '0.68rem', color: C.text3, fontFamily: 'Poppins' }}>{sub}</div>}
+    </div>
+  );
 }
 
-export default function PagosPage() {
-  const { user } = useAuth();
-  const [tab, setTab] = useState('inscripciones');
-  const [inscripciones, setInscripciones] = useState([]);
+// Registrar el pago de un mes (sobre una mensualidad existente o una inscripción).
+function ModalRegistrarPago({ pago, inscripcion, tarifas, onClose, onHecho }) {
+  const montoBase = pago ? pago.monto : (tarifas?.[inscripcion?.modalidad] ?? '');
+  const [form, setForm] = useState({
+    periodo: pago?.periodo_mes || (inscripcion?.pagado_hasta ? sumarMeses(inscripcion.pagado_hasta, 1) : mesActual()),
+    monto: String(parseFloat(montoBase) || ''), metodo: 'transferencia', referencia: '', fechaPago: hoy(),
+  });
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState(null);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const nombre = pago ? `${pago.nombre} ${pago.apellido}` : `${inscripcion.nombre} ${inscripcion.apellido}`;
+
+  const guardar = async () => {
+    if (!(parseFloat(form.monto) > 0)) { setError('Indica un monto mayor a 0'); return; }
+    setGuardando(true); setError(null);
+    try {
+      if (pago) {
+        await api.updatePago(pago.id, { estado: 'pagado', monto: parseFloat(form.monto), metodo: form.metodo, referencia: form.referencia, fechaPago: form.fechaPago });
+      } else {
+        await api.registrarPago({ inscripcionId: inscripcion.id, periodo: form.periodo, monto: parseFloat(form.monto), metodo: form.metodo, referencia: form.referencia, fechaPago: form.fechaPago });
+      }
+      onHecho(); onClose();
+    } catch (e) { setError(e.error); } finally { setGuardando(false); }
+  };
+
+  return (
+    <Modal title={`Registrar pago · ${nombre}`} onClose={onClose} footer={<>
+      <Btn variant="secondary" onClick={onClose}>Cancelar</Btn>
+      <Btn onClick={guardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Registrar pago'}</Btn>
+    </>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <Field label="Mes que cubre" required hint={pago ? undefined : 'Si la mensualidad de ese mes ya existe, se marca como pagada.'}>
+          <Input type="month" value={form.periodo} disabled={!!pago} onChange={e => set('periodo', e.target.value)} />
+        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <Field label="Monto (COP)" required><Input type="number" min="1" value={form.monto} onChange={e => set('monto', e.target.value)} /></Field>
+          <Field label="Fecha de pago"><Input type="date" value={form.fechaPago} onChange={e => set('fechaPago', e.target.value)} /></Field>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <Field label="Método">
+            <Select value={form.metodo} onChange={e => set('metodo', e.target.value)}>
+              <option value="transferencia">Transferencia</option>
+              <option value="efectivo">Efectivo</option>
+            </Select>
+          </Field>
+          <Field label="Referencia"><Input value={form.referencia} placeholder="Opcional" onChange={e => set('referencia', e.target.value)} /></Field>
+        </div>
+      </div>
+      <Aviso>{error}</Aviso>
+    </Modal>
+  );
+}
+
+function TablaMensualidades({ periodo, tarifas, onCambio }) {
   const [pagos, setPagos] = useState([]);
-  const [resumen, setResumen] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showNuevoPago, setShowNuevoPago] = useState(null);
-  const [pagoForm, setPagoForm] = useState({ monto: '', metodo: 'transferencia', referencia: '' });
-  const [saving, setSaving] = useState(false);
-  const [filtroNivel, setFiltroNivel] = useState('');
-  const [filtroModalidad, setFiltroModalidad] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [filtro, setFiltro] = useState({ estado: '', modalidad: '', buscar: '' });
+  const [pagar, setPagar] = useState(null);
+  const [confirmar, setConfirmar] = useState(null);
+  const [aviso, setAviso] = useState(null);
+  const [error, setError] = useState(null);
 
-  const isAdmin = user?.rol === 'admin';
-  const isEntrenador = user?.rol === 'entrenador';
-
-  useEffect(() => { loadData(); }, [tab]);
-
-  const loadData = async () => {
+  const cargar = useCallback(() => {
     setLoading(true);
-    try {
-      if (tab === 'inscripciones') {
-        const data = await api.getInscripciones();
-        setInscripciones(data);
-      } else {
-        const [p, r] = await Promise.all([api.getPagos(), isAdmin ? api.getResumenPagos() : Promise.resolve(null)]);
-        setPagos(p);
-        setResumen(r);
-      }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
+    const params = { periodo };
+    if (filtro.estado) params.estado = filtro.estado;
+    if (filtro.modalidad) params.modalidad = filtro.modalidad;
+    api.getPagos(params).then(setPagos).catch(e => setError(e.error)).finally(() => setLoading(false));
+  }, [periodo, filtro.estado, filtro.modalidad]);
+  useEffect(() => { cargar(); }, [cargar]);
+  const refrescar = () => { cargar(); onCambio(); };
 
-  const handleRegistrarPago = async (inscripcionId) => {
-    if (!pagoForm.monto || parseFloat(pagoForm.monto) <= 0) return;
-    setSaving(true);
+  const generar = async () => {
+    setError(null); setAviso(null);
     try {
-      await api.registrarPago({
-        inscripcionId,
-        monto: parseFloat(pagoForm.monto),
-        metodo: pagoForm.metodo,
-        referencia: pagoForm.referencia || undefined,
-      });
-      setShowNuevoPago(null);
-      setPagoForm({ monto: '', metodo: 'transferencia', referencia: '' });
-      loadData();
-    } catch (err) { alert(err.error || 'Error registrando pago'); }
-    finally { setSaving(false); }
-  };
-
-  const handleCambiarEstadoInsc = async (id, estado) => {
-    try {
-      await api.cambiarEstadoInscripcion(id, estado);
-      loadData();
-    } catch (err) { alert(err.error || 'Error'); }
-  };
-
-  const handleDelete = async () => {
-    if (!confirmDelete) return;
-    setDeleting(true);
-    try {
-      if (confirmDelete.type === 'inscripcion') {
-        await api.deleteInscripcion(confirmDelete.id);
-      } else {
-        await api.deletePago(confirmDelete.id);
-      }
-      setConfirmDelete(null);
-      loadData();
-    } catch (err) {
-      alert(err?.error || 'Error al eliminar');
-    } finally {
-      setDeleting(false);
+      const r = await api.generarMensualidades(periodo);
+      setAviso(r.creadas ? `${r.creadas} mensualidad(es) generada(s) para ${fmtMes(periodo)}` : `Todas las inscripciones activas ya tenían su mensualidad de ${fmtMes(periodo)}`);
+      refrescar();
     }
+    catch (e) { setError(e.error); }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-teal-600 animate-spin" /></div>;
+  const visibles = pagos.filter(p => !filtro.buscar || `${p.nombre} ${p.apellido}`.toLowerCase().includes(filtro.buscar.toLowerCase()));
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Gestión Financiera</h1>
-        <p className="text-slate-500 mt-1">Inscripciones y pagos por ciclo</p>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '14px', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '180px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: C.text2 }} />
+          <input className="input-dark" style={{ width: '100%', paddingLeft: '34px' }} placeholder="Buscar escalador…"
+            value={filtro.buscar} onChange={e => setFiltro(f => ({ ...f, buscar: e.target.value }))} />
+        </div>
+        <select className="input-dark" style={{ width: 'auto' }} value={filtro.estado} onChange={e => setFiltro(f => ({ ...f, estado: e.target.value }))}>
+          <option value="">Todos los estados</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="vencido">Vencido</option>
+          <option value="pagado">Pagado</option>
+        </select>
+        <select className="input-dark" style={{ width: 'auto' }} value={filtro.modalidad} onChange={e => setFiltro(f => ({ ...f, modalidad: e.target.value }))}>
+          <option value="">Todas las modalidades</option>
+          <option value="autonomo">Autónomo</option>
+          <option value="acompanado">Acompañado</option>
+        </select>
+        <Btn variant="dark" onClick={generar} title="Crea la mensualidad pendiente de este mes a cada inscripción activa que aún no la tenga">
+          Generar mensualidades de {fmtMes(periodo)}
+        </Btn>
+      </div>
+      <Aviso tipo="ok" onClose={() => setAviso(null)}>{aviso}</Aviso>
+      <Aviso onClose={() => setError(null)}>{error}</Aviso>
+
+      {loading ? <div style={{ padding: '40px', textAlign: 'center' }}><Loader2 className="animate-spin" style={{ color: C.accent, margin: '0 auto' }} /></div>
+        : visibles.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: C.text2, fontFamily: 'Poppins', fontSize: '0.9rem' }}>
+            No hay mensualidades de {fmtMes(periodo)}{filtro.estado || filtro.modalidad || filtro.buscar ? ' con esos filtros' : ''}.
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px', fontFamily: 'Poppins', fontSize: '0.84rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.border}`, color: C.text2, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left' }}>
+                  {['Escalador', 'Programa', 'Monto', 'Vence', 'Pago', 'Estado', ''].map(h => <th key={h} style={{ padding: '10px 8px', fontWeight: 600 }}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map(p => {
+                  const est = ESTADO_PAGO[p.estado];
+                  return (
+                    <tr key={p.id} style={{ borderBottom: `1px solid #242424` }}>
+                      <td style={{ padding: '10px 8px', color: C.text, fontWeight: 600 }}>{p.nombre} {p.apellido}</td>
+                      <td style={{ padding: '10px 8px', color: C.text2 }}>{p.programa}<div style={{ fontSize: '0.72rem', color: C.text3 }}>{MODALIDAD[p.modalidad]} · {p.ciclo}</div></td>
+                      <td style={{ padding: '10px 8px', color: C.accent, fontFamily: 'Antonio', fontSize: '1rem' }}>{fmtCOP(p.monto)}</td>
+                      <td style={{ padding: '10px 8px', color: p.estado === 'vencido' ? C.danger : C.text2 }}>{fmtFecha(p.fecha_vencimiento)}</td>
+                      <td style={{ padding: '10px 8px', color: C.text2, fontSize: '0.78rem' }}>
+                        {p.estado === 'pagado' ? <>{fmtFecha(p.fecha_pago)}<div style={{ color: C.text3 }}>{p.metodo}{p.referencia ? ` · ${p.referencia}` : ''}</div></> : '—'}
+                      </td>
+                      <td style={{ padding: '10px 8px' }}><Badge color={est.color}>{est.label}</Badge></td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          {p.estado !== 'pagado'
+                            ? <Btn small variant="ok" onClick={() => setPagar(p)}>Registrar pago</Btn>
+                            : <Btn small variant="secondary" onClick={() => setConfirmar({ tipo: 'revertir', p })}>Anular pago</Btn>}
+                          <Btn small variant="danger" title="Eliminar mensualidad" onClick={() => setConfirmar({ tipo: 'eliminar', p })}><Trash2 size={13} /></Btn>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+      {pagar && <ModalRegistrarPago pago={pagar} tarifas={tarifas} onClose={() => setPagar(null)} onHecho={refrescar} />}
+      {confirmar?.tipo === 'eliminar' && (
+        <Confirmar peligro titulo="Eliminar mensualidad" textoBoton="Eliminar" onClose={() => setConfirmar(null)}
+          mensaje={<>Se eliminará la mensualidad de <strong style={{ color: C.text }}>{fmtMes(confirmar.p.periodo_mes)}</strong> de {confirmar.p.nombre} {confirmar.p.apellido} ({fmtCOP(confirmar.p.monto)}).</>}
+          onConfirm={async () => { await api.deletePago(confirmar.p.id); refrescar(); }} />
+      )}
+      {confirmar?.tipo === 'revertir' && (
+        <Confirmar titulo="Anular pago" textoBoton="Volver a pendiente" onClose={() => setConfirmar(null)}
+          mensaje={<>La mensualidad de {fmtMes(confirmar.p.periodo_mes)} de {confirmar.p.nombre} {confirmar.p.apellido} vuelve a quedar <strong>pendiente</strong>.</>}
+          onConfirm={async () => { await api.updatePago(confirmar.p.id, { estado: 'pendiente' }); refrescar(); }} />
+      )}
+    </div>
+  );
+}
+
+function TablaInscripciones({ tarifas, onCambio }) {
+  const [inscripciones, setInscripciones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [estado, setEstado] = useState('');
+  const [pagar, setPagar] = useState(null);
+  const [confirmar, setConfirmar] = useState(null);
+  const [error, setError] = useState(null);
+
+  const cargar = useCallback(() => {
+    setLoading(true);
+    api.getInscripciones(estado ? { estado } : undefined).then(setInscripciones).catch(e => setError(e.error)).finally(() => setLoading(false));
+  }, [estado]);
+  useEffect(() => { cargar(); }, [cargar]);
+  const refrescar = () => { cargar(); onCambio(); };
+
+  const cambiarEstado = async (i, nuevo) => {
+    setError(null);
+    try { await api.cambiarEstadoInscripcion(i.id, nuevo); refrescar(); } catch (e) { setError(e.error); }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+        <select className="input-dark" style={{ width: 'auto' }} value={estado} onChange={e => setEstado(e.target.value)}>
+          <option value="">Todas las inscripciones</option>
+          {Object.entries(ESTADO_INSC).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </div>
+      <Aviso onClose={() => setError(null)}>{error}</Aviso>
+      {loading ? <div style={{ padding: '40px', textAlign: 'center' }}><Loader2 className="animate-spin" style={{ color: C.accent, margin: '0 auto' }} /></div>
+        : inscripciones.length === 0 ? <div style={{ padding: '40px', textAlign: 'center', color: C.text2, fontFamily: 'Poppins' }}>No hay inscripciones.</div>
+        : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px', fontFamily: 'Poppins', fontSize: '0.84rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.border}`, color: C.text2, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left' }}>
+                  {['Escalador', 'Grupo', 'Tarifa / mes', 'Pagado hasta', 'Debe', 'Estado', ''].map(h => <th key={h} style={{ padding: '10px 8px', fontWeight: 600 }}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {inscripciones.map(i => {
+                  const debe = parseFloat(i.total_pendiente) || 0;
+                  const est = ESTADO_INSC[i.estado];
+                  return (
+                    <tr key={i.id} style={{ borderBottom: '1px solid #242424' }}>
+                      <td style={{ padding: '10px 8px' }}><div style={{ color: C.text, fontWeight: 600 }}>{i.nombre} {i.apellido}</div><div style={{ fontSize: '0.72rem', color: C.text3 }}>{i.email}</div></td>
+                      <td style={{ padding: '10px 8px', color: C.text2 }}>{i.programa}<div style={{ fontSize: '0.72rem', color: C.text3 }}>{MODALIDAD[i.modalidad]} · {i.ciclo}</div></td>
+                      <td style={{ padding: '10px 8px', color: C.accent, fontFamily: 'Antonio', fontSize: '1rem' }}>{fmtCOP(i.precio_mensual)}</td>
+                      <td style={{ padding: '10px 8px', color: C.text2 }}>{i.pagado_hasta ? fmtMes(i.pagado_hasta) : '—'}</td>
+                      <td style={{ padding: '10px 8px', color: debe > 0 ? C.danger : C.ok, fontWeight: 600 }}>{debe > 0 ? `${fmtCOP(debe)} (${i.pagos_pendientes})` : 'Al día'}</td>
+                      <td style={{ padding: '10px 8px' }}><Badge color={est.color}>{est.label}</Badge></td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          {['activa', 'reservada'].includes(i.estado) && <Btn small variant="ok" onClick={() => setPagar(i)}>Registrar pago</Btn>}
+                          {i.estado === 'activa' && <Btn small variant="secondary" onClick={() => cambiarEstado(i, 'congelada')}>Congelar</Btn>}
+                          {['congelada', 'cancelada', 'completada'].includes(i.estado) && <Btn small variant="secondary" onClick={() => cambiarEstado(i, 'activa')}>Reactivar</Btn>}
+                          {['activa', 'reservada', 'congelada'].includes(i.estado) && (
+                            <Btn small variant="secondary" onClick={() => setConfirmar({ tipo: 'cancelar', i })}>Cancelar</Btn>
+                          )}
+                          <Btn small variant="danger" title="Eliminar inscripción y sus pagos" onClick={() => setConfirmar({ tipo: 'eliminar', i })}><Trash2 size={13} /></Btn>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      {pagar && <ModalRegistrarPago inscripcion={pagar} tarifas={tarifas} onClose={() => setPagar(null)} onHecho={refrescar} />}
+      {confirmar?.tipo === 'cancelar' && (
+        <Confirmar titulo="Cancelar inscripción" textoBoton="Cancelar inscripción" peligro onClose={() => setConfirmar(null)}
+          mensaje={<>{confirmar.i.nombre} {confirmar.i.apellido} deja el grupo {confirmar.i.programa}. Se liberan su cupo y sus mensualidades pendientes desde este mes; las pagadas y las vencidas se conservan.</>}
+          onConfirm={async () => { await api.cambiarEstadoInscripcion(confirmar.i.id, 'cancelada'); refrescar(); }} />
+      )}
+      {confirmar?.tipo === 'eliminar' && (
+        <Confirmar peligro titulo="Eliminar inscripción" textoBoton="Eliminar" onClose={() => setConfirmar(null)}
+          mensaje={<>Se eliminará la inscripción de <strong style={{ color: C.text }}>{confirmar.i.nombre} {confirmar.i.apellido}</strong> junto con <strong>todo su historial de pagos</strong>. Si solo deja el grupo, usa “Cancelar”.</>}
+          onConfirm={async () => { await api.deleteInscripcion(confirmar.i.id); refrescar(); }} />
+      )}
+    </div>
+  );
+}
+
+export default function PagosPage() {
+  const [tab, setTab] = useState('mensualidades');
+  const [periodo, setPeriodo] = useState(mesActual());
+  const [resumen, setResumen] = useState(null);
+  const [tarifas, setTarifas] = useState(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => { api.getTarifas().then(setTarifas).catch(() => {}); }, []);
+  useEffect(() => { api.getResumenPagos(periodo).then(setResumen).catch(() => setResumen(null)); }, [periodo, version]);
+  const onCambio = () => setVersion(v => v + 1);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+        <div>
+          <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Pagos</h1>
+          <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>
+            Mensualidades · {tarifas ? <>Autónomo <strong style={{ color: C.accent }}>{fmtCOP(tarifas.autonomo)}</strong> / mes · Acompañado <strong style={{ color: C.accent }}>{fmtCOP(tarifas.acompanado)}</strong> / mes</> : '…'}
+            {' · '}<Link to="/app/configuracion" style={{ color: C.accent }}>Editar tarifas</Link>
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '4px' }}>
+          <button aria-label="Mes anterior" onClick={() => setPeriodo(p => sumarMeses(p, -1))} style={{ background: 'none', border: 'none', color: C.text2, cursor: 'pointer', display: 'flex', padding: '6px' }}><ChevronLeft size={18} /></button>
+          <span style={{ fontFamily: 'Antonio', fontSize: '1.05rem', color: C.text, minWidth: '140px', textAlign: 'center', textTransform: 'capitalize' }}>{fmtMes(periodo)}</span>
+          <button aria-label="Mes siguiente" onClick={() => setPeriodo(p => sumarMeses(p, 1))} style={{ background: 'none', border: 'none', color: C.text2, cursor: 'pointer', display: 'flex', padding: '6px' }}><ChevronRight size={18} /></button>
+        </div>
       </div>
 
-      {/* Resumen admin */}
-      {resumen && tab === 'pagos' && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className="text-2xl font-bold text-slate-800">{resumen.activas}</p>
-            <p className="text-xs text-slate-500">Inscrip. activas</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className="text-lg font-bold text-slate-700">{formatCOP(resumen.ingresos_esperados)}</p>
-            <p className="text-xs text-slate-500">Facturado</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className="text-lg font-bold text-green-600">{formatCOP(resumen.ingresos_recibidos)}</p>
-            <p className="text-xs text-slate-500">Recaudado</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className="text-2xl font-bold text-amber-600">{resumen.pagos_pendientes}</p>
-            <p className="text-xs text-slate-500">Pendientes</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4 text-center">
-            <p className={`text-2xl font-bold ${resumen.tasa_recaudo >= 70 ? 'text-green-600' : 'text-amber-600'}`}>{resumen.tasa_recaudo}%</p>
-            <p className="text-xs text-slate-500">Recaudo</p>
-          </div>
+      {resumen && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+          <Kpi label={`Esperado ${fmtMes(periodo)}`} value={fmtCOP(resumen.esperado)} />
+          <Kpi label="Recaudado" value={fmtCOP(resumen.recaudado)} color={C.ok} sub={`${resumen.tasa_recaudo}% del esperado`} />
+          <Kpi label="Pendientes" value={resumen.pendientes} color={resumen.pendientes > 0 ? C.warn : C.ok} />
+          <Kpi label="Vencidas" value={resumen.vencidos} color={resumen.vencidos > 0 ? C.danger : C.ok} />
+          <Kpi label="Deuda vencida (todos los meses)" value={fmtCOP(resumen.deuda_vencida)} color={resumen.deuda_vencida > 0 ? C.danger : C.ok} sub={`${resumen.pagos_vencidos} mensualidad(es)`} />
+          <Kpi label="Inscripciones activas" value={resumen.inscripciones_activas} color={C.accent} />
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
-        {[['inscripciones', 'Inscripciones'], ['pagos', 'Pagos']].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition ${tab === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-            {label}
-          </button>
+      <div style={{ display: 'flex', gap: '2px', background: C.surface, borderRadius: '10px', padding: '4px', marginBottom: '16px', border: `1px solid ${C.border}`, width: 'fit-content' }}>
+        {[['mensualidades', 'Mensualidades del mes'], ['inscripciones', 'Inscripciones']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} style={{
+            padding: '8px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: '0.85rem',
+            background: tab === k ? C.sidebar : 'transparent', color: tab === k ? C.accent : C.text2, fontWeight: tab === k ? 600 : 400,
+          }}>{l}</button>
         ))}
       </div>
 
-      {/* Inscripciones */}
-      {tab === 'inscripciones' && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          {inscripciones.length === 0 ? (
-            <div className="p-10 text-center">
-              <IconoPresa className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-500">No hay inscripciones registradas.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-slate-500 border-b bg-slate-50">
-                    <th className="px-4 py-3 font-medium">Escalador</th>
-                    <th className="px-4 py-3 font-medium">Programa</th>
-                    <th className="px-4 py-3 font-medium">Ciclo</th>
-                    <th className="px-4 py-3 font-medium">Precio</th>
-                    <th className="px-4 py-3 font-medium">Pagado</th>
-                    <th className="px-4 py-3 font-medium">Estado</th>
-                    <th className="px-4 py-3 font-medium">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inscripciones.map(i => {
-                    const pagado = parseFloat(i.total_pagado) || 0;
-                    const precio = parseFloat(i.precio_ciclo) || 0;
-                    const pendiente = parseFloat(i.total_pendiente) || 0;
-                    return (
-                      <tr key={i.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-700">{i.nombre} {i.apellido}</p>
-                          <p className="text-xs text-slate-400">{i.email}</p>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{i.programa}</td>
-                        <td className="px-4 py-3 text-slate-600">{i.ciclo}</td>
-                        <td className="px-4 py-3 font-medium text-slate-700">{formatCOP(precio)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`font-medium ${pendiente > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                            {formatCOP(pagado)}
-                          </span>
-                          {pendiente > 0 && <p className="text-xs text-red-500">Pendiente: {formatCOP(pendiente)}</p>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoInscColor[i.estado]}`}>{i.estado}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1.5 items-center">
-                            <button onClick={() => { setShowNuevoPago(i.id); setPagoForm({ monto: '', metodo: 'transferencia', referencia: '' }); }}
-                              className="px-2.5 py-1 bg-teal-50 text-teal-700 rounded text-xs font-medium hover:bg-teal-100 transition">
-                              + Pago
-                            </button>
-                            {isAdmin && i.estado === 'activa' && (
-                              <button onClick={() => handleCambiarEstadoInsc(i.id, 'congelada')}
-                                className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded text-xs font-medium hover:bg-amber-100 transition">
-                                Congelar
-                              </button>
-                            )}
-                            {isAdmin && i.estado === 'congelada' && (
-                              <button onClick={() => handleCambiarEstadoInsc(i.id, 'activa')}
-                                className="px-2.5 py-1 bg-green-50 text-green-700 rounded text-xs font-medium hover:bg-green-100 transition">
-                                Reactivar
-                              </button>
-                            )}
-                            {isAdmin && (
-                              <button onClick={() => setConfirmDelete({ type: 'inscripcion', id: i.id, label: `inscripción de ${i.nombre} ${i.apellido}` })}
-                                className="p-1 rounded hover:bg-red-50 transition" title="Eliminar inscripción">
-                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Modal pago */}
-      {showNuevoPago && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowNuevoPago(null)}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-800 mb-4">Registrar Pago</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-slate-600 block mb-1">Monto (COP)</label>
-                <input type="number" value={pagoForm.monto} onChange={e => setPagoForm({...pagoForm, monto: e.target.value})}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500 outline-none" />
-              </div>
-              <div>
-                <label className="text-sm text-slate-600 block mb-1">Método</label>
-                <select value={pagoForm.metodo} onChange={e => setPagoForm({...pagoForm, metodo: e.target.value})}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500 outline-none">
-                  <option value="transferencia">Transferencia</option>
-                  <option value="efectivo">Efectivo</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm text-slate-600 block mb-1">Referencia / No. transferencia</label>
-                <input type="text" value={pagoForm.referencia} onChange={e => setPagoForm({...pagoForm, referencia: e.target.value})}
-                  placeholder="Opcional" className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500 outline-none" />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setShowNuevoPago(null)} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
-              <button onClick={() => handleRegistrarPago(showNuevoPago)} disabled={saving}
-                className="flex-1 py-2 bg-teal-700 text-white rounded-lg text-sm font-medium hover:bg-teal-800 disabled:opacity-50">
-                {saving ? 'Guardando...' : 'Registrar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm delete */}
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmDelete(null)}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-800 mb-3">Eliminar {confirmDelete.type === 'inscripcion' ? 'inscripción' : 'pago'}</h3>
-            <p className="text-sm text-slate-500 mb-5">
-              Se eliminará la {confirmDelete.label}. Esta acción no se puede deshacer.
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => setConfirmDelete(null)} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
-              <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">
-                {deleting ? 'Eliminando...' : 'Eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pagos */}
-      {tab === 'pagos' && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          {pagos.length === 0 ? (
-            <div className="p-10 text-center">
-              <IconoMagnesia className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-500">No hay pagos registrados.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-slate-500 border-b bg-slate-50">
-                    <th className="px-4 py-3 font-medium">Escalador</th>
-                    <th className="px-4 py-3 font-medium">Programa</th>
-                    <th className="px-4 py-3 font-medium">Monto</th>
-                    <th className="px-4 py-3 font-medium">Método</th>
-                    <th className="px-4 py-3 font-medium">Referencia</th>
-                    <th className="px-4 py-3 font-medium">Fecha</th>
-                    <th className="px-4 py-3 font-medium">Estado</th>
-                    {isAdmin && <th className="px-4 py-3 font-medium"></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagos.map(p => (
-                    <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-700">{p.nombre} {p.apellido}</td>
-                      <td className="px-4 py-3 text-slate-600">{p.programa}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{formatCOP(p.monto)}</td>
-                      <td className="px-4 py-3 text-slate-600 capitalize">{p.metodo || '—'}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">{p.referencia || '—'}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {p.fecha_pago ? new Date(p.fecha_pago).toLocaleDateString('es-CO') : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estadoPagoColor[p.estado]}`}>{p.estado}</span>
-                      </td>
-                      {isAdmin && (
-                        <td className="px-4 py-3">
-                          <button onClick={() => setConfirmDelete({ type: 'pago', id: p.id, label: `pago de ${formatCOP(p.monto)} de ${p.nombre} ${p.apellido}` })}
-                            className="p-1 rounded hover:bg-red-50 transition" title="Eliminar pago">
-                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '16px' }}>
+        {tab === 'mensualidades'
+          ? <TablaMensualidades periodo={periodo} tarifas={tarifas} onCambio={onCambio} />
+          : <TablaInscripciones tarifas={tarifas} onCambio={onCambio} />}
+      </div>
     </div>
   );
 }

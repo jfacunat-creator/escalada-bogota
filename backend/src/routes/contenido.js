@@ -28,7 +28,7 @@ router.get("/", async (req, res) => {
       const params = [req.user.escalador.id];
 
       if (cicloId) { params.push(cicloId); sql += ` AND cc.ciclo_id = $${params.length}`; }
-      if (tipo) { params.push(tipo); sql += ` AND cc.tipo = $${params.length}`; }
+      if (tipo) { params.push(tipo); sql += ` AND cc.tipo::text = $${params.length}`; }
       sql += " ORDER BY cc.orden, cc.created_at";
 
       const result = await prisma.$queryRawUnsafe(sql, ...params);
@@ -44,10 +44,11 @@ router.get("/", async (req, res) => {
     `;
     const params = [];
     if (cicloId) { params.push(cicloId); sql += ` AND cc.ciclo_id = $${params.length}`; }
-    if (tipo) { params.push(tipo); sql += ` AND cc.tipo = $${params.length}`; }
+    if (tipo) { params.push(tipo); sql += ` AND cc.tipo::text = $${params.length}`; }
     if (programaId) { params.push(programaId); sql += ` AND cc.programa_id = $${params.length}`; }
     sql += " ORDER BY cc.orden, cc.created_at";
 
+    if (req.query.incluirOcultos !== "1") sql = sql.replace("WHERE 1=1", "WHERE cc.visible = true");
     const result = await prisma.$queryRawUnsafe(sql, ...params);
     res.json(result);
   } catch (err) {
@@ -65,7 +66,7 @@ router.post(
     body("tipo").isIn(["plan_entrenamiento", "video_tecnica", "video_sesion", "documento_apoyo", "nutricion", "fisioterapia"]),
     body("titulo").trim().notEmpty(),
     body("archivoUrl").trim().isURL(),
-    body("mimeType").trim().notEmpty(),
+    body("mimeType").optional().trim(),
     body("programaId").optional().isUUID(),
     body("descripcion").optional().isString(),
     body("orden").optional().isInt({ min: 0 }),
@@ -80,9 +81,9 @@ router.post(
       const d = req.body;
       const result = await prisma.$queryRawUnsafe(
         `INSERT INTO contenido_ciclo (ciclo_id, programa_id, tipo, titulo, descripcion, archivo_url, mime_type, tamano_bytes, duracion_seg, orden)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+         VALUES ($1, $2, $3::"TipoContenido", $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
         d.cicloId, d.programaId || null, d.tipo, d.titulo, d.descripcion || null,
-        d.archivoUrl, d.mimeType, d.tamanoBytes || null, d.duracionSeg || null, d.orden || 0
+        d.archivoUrl, d.mimeType || "text/uri-list", d.tamanoBytes || null, d.duracionSeg || null, d.orden || 0
       );
 
       res.status(201).json(result[0]);
@@ -135,13 +136,29 @@ router.put("/:id/progreso", authorize("escalador"), async (req, res) => {
   }
 });
 
+// ─── PATCH /contenido/:id/visible ─────────────────────────
+router.patch("/:id/visible", authorize("admin"), async (req, res) => {
+  try {
+    const r = await prisma.$queryRawUnsafe(
+      "UPDATE contenido_ciclo SET visible = $1, updated_at = NOW() WHERE id = $2 RETURNING *", !!req.body.visible, req.params.id
+    );
+    if (!r.length) return res.status(404).json({ error: "Contenido no encontrado" });
+    res.json(r[0]);
+  } catch (err) {
+    console.error("Error PATCH /contenido/:id/visible:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 // ─── DELETE /contenido/:id ────────────────────────────────
 router.delete("/:id", authorize("admin"), async (req, res) => {
   try {
-    await prisma.$executeRawUnsafe("UPDATE contenido_ciclo SET visible = false WHERE id = $1", req.params.id);
-    res.json({ message: "Contenido ocultado" });
+    await prisma.$executeRawUnsafe("DELETE FROM progreso_contenido WHERE contenido_id = $1", req.params.id);
+    const r = await prisma.$queryRawUnsafe("DELETE FROM contenido_ciclo WHERE id = $1 RETURNING id", req.params.id);
+    if (!r.length) return res.status(404).json({ error: "Contenido no encontrado" });
+    res.json({ message: "Contenido eliminado" });
   } catch (err) {
-    console.error("Error:", err);
+    console.error("Error DELETE /contenido/:id:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });

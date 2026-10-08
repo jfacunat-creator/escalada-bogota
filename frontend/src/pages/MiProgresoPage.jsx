@@ -205,7 +205,7 @@ export default function MiProgresoPage() {
                         {ev.tipo === 'entrada' ? 'Test de entrada' : 'Test de salida'} · {ev.ciclo}
                       </div>
                       <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins' }}>
-                        {ev.fecha ? new Date(ev.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : ev.programa}
+                        {ev.fecha ? new Date(ev.fecha + 'T12:00:00').toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' }) : ev.programa}
                       </div>
                     </div>
                   </div>

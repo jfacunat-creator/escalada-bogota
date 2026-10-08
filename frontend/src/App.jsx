@@ -10,7 +10,7 @@ import ContactoPage from './pages/landing/ContactoPage';
 import NormatividadPage from './pages/landing/NormatividadPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import BienvenidaPage from './pages/BienvenidaPage';   // ← NUEVO
+import BienvenidaPage from './pages/BienvenidaPage';
 import EscaladorDashboard from './pages/EscaladorDashboard';
 import EntrenadorDashboard from './pages/EntrenadorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
@@ -29,6 +29,7 @@ import MisPagosPage from './pages/MisPagosPage';
 import RRHHPage from './pages/RRHHPage';
 import PlanTrackerPage from './pages/PlanTrackerPage';
 import AjustesAIPage from './pages/AjustesAIPage';
+import ConfiguracionPage from './pages/ConfiguracionPage';
 import { Loader2 } from 'lucide-react';
 
 const Spinner = () => (
@@ -50,6 +51,13 @@ function PublicRoute({ children }) {
   if (user) return <Navigate to="/app" replace />;
   return children;
 }
+
+// Cada sección solo para los roles que la usan (el backend igual valida permisos).
+function Solo({ roles, children }) {
+  const { user } = useAuth();
+  return roles.includes(user?.rol) ? children : <Navigate to="/app" replace />;
+}
+const ESC = ['escalador'], ENT = ['entrenador'], ADM = ['admin'];
 
 function DashboardRouter() {
   const { user } = useAuth();
@@ -86,23 +94,24 @@ export default function App() {
           {/* APP (protegido) */}
           <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route index element={<DashboardRouter />} />
-            <Route path="inscribirme"    element={<InscripcionPage />} />
-            <Route path="mi-grupo"       element={<MiGrupoPage />} />
-            <Route path="contenido"      element={<ContenidoPage />} />
-            <Route path="mi-progreso"    element={<MiProgresoPage />} />
-            <Route path="mis-pagos"      element={<MisPagosPage />} />
-            <Route path="mis-grupos"     element={<MisGruposPage />} />
-            <Route path="mis-grupos/:id" element={<GrupoDetallePage />} />
-            <Route path="mis-escaladores" element={<EscaladoresAdminPage />} />
-            <Route path="grupos"         element={<GruposAdminPage />} />
-            <Route path="grupos/:id"     element={<GrupoDetallePage />} />
-            <Route path="escaladores"    element={<EscaladoresAdminPage />} />
-            <Route path="entrenadores"   element={<EntrenadoresAdminPage />} />
-            <Route path="programas"      element={<ProgramasAdminPage />} />
-            <Route path="pagos"          element={<PagosPage />} />
-            <Route path="rrhh"           element={<RRHHPage />} />
-            <Route path="mi-plan"        element={<PlanTrackerPage />} />
-            <Route path="ajustes-ai"     element={<AjustesAIPage />} />
+            <Route path="inscribirme"     element={<Solo roles={ESC}><InscripcionPage /></Solo>} />
+            <Route path="mi-grupo"        element={<Solo roles={ESC}><MiGrupoPage /></Solo>} />
+            <Route path="contenido"       element={<Solo roles={ESC}><ContenidoPage /></Solo>} />
+            <Route path="mi-progreso"     element={<Solo roles={ESC}><MiProgresoPage /></Solo>} />
+            <Route path="mis-pagos"       element={<Solo roles={ESC}><MisPagosPage /></Solo>} />
+            <Route path="mi-plan"         element={<Solo roles={ESC}><PlanTrackerPage /></Solo>} />
+            <Route path="mis-grupos"      element={<Solo roles={ENT}><MisGruposPage /></Solo>} />
+            <Route path="mis-grupos/:id"  element={<Solo roles={ENT}><GrupoDetallePage /></Solo>} />
+            <Route path="mis-escaladores" element={<Solo roles={ENT}><EscaladoresAdminPage /></Solo>} />
+            <Route path="grupos"          element={<Solo roles={ADM}><GruposAdminPage /></Solo>} />
+            <Route path="grupos/:id"      element={<Solo roles={ADM}><GrupoDetallePage /></Solo>} />
+            <Route path="escaladores"     element={<Solo roles={ADM}><EscaladoresAdminPage /></Solo>} />
+            <Route path="entrenadores"    element={<Solo roles={ADM}><EntrenadoresAdminPage /></Solo>} />
+            <Route path="programas"       element={<Solo roles={ADM}><ProgramasAdminPage /></Solo>} />
+            <Route path="pagos"           element={<Solo roles={ADM}><PagosPage /></Solo>} />
+            <Route path="rrhh"            element={<Solo roles={ADM}><RRHHPage /></Solo>} />
+            <Route path="configuracion"   element={<Solo roles={ADM}><ConfiguracionPage /></Solo>} />
+            <Route path="ajustes-ai"      element={<Solo roles={[...ADM, ...ENT]}><AjustesAIPage /></Solo>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

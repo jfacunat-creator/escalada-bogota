@@ -27,13 +27,6 @@ export default function LoginPage() {
     }
   };
 
-  const demos = [
-    { rol: 'Admin', email: 'admin@escaladabogota.com', pwd: 'admin2026' },
-    { rol: 'JFA', email: 'jfa@escaladabogota.com', pwd: 'jfa2025' },
-    { rol: 'JDG', email: 'jdg@escaladabogota.com', pwd: 'jdg2025' },
-    { rol: 'Escalador', email: 'sofia.torres@gmail.com', pwd: 'escalador2026' },
-  ];
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: '#121212' }}>
       {/* Lado izquierdo: imagen + branding */}
@@ -117,18 +110,6 @@ export default function LoginPage() {
             ¿No tienes cuenta?{' '}
             <Link to="/registro" style={{ color: '#D4AF37', fontWeight: 600 }}>Regístrate</Link>
           </p>
-
-          <div style={{ marginTop: '28px', padding: '14px', background: '#1c1c1c', borderRadius: '10px', border: '1px solid #2e2e2e' }}>
-            <p style={{ fontSize: '0.7rem', color: '#A09A8C', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Accesos de prueba</p>
-            {demos.map(d => (
-              <button key={d.rol} type="button" onClick={() => { setEmail(d.email); setPassword(d.pwd); }}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 8px', borderRadius: '6px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#A09A8C', transition: 'background 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#242424'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <span style={{ color: '#D4AF37', fontWeight: 600, marginRight: '8px', fontFamily: 'Antonio, sans-serif', fontSize: '0.85rem' }}>{d.rol}</span>{d.email}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </div>

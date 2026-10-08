@@ -3,11 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { IconoMuro } from '../components/Icons';
 import { CheckCircle, Phone, Mail, Clock, ArrowRight } from 'lucide-react';
 
-// ── Constantes de contacto — ajustar cuando el equipo las defina ─────────────
-const WHATSAPP   = '573001234567';          // número sin +
+import { WHATSAPP, EMAIL_CONTACTO as EMAIL } from '../config';
+
 const WHATSAPP_MSG = 'Hola, acabo de registrarme en la plataforma de Escalada Bogotá y quiero conocer los próximos pasos.';
-const EMAIL      = 'info@escaladabogota.com';
-// ─────────────────────────────────────────────────────────────────────────────
 
 const Step = ({ num, title, desc, active }) => (
   <div style={{

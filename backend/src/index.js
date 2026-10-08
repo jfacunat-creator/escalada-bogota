@@ -16,7 +16,6 @@ app.get("/api/health", (req, res) => {
     service: "Escalada Bogotá API",
     version: "2.0.0",
     timestamp: new Date().toISOString(),
-    fix: "cohorte→grupo corregido",
   });
 });
 
@@ -33,11 +32,10 @@ app.use("/api/sesiones", require("./routes/sesiones"));
 app.use("/api/asistencia",   require("./routes/asistencia"));
 app.use("/api/contenido",    require("./routes/contenido"));
 app.use("/api/evaluaciones", require("./routes/evaluaciones"));
+app.use("/api/remisiones",   require("./routes/remisiones"));
 app.use("/api/plan",         require("./routes/plan"));
 app.use("/api/registros",    require("./routes/registros"));
 app.use("/api/ajustes-ai",   require("./routes/ajustesAI"));
-app.use("/api/rrhh",         require("./routes/rrhh"));
-app.use("/api/contabilidad", require("./routes/contabilidad"));
 app.use("/api/webhooks",     require("./routes/webhooks"));
 
 // 404
@@ -46,6 +44,5 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n  Escalada Bogotá API v2.0.0 · Puerto ${PORT}`);
-  console.log(`  Fix aplicado: cohorte → grupo en todas las queries\n`);
+  console.log(`\n  Escalada Bogotá API v2.0.0 · Puerto ${PORT}\n`);
 });

@@ -33,15 +33,18 @@ class ApiService {
     } finally {
       clearTimeout(timer);
     }
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      if (res.status === 401) {
+      // Sesión vencida: solo si se mandó token (un login fallido también es 401 y debe mostrar su error).
+      if (res.status === 401 && token) {
         this.setToken(null);
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';
       }
-      throw { status: res.status, data, ...data };
+      // Siempre un `error` legible, también para errores de validación ({ errors: [...] }).
+      const error = data.error || data.errors?.[0]?.msg || `Error ${res.status}`;
+      throw { status: res.status, data, ...data, error };
     }
     return data;
   }
@@ -69,13 +72,22 @@ class ApiService {
 
   // Catálogos
   getProgramas(params)  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/programas${q}`); }
+  updatePrograma(id, data) { return this.request(`/catalogos/programas/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   getNiveles()          { return this.request('/catalogos/niveles'); }
   getCiclos(params)     { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/catalogos/ciclos${q}`); }
-  getCicloActual()      { return this.request('/catalogos/ciclos/actual'); }
   crearCiclo(data)      { return this.request('/catalogos/ciclos', { method: 'POST', body: JSON.stringify(data) }); }
-  getMuros()            { return this.request('/catalogos/muros'); }
+  updateCiclo(id, data) { return this.request(`/catalogos/ciclos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  deleteCiclo(id)       { return this.request(`/catalogos/ciclos/${id}`, { method: 'DELETE' }); }
+  getMuros(todos)       { return this.request(`/catalogos/muros${todos ? '?todos=1' : ''}`); }
+  crearMuro(data)       { return this.request('/catalogos/muros', { method: 'POST', body: JSON.stringify(data) }); }
+  updateMuro(id, data)  { return this.request(`/catalogos/muros/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  getAliadosSalud(todos) { return this.request(`/catalogos/aliados-salud${todos ? '?todos=1' : ''}`); }
+  crearAliadoSalud(data) { return this.request('/catalogos/aliados-salud', { method: 'POST', body: JSON.stringify(data) }); }
+  updateAliadoSalud(id, data) { return this.request(`/catalogos/aliados-salud/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  getTarifas()          { return this.request('/catalogos/tarifas'); }
+  updateTarifa(modalidad, precioMensual) { return this.request(`/catalogos/tarifas/${modalidad}`, { method: 'PUT', body: JSON.stringify({ precioMensual }) }); }
 
-  // Grupos (antes: Cohortes)
+  // Grupos
   getGrupos(params)             { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/grupos${q}`); }
   getGrupo(id)                  { return this.request(`/grupos/${id}`); }
   getGruposDisponibles()        { return this.request('/grupos/disponibles'); }
@@ -90,6 +102,7 @@ class ApiService {
   updateEscalador(id, data) { return this.request(`/escaladores/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   deleteEscalador(id)    { return this.request(`/escaladores/${id}`, { method: 'DELETE' }); }
   asignarNivel(id, nivel) { return this.request(`/escaladores/${id}/nivel`, { method: 'PATCH', body: JSON.stringify({ nivel }) }); }
+  cambiarEstadoEscalador(id, estado) { return this.request(`/escaladores/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
 
   // Entrenadores
   getEntrenadores()              { return this.request('/entrenadores'); }
@@ -97,14 +110,11 @@ class ApiService {
   crearEntrenador(data)          { return this.request('/entrenadores', { method: 'POST', body: JSON.stringify(data) }); }
   updateEntrenador(id, data)     { return this.request(`/entrenadores/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   deleteEntrenador(id)           { return this.request(`/entrenadores/${id}`, { method: 'DELETE' }); }
-  getEscaladoresEntrenador(id)   { return this.request(`/entrenadores/${id}/escaladores`); }
 
   // Sesiones
   getSesiones(grupoId)          { return this.request(`/sesiones?grupoId=${grupoId}`); }
-  getSesion(id)                 { return this.request(`/sesiones/${id}`); }
   generarSesiones(grupoId)      { return this.request('/sesiones/generar', { method: 'POST', body: JSON.stringify({ grupoId }) }); }
   deleteSesiones(grupoId)       { return this.request(`/sesiones?grupoId=${grupoId}`, { method: 'DELETE' }); }
-  updateNotasSesion(id, notas)  { return this.request(`/sesiones/${id}/notas`, { method: 'PUT', body: JSON.stringify({ notas }) }); }
 
   // Asistencia
   registrarAsistencia(sesionId, registros)          { return this.request('/asistencia', { method: 'POST', body: JSON.stringify({ sesionId, registros }) }); }
@@ -115,46 +125,41 @@ class ApiService {
   // Contenido
   getContenido(params)              { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/contenido${q}`); }
   crearContenido(data)              { return this.request('/contenido', { method: 'POST', body: JSON.stringify(data) }); }
+  setContenidoVisible(id, visible)  { return this.request(`/contenido/${id}/visible`, { method: 'PATCH', body: JSON.stringify({ visible }) }); }
+  deleteContenido(id)               { return this.request(`/contenido/${id}`, { method: 'DELETE' }); }
   updateProgreso(contenidoId, pct)  { return this.request(`/contenido/${contenidoId}/progreso`, { method: 'PUT', body: JSON.stringify({ progresoPct: pct }) }); }
-  getStatsContenido(cicloId)        { return this.request(`/contenido/stats/${cicloId}`); }
 
   // Evaluaciones
   getEvaluaciones(params)           { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/evaluaciones${q}`); }
-  crearEvaluacion(data)             { return this.request('/evaluaciones', { method: 'POST', body: JSON.stringify(data) }); }
   getEvaluacion(id)                 { return this.request(`/evaluaciones/${id}`); }
-  updateEvaluacion(id, data)        { return this.request(`/evaluaciones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  compararGrupo(grupoId)            { return this.request(`/evaluaciones/comparar/${grupoId}`); }
   getProgreso(escaladorId)          { return this.request(`/evaluaciones/progreso/${escaladorId}`); }
   registrarMiTest(sesionId, resultados) { return this.request('/evaluaciones/mi-test', { method: 'POST', body: JSON.stringify({ sesionId, resultados }) }); }
+
+  // Remisiones a aliados de salud
+  getRemisiones(params)             { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/remisiones${q}`); }
+  crearRemision(data)               { return this.request('/remisiones', { method: 'POST', body: JSON.stringify(data) }); }
+  updateRemision(id, data)          { return this.request(`/remisiones/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 
   // Inscripciones
   getInscripciones(params)          { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/inscripciones${q}`); }
   crearInscripcion(data)            { return this.request('/inscripciones', { method: 'POST', body: JSON.stringify(data) }); }
-  getInscripcion(id)                { return this.request(`/inscripciones/${id}`); }
-  updateInscripcion(id, data)       { return this.request(`/inscripciones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   deleteInscripcion(id)             { return this.request(`/inscripciones/${id}`, { method: 'DELETE' }); }
   autoInscribirse(grupoId)          { return this.request('/inscripciones/autoservicio', { method: 'POST', body: JSON.stringify({ grupoId }) }); }
-
-  // Pagos
-  getPagos(params)                  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos${q}`); }
-  getPago(id)                       { return this.request(`/pagos/${id}`); }
-  getResumenPagos()                 { return this.request('/pagos/resumen'); }
-  crearPago(data)                   { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
-  registrarPago(data)               { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
-  updatePago(id, data)              { return this.request(`/pagos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
-  deletePago(id)                    { return this.request(`/pagos/${id}`, { method: 'DELETE' }); }
-  getLinkPago(id)                   { return this.request(`/pagos/${id}/link-pago`); }
-  generarLinkPago(id)               { return this.request(`/pagos/${id}/link-pago`, { method: 'POST' }); }
   cambiarEstadoInscripcion(id, est) { return this.request(`/inscripciones/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado: est }) }); }
 
-  // RRHH
-  getRRHH(params)                   { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/rrhh${q}`); }
+  // Pagos (mensualidades)
+  getPagosConfig()                  { return this.request('/pagos/config'); }
+  getPagos(params)                  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos${q}`); }
+  getResumenPagos(periodo)          { return this.request(`/pagos/resumen${periodo ? `?periodo=${periodo}` : ''}`); }
+  registrarPago(data)               { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
+  generarMensualidades(periodo)     { return this.request('/pagos/generar', { method: 'POST', body: JSON.stringify({ periodo }) }); }
+  updatePago(id, data)              { return this.request(`/pagos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  deletePago(id)                    { return this.request(`/pagos/${id}`, { method: 'DELETE' }); }
+  generarLinkPago(id)               { return this.request(`/pagos/${id}/link-pago`, { method: 'POST' }); }
 
   // Dashboard
-  getDashboard()                    { return this.request('/dashboard'); }
-
-  // Contabilidad
-  getContabilidad(params)           { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/contabilidad${q}`); }
-  crearEntradaPyG(data)             { return this.request('/contabilidad', { method: 'POST', body: JSON.stringify(data) }); }
+  getDashboard(params)              { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/dashboard${q}`); }
 }
 
 export default new ApiService();

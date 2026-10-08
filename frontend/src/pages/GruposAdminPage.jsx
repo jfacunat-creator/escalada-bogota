@@ -15,7 +15,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus, ChevronRight, X, AlertCircle, Trash2, Pencil } from 'lucide-react';
 import api from '../services/api';
-import { IconoCronometro, IconoMuro, IconoEscalador, IconoCuerda } from '../components/Icons';
+import { IconoCronometro, IconoMuro, IconoCuerda } from '../components/Icons';
+import { HORARIOS, HORARIO_LABEL as horarioLabel } from '../components/ui';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', accent2: '#9E721D', sidebar: '#4A2F0F', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 
@@ -26,21 +27,10 @@ const ESTADO_COLOR = {
   finalizada: { bg: 'rgba(100,100,100,0.1)', color: '#666',    label: 'Finalizada' },
 };
 
-const HORARIOS = [
-  { value: 'lun_mie_18_20', label: 'Lun y Mié · 18:00–20:00' },
-  { value: 'lun_mie_20_22', label: 'Lun y Mié · 20:00–22:00' },
-  { value: 'mar_jue_18_20', label: 'Mar y Jue · 18:00–20:00' },
-  { value: 'mar_jue_20_22', label: 'Mar y Jue · 20:00–22:00' },
-  { value: 'sab_dom_7_9',   label: 'Sáb y Dom · 7:00–9:00' },
-  { value: 'sab_dom_9_11',  label: 'Sáb y Dom · 9:00–11:00' },
-  { value: 'sab_dom_11_13', label: 'Sáb y Dom · 11:00–13:00' },
-];
-
-const horarioLabel = Object.fromEntries(HORARIOS.map(h => [h.value, h.label]));
 
 function formatFecha(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(d).toLocaleDateString('es-CO', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 // ─── Componentes auxiliares ──────────────────────────────────────────────────
@@ -148,10 +138,10 @@ function GrupoRow({ grupo, onEstado, onDetalle, onDelete, onEdit }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
         {[
           [grupo.total_sesiones || '0', 'Sesiones', '#A09A8C'],
-          [(grupo.asistencia_pct || 0) + '%', 'Asistencia', parseInt(grupo.asistencia_pct || 0) >= 80 ? '#22c55e' : '#f59e0b'],
+          [grupo.asistencia_pct == null ? '—' : grupo.asistencia_pct + '%', 'Asistencia', grupo.asistencia_pct == null ? '#A09A8C' : parseInt(grupo.asistencia_pct) >= 80 ? '#22c55e' : '#f59e0b'],
           [new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(grupo.ingresos_grupo || 0), 'Ingresos', '#22c55e'],
           [parseInt(grupo.pagos_pendientes_grupo) > 0 ? grupo.pagos_pendientes_grupo : '✓', 'Pagos', parseInt(grupo.pagos_pendientes_grupo) > 0 ? '#ef4444' : '#22c55e'],
-          [grupo.fecha_inicio ? new Date(grupo.fecha_inicio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—', 'Inicio', '#60a5fa'],
+          [grupo.fecha_inicio ? new Date(grupo.fecha_inicio).toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short' }) : '—', 'Inicio', '#60a5fa'],
         ].map(([v, l, c]) => (
           <div key={l} style={{ background: '#242424', borderRadius: '5px', padding: '5px 4px', textAlign: 'center' }}>
             <div style={{ fontFamily: 'Antonio', fontSize: '0.9rem', color: c, lineHeight: 1.2 }}>{v}</div>
@@ -265,8 +255,6 @@ function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenado
 
   // Filtrar programas adultos (los de menores se gestionarán en fase 2)
   const progsAdulto = programas.filter(p => p.poblacion === 'adulto');
-  const progSeleccionado = programas.find(p => p.id === form.programaId);
-  const esMenu = progSeleccionado?.poblacion === 'menor';
 
   return (
     <div onClick={e => e.target === e.currentTarget && onClose()} style={{
@@ -294,13 +282,13 @@ function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenado
           </SelectField>
 
           <SelectField label="Ciclo" value={form.cicloId} onChange={e => set('cicloId', e.target.value)} required>
-            <option value="">Seleccionar ciclo...</option>
+            <option value="">{ciclos.length ? 'Seleccionar ciclo...' : 'No hay ciclos: créalos en Configuración'}</option>
             {ciclos.map(c => <option key={c.id} value={c.id}>{c.codigo} · {formatFecha(c.fecha_inicio)} → {formatFecha(c.fecha_fin)}</option>)}
           </SelectField>
 
           <SelectField label="Entrenador" value={form.entrenadorId} onChange={e => set('entrenadorId', e.target.value)} required>
             <option value="">Seleccionar entrenador...</option>
-            {entrenadores.map(e => <option key={e.id} value={e.id}>{e.nombre} · Lic. {e.licencia_ley181 || '—'}</option>)}
+            {entrenadores.filter(e => e.activo).map(e => <option key={e.id} value={e.id}>{e.nombre} · {e.grupos_activos}/{e.max_grupos} grupos</option>)}
           </SelectField>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -310,8 +298,8 @@ function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenado
             </SelectField>
 
             <InputField label="Cupo máximo" type="number" value={form.cupoMaximo}
-              onChange={e => set('cupoMaximo', parseInt(e.target.value) || 4)}
-              min={4} max={esMenu ? 6 : 12} required />
+              onChange={e => set('cupoMaximo', parseInt(e.target.value) || 1)}
+              min={1} max={50} required />
           </div>
 
           {form.modalidad === 'acompanado' && (
@@ -361,13 +349,15 @@ function ModalCrearGrupo({ open, onClose, onCreada, programas, ciclos, entrenado
 
 // ─── Modal editar grupo ─────────────────────────────────────────────────────
 
-function ModalEditarGrupo({ grupo, onClose, onGuardado, entrenadores, muros }) {
+function ModalEditarGrupo({ grupo, onClose, onGuardado, entrenadores, muros, programas, ciclos }) {
   const [form, setForm] = useState({
-    modalidad: grupo?.modalidad || 'acompanado',
-    horario: grupo?.horario || '',
-    cupoMaximo: grupo?.cupo_maximo || 8,
-    entrenadorId: grupo?.entrenador_id || '',
-    muroId: grupo?.muro_id || '',
+    programaId: grupo.programa_id,
+    cicloId: grupo.ciclo_id,
+    modalidad: grupo.modalidad,
+    horario: grupo.horario || '',
+    cupoMaximo: grupo.cupo_maximo,
+    entrenadorId: grupo.entrenador_id,
+    muroId: grupo.muro_id || '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -375,16 +365,22 @@ function ModalEditarGrupo({ grupo, onClose, onGuardado, entrenadores, muros }) {
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const handleSubmit = async () => {
+    if (form.modalidad === 'acompanado' && (!form.muroId || !form.horario)) {
+      setError('Los grupos acompañados requieren sede y horario.');
+      return;
+    }
     setLoading(true); setError(null);
     try {
-      await api.updateGrupo(grupo.id, {
+      const r = await api.updateGrupo(grupo.id, {
+        programaId: form.programaId,
+        cicloId: form.cicloId,
         modalidad: form.modalidad,
         horario: form.horario,
         cupoMaximo: form.cupoMaximo,
         entrenadorId: form.entrenadorId,
         muroId: form.muroId,
       });
-      onGuardado();
+      onGuardado(r.avisos);
       onClose();
     } catch (err) {
       setError(err?.error || 'Error al guardar');
@@ -392,8 +388,6 @@ function ModalEditarGrupo({ grupo, onClose, onGuardado, entrenadores, muros }) {
       setLoading(false);
     }
   };
-
-  if (!grupo) return null;
 
   return (
     <div onClick={e => e.target === e.currentTarget && onClose()} style={{
@@ -412,23 +406,34 @@ function ModalEditarGrupo({ grupo, onClose, onGuardado, entrenadores, muros }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <SelectField label="Modalidad" value={form.modalidad} onChange={e => set('modalidad', e.target.value)}>
-            <option value="acompanado">Acompañado</option>
-            <option value="autonomo">Autónomo</option>
+          <SelectField label="Programa" value={form.programaId} onChange={e => set('programaId', e.target.value)}>
+            {programas.map(p => <option key={p.id} value={p.id}>{p.nombre} · {p.nivel}</option>)}
           </SelectField>
-          <SelectField label="Horario" value={form.horario} onChange={e => set('horario', e.target.value)}>
+          <SelectField label="Ciclo" value={form.cicloId} onChange={e => set('cicloId', e.target.value)}>
+            {ciclos.map(c => <option key={c.id} value={c.id}>{c.codigo} · {formatFecha(c.fecha_inicio)} → {formatFecha(c.fecha_fin)}</option>)}
+          </SelectField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <SelectField label="Modalidad" value={form.modalidad} onChange={e => set('modalidad', e.target.value)}>
+              <option value="acompanado">Acompañado</option>
+              <option value="autonomo">Autónomo</option>
+            </SelectField>
+            <InputField label="Cupo máximo" type="number" value={form.cupoMaximo}
+              onChange={e => set('cupoMaximo', parseInt(e.target.value) || 1)} min={1} max={50} />
+          </div>
+          <SelectField label="Horario" value={form.horario} onChange={e => set('horario', e.target.value)} required={form.modalidad === 'acompanado'}>
+            <option value="">{form.modalidad === 'acompanado' ? 'Seleccionar horario...' : 'Horario libre (autónomo)'}</option>
             {HORARIOS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
           </SelectField>
-          <InputField label="Cupo máximo" type="number" value={form.cupoMaximo}
-            onChange={e => set('cupoMaximo', parseInt(e.target.value) || 4)} min={1} max={20} />
-          <SelectField label="Entrenador" value={form.entrenadorId} onChange={e => set('entrenadorId', e.target.value)}>
-            <option value="">Sin cambio</option>
-            {entrenadores.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-          </SelectField>
-          <SelectField label="Muro aliado" value={form.muroId} onChange={e => set('muroId', e.target.value)}>
-            <option value="">Sin cambio</option>
+          <SelectField label="Sede (muro aliado)" value={form.muroId} onChange={e => set('muroId', e.target.value)} required={form.modalidad === 'acompanado'}>
+            <option value="">{form.modalidad === 'acompanado' ? 'Seleccionar sede...' : 'Sin sede'}</option>
             {muros.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
           </SelectField>
+          <SelectField label="Entrenador" value={form.entrenadorId} onChange={e => set('entrenadorId', e.target.value)}>
+            {entrenadores.filter(e => e.activo || e.id === grupo.entrenador_id).map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </SelectField>
+          <div style={{ fontSize: '0.75rem', color: C.text3, fontFamily: 'Poppins', lineHeight: 1.6 }}>
+            Cambiar la modalidad actualiza las mensualidades pendientes a la nueva tarifa. Cambiar horario o ciclo regenera las sesiones si aún no hay asistencia registrada.
+          </div>
         </div>
 
         {error && (
@@ -472,6 +477,9 @@ export default function GruposAdminPage() {
   const [editando, setEditando] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [avisos, setAvisos] = useState([]);
+  const [error, setError] = useState(null);
+  const [confirmFinalizar, setConfirmFinalizar] = useState(null);
 
   const cargarDatos = async () => {
     setLoading(true);
@@ -502,30 +510,39 @@ export default function GruposAdminPage() {
   useEffect(() => { cargarDatos(); }, [filtroEstado, filtroCiclo, filtroNivel]);
 
   const handleEstado = async (id, estado) => {
+    if (estado === 'finalizada' && !confirmFinalizar) {
+      setConfirmFinalizar(grupos.find(g => g.id === id));
+      return;
+    }
+    setError(null); setAvisos([]);
     try {
-      await api.cambiarEstadoGrupo(id, estado);
+      const r = await api.cambiarEstadoGrupo(id, estado);
+      setAvisos(r.avisos || []);
       await cargarDatos();
     } catch (err) {
-      alert(err?.error || 'Error al cambiar estado');
+      setError(err?.error || 'Error al cambiar estado');
+    } finally {
+      setConfirmFinalizar(null);
     }
   };
 
   const handleDelete = async () => {
     if (!confirmDelete) return;
-    setDeleting(true);
+    setDeleting(true); setError(null);
     try {
       await api.deleteGrupo(confirmDelete.id);
       setConfirmDelete(null);
       await cargarDatos();
     } catch (err) {
-      alert(err?.error || 'Error al eliminar');
+      setError(err?.error || 'Error al eliminar');
+      setConfirmDelete(null);
     } finally {
       setDeleting(false);
     }
   };
 
   // Stats
-  const totalInscritos = grupos.reduce((s, c) => s + (c.inscritos_actual || 0), 0);
+  const totalInscritos = grupos.reduce((s, c) => s + (Number(c.inscritos_actual) || 0), 0);
   const abiertas = grupos.filter(c => c.estado === 'abierta').length;
   const enCurso = grupos.filter(c => c.estado === 'en_curso').length;
 
@@ -547,6 +564,15 @@ export default function GruposAdminPage() {
           <Plus size={18} /> Nuevo grupo
         </button>
       </div>
+
+      {(error || avisos.length > 0) && (
+        <div style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.82rem',
+          background: error ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)', border: `1px solid ${error ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)'}`,
+          color: error ? '#fca5a5' : '#22c55e', display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+          <div>{error || avisos.map((a, i) => <div key={i}>{a}</div>)}</div>
+          <button onClick={() => { setError(null); setAvisos([]); }} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}><X size={14} /></button>
+        </div>
+      )}
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
@@ -626,13 +652,33 @@ export default function GruposAdminPage() {
       />
 
       {/* Modal editar */}
-      <ModalEditarGrupo
-        grupo={editando}
-        onClose={() => setEditando(null)}
-        onGuardado={cargarDatos}
-        entrenadores={entrenadores}
-        muros={muros}
-      />
+      {editando && (
+        <ModalEditarGrupo
+          key={editando.id}
+          grupo={editando}
+          onClose={() => setEditando(null)}
+          onGuardado={(av) => { setAvisos(av || []); cargarDatos(); }}
+          entrenadores={entrenadores}
+          muros={muros}
+          programas={programas}
+          ciclos={ciclos}
+        />
+      )}
+
+      {confirmFinalizar && (
+        <div onClick={() => setConfirmFinalizar(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '28px', maxWidth: '420px', width: '100%' }}>
+            <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: C.text, marginBottom: '8px' }}>Finalizar grupo</div>
+            <p style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem', marginBottom: '20px', lineHeight: 1.6 }}>
+              <strong style={{ color: C.text }}>{confirmFinalizar.programa_nombre} · {confirmFinalizar.ciclo_codigo}</strong>: sus inscripciones activas pasan a <strong>completadas</strong> y dejan de generar mensualidades. Las pagadas y vencidas se conservan.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setConfirmFinalizar(null)} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: 'transparent', color: C.text2, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'Poppins' }}>Cancelar</button>
+              <button onClick={() => handleEstado(confirmFinalizar.id, 'finalizada')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: C.accent, color: '#121212', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700 }}>Finalizar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm delete */}
       {confirmDelete && (

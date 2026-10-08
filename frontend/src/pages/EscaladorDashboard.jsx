@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { whatsappUrl, EMAIL_CONTACTO as EMAIL } from '../config';
 import { Loader2 } from 'lucide-react';
 import { IconoPresa, IconoRoca, IconoCronometro, IconoMuro, IconoEscalador } from '../components/Icons';
 
-// Constantes de contacto — ajustar cuando el equipo las defina
-const WHATSAPP_URL = 'https://wa.me/573001234567?text=Hola%2C+acabo+de+registrarme+en+la+plataforma+de+Escalada+Bogot%C3%A1+y+quiero+conocer+los+pr%C3%B3ximos+pasos.';
-const EMAIL        = 'info@escaladabogota.com';
+const WHATSAPP_URL = whatsappUrl('Hola, acabo de registrarme en la plataforma de Escalada Bogotá y quiero conocer los próximos pasos.');
 
 function Stat({ icon: Icon, label, value, color = '#D4AF37' }) {
   return (
@@ -52,7 +51,7 @@ export default function EscaladorDashboard() {
         <Stat icon={IconoRoca} label="Nivel" value={{ iniciacion: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' }[esc?.nivel] || (esc?.nivel ? esc.nivel : '—')} />
         <Stat icon={IconoMuro} label="Grupo activo" value={activa ? activa.cohorte?.programa?.nombre?.split(' ')[0] || 'Sí' : 'Sin grupo'} color={activa ? '#22c55e' : '#A09A8C'} />
         <Stat icon={IconoCronometro} label="Ciclo" value={activa?.cohorte?.ciclo?.codigo || '—'} />
-        <Stat icon={IconoRoca} label="Miembro desde" value={esc?.createdAt ? new Date(esc.createdAt).toLocaleDateString('es-CO', { month: 'short', year: 'numeric' }) : '—'} color='#A09A8C' />
+        <Stat icon={IconoRoca} label="Miembro desde" value={esc?.createdAt ? new Date(esc.createdAt).toLocaleDateString('es-CO', { timeZone: 'UTC', month: 'short', year: 'numeric' }) : '—'} color='#A09A8C' />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }} className="esc-grid">
@@ -122,7 +121,7 @@ export default function EscaladorDashboard() {
               { label: 'Mis pagos',  path: '/app/mis-pagos' },
               { label: 'Mi progreso',path: '/app/mi-progreso' },
             ].map(({ label, path }) => (
-              <button key={path} onClick={() => navigate(path)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 0', borderBottom: '1px solid #242424', background: 'none', border: 'none', borderBottom: '1px solid #242424', cursor: 'pointer', fontSize: '0.85rem', color: '#D4AF37', fontFamily: 'Poppins' }}>
+              <button key={path} onClick={() => navigate(path)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 0', background: 'none', border: 'none', borderBottom: '1px solid #242424', cursor: 'pointer', fontSize: '0.85rem', color: '#D4AF37', fontFamily: 'Poppins' }}>
                 {label} →
               </button>
             ))}

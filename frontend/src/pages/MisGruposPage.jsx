@@ -7,7 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2 } from 'lucide-react';
-import { IconoEscalador, IconoMuro, IconoCronometro, IconoPresa } from '../components/Icons';
+import { IconoEscalador, IconoMuro, IconoCronometro } from '../components/Icons';
+import { HORARIO_LABEL } from '../components/ui';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 
@@ -87,7 +88,7 @@ export default function MisGruposPage() {
                       <span style={{ fontFamily: 'Antonio', fontSize: '1.1rem', color: C.text }}>{g.programa_nombre}</span>
                     </div>
                     <div style={{ fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins' }}>
-                      {g.ciclo_codigo} · {g.horario} · {g.muro_nombre}
+                      {[g.ciclo_codigo, HORARIO_LABEL[g.horario] || 'Horario libre', g.muro_nombre].filter(Boolean).join(' · ')}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -96,7 +97,7 @@ export default function MisGruposPage() {
                       background: g.estado === 'en_curso' ? 'rgba(245,158,11,0.1)' : 'rgba(34,197,94,0.1)',
                       color: g.estado === 'en_curso' ? '#f59e0b' : '#22c55e',
                     }}>{g.estado === 'en_curso' ? 'En curso' : 'Abierto'}</span>
-                    <button onClick={() => navigate(`/app/grupos/${g.id}`)}
+                    <button onClick={() => navigate(`/app/mis-grupos/${g.id}`)}
                       style={{ padding: '6px 14px', borderRadius: '6px', background: '#4A2F0F', border: 'none', color: C.accent, fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
                       Gestionar →
                     </button>
@@ -117,11 +118,11 @@ export default function MisGruposPage() {
                   {/* Fechas */}
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '0.8rem', color: C.text, fontFamily: 'Poppins', fontWeight: 500 }}>
-                      {g.fecha_inicio ? new Date(g.fecha_inicio).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
+                      {g.fecha_inicio ? new Date(g.fecha_inicio).toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short' }) : '—'}
                     </div>
                     <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>Inicio</div>
                     <div style={{ fontSize: '0.8rem', color: C.text, fontFamily: 'Poppins', fontWeight: 500, marginTop: '4px' }}>
-                      {g.fecha_fin ? new Date(g.fecha_fin).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
+                      {g.fecha_fin ? new Date(g.fecha_fin).toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short' }) : '—'}
                     </div>
                     <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>Fin</div>
                   </div>
@@ -136,11 +137,11 @@ export default function MisGruposPage() {
 
                   {/* Accesos rápidos */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <button onClick={() => navigate(`/app/asistencia/${g.id}`)}
+                    <button onClick={() => navigate(`/app/mis-grupos/${g.id}?tab=sesiones`)}
                       style={{ padding: '4px 10px', borderRadius: '5px', background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, fontFamily: 'Poppins', fontSize: '0.75rem', cursor: 'pointer', textAlign: 'left' }}>
                       📋 Pasar lista
                     </button>
-                    <button onClick={() => navigate(`/app/evaluaciones?grupo=${g.id}`)}
+                    <button onClick={() => navigate(`/app/mis-grupos/${g.id}?tab=evaluaciones`)}
                       style={{ padding: '4px 10px', borderRadius: '5px', background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, fontFamily: 'Poppins', fontSize: '0.75rem', cursor: 'pointer', textAlign: 'left' }}>
                       📊 Evaluaciones
                     </button>
