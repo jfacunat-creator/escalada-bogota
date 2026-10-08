@@ -2,52 +2,79 @@ const express = require("express");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 const { sincronizarPagos } = require("../utils/pagos");
+const { mesValido, mesEnCurso, infoMes, todosLosMeses } = require("../utils/meses");
 
 const router = express.Router();
 router.use(authenticate);
 
 // ─── GET /dashboard ───────────────────────────────────────
+// Las cifras son por MES del ciclo (el servicio se paga por mes): ?cicloId=&mes=1..3 elige el mes
+// (por defecto el que está en curso); ?todo=1 muestra el histórico completo; ?cicloId sin mes, el
+// ciclo completo. Inscritos de un mes = inscripciones con mensualidad de ese mes.
 router.get("/", authorize("admin"), async (req, res) => {
   try {
-    const { cicloId, nivel, modalidad, entrenadorId, rangoEtario } = req.query;
+    const { nivel, modalidad, entrenadorId, rangoEtario } = req.query;
+    let cicloId = req.query.cicloId || "";
+    let mes = mesValido(req.query.mes);
+    if (!req.query.todo && !cicloId) {
+      const actual = await mesEnCurso();
+      if (actual) ({ cicloId, mes } = actual);
+    }
+    if (cicloId && !/^[0-9a-f-]{36}$/i.test(cicloId)) return res.status(400).json({ error: "cicloId inválido" });
+    if (!cicloId) mes = null;
 
-    function buildInscFilter(params) {
+    // Filtro de inscripciones (alias i, g, pr, e). Con mes: solo las que tienen mensualidad ese mes.
+    function buildInscFilter(params, { conEscalador = true } = {}) {
       const conds = [];
-      if (cicloId)      { params.push(cicloId);      conds.push(`g.ciclo_id = $${params.length}`); }
-      if (nivel)        { params.push(nivel);         conds.push(`pr.nivel::text = $${params.length}`); }
-      if (modalidad)    { params.push(modalidad);     conds.push(`g.modalidad::text = $${params.length}`); }
-      if (entrenadorId) { params.push(entrenadorId);  conds.push(`g.entrenador_id = $${params.length}`); }
-      if (rangoEtario)  { params.push(rangoEtario);   conds.push(`e.rango_etario::text = $${params.length}`); }
+      if (cicloId)      { params.push(cicloId);      conds.push(`g.ciclo_id = $${params.length}::uuid`); }
+      if (mes)          { params.push(mes);          conds.push(`EXISTS (SELECT 1 FROM pago px WHERE px.inscripcion_id = i.id AND px.mes = $${params.length}::int)`); }
+      if (nivel)        { params.push(nivel);        conds.push(`pr.nivel::text = $${params.length}`); }
+      if (modalidad)    { params.push(modalidad);    conds.push(`g.modalidad::text = $${params.length}`); }
+      if (entrenadorId) { params.push(entrenadorId); conds.push(`g.entrenador_id = $${params.length}::uuid`); }
+      if (rangoEtario && conEscalador) { params.push(rangoEtario); conds.push(`e.rango_etario::text = $${params.length}`); }
       return conds.length ? " AND " + conds.join(" AND ") : "";
     }
-
+    // Pagos (alias p) del mes elegido, para unirlos a las inscripciones.
+    function pagoMes(params) {
+      if (!mes) return "";
+      params.push(mes);
+      return ` AND p.mes = $${params.length}::int`;
+    }
     function buildGrupoFilter(params) {
       const conds = [];
-      if (cicloId)      { params.push(cicloId);      conds.push(`g.ciclo_id = $${params.length}`); }
-      if (nivel)        { params.push(nivel);         conds.push(`pr.nivel::text = $${params.length}`); }
-      if (modalidad)    { params.push(modalidad);     conds.push(`g.modalidad::text = $${params.length}`); }
-      if (entrenadorId) { params.push(entrenadorId);  conds.push(`g.entrenador_id = $${params.length}`); }
+      if (cicloId)      { params.push(cicloId);      conds.push(`g.ciclo_id = $${params.length}::uuid`); }
+      if (nivel)        { params.push(nivel);        conds.push(`pr.nivel::text = $${params.length}`); }
+      if (modalidad)    { params.push(modalidad);    conds.push(`g.modalidad::text = $${params.length}`); }
+      if (entrenadorId) { params.push(entrenadorId); conds.push(`g.entrenador_id = $${params.length}::uuid`); }
       return conds.length ? " AND " + conds.join(" AND ") : "";
+    }
+    // Ocupación: con mes, los inscritos de ese mes; sin mes, las inscripciones activas.
+    function inscritosGrupo(params) {
+      if (!mes) return `(SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'activa')`;
+      params.push(mes);
+      return `(SELECT COUNT(*) FROM pago px JOIN inscripcion i ON i.id = px.inscripcion_id WHERE i.grupo_id = g.id AND px.mes = $${params.length}::int)`;
     }
 
     await sincronizarPagos();
     const p1=[], p2=[], p3=[], p4=[], p5=[], p6=[], p7=[];
-    const w1 = buildInscFilter(p1);
-    const w2 = buildInscFilter(p2);
-    const w3 = buildInscFilter(p3);
-    const w4 = buildInscFilter(p4);
-    const w5 = buildGrupoFilter(p5);
+    const w1 = buildInscFilter(p1) + pagoMes(p1);
+    const w2 = buildInscFilter(p2), j2 = pagoMes(p2);
+    const w3 = buildInscFilter(p3), j3 = pagoMes(p3);
+    const w4 = buildInscFilter(p4), j4 = pagoMes(p4);
+    const n5 = inscritosGrupo(p5), w5 = buildGrupoFilter(p5);
     const w6 = buildInscFilter(p6);
     const w7 = buildGrupoFilter(p7);
+    const estadoInsc = mes ? "TRUE" : "i.estado = 'activa'";
+    const mesRef = cicloId && mes ? { cicloId, mes } : await mesEnCurso();
 
     const [
-      finanzas, mes, porNivel, porEntrenador, inscStats, gruposStats,
+      finanzas, mesActual, porNivel, porEntrenador, inscStats, gruposStats,
       distEtario, distEntrenador, alertasPagos, alertasGrupos,
       pendientes, escaladoresStats, porMes, escaladoresRenovados,
-      ciclos, entrenadores,
+      ciclos, entrenadores, meses,
     ] = await Promise.all([
 
-      // 1. Métricas financieras (todas las mensualidades de las inscripciones filtradas)
+      // 1. Mensualidades de las inscripciones filtradas (del mes elegido, o todas)
       prisma.$queryRawUnsafe(`
         SELECT
           COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS ingresos_recibidos,
@@ -61,12 +88,13 @@ router.get("/", authorize("admin"), async (req, res) => {
         WHERE 1=1${w1}
       `, ...p1),
 
-      // 2. Mes en curso: esperado vs recaudado
-      prisma.$queryRawUnsafe(`
-        SELECT COALESCE(SUM(monto), 0) AS esperado_mes,
-               COALESCE(SUM(monto) FILTER (WHERE estado = 'pagado'), 0) AS recaudado_mes
-        FROM pago WHERE periodo = date_trunc('month', CURRENT_DATE)::date
-      `),
+      // 2. Mes elegido (o en curso): esperado vs recaudado
+      mesRef ? prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(p.monto), 0) AS esperado_mes,
+               COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS recaudado_mes
+        FROM pago p JOIN inscripcion i ON i.id = p.inscripcion_id JOIN grupo g ON g.id = i.grupo_id
+        WHERE g.ciclo_id = $1::uuid AND p.mes = $2::int
+      `, mesRef.cicloId, mesRef.mes) : Promise.resolve([{ esperado_mes: 0, recaudado_mes: 0 }]),
 
       // 3. Ingresos por nivel
       prisma.$queryRawUnsafe(`
@@ -77,8 +105,8 @@ router.get("/", authorize("admin"), async (req, res) => {
         JOIN grupo g ON i.grupo_id = g.id
         JOIN programa pr ON g.programa_id = pr.id
         JOIN escalador e ON i.escalador_id = e.id
-        LEFT JOIN pago p ON p.inscripcion_id = i.id
-        WHERE i.estado IN ('activa', 'completada')${w2}
+        LEFT JOIN pago p ON p.inscripcion_id = i.id${j2}
+        WHERE ${mes ? "TRUE" : "i.estado IN ('activa', 'completada')"}${w2}
         GROUP BY pr.nivel, g.modalidad
         ORDER BY pr.nivel, g.modalidad
       `, ...p2),
@@ -93,31 +121,32 @@ router.get("/", authorize("admin"), async (req, res) => {
         JOIN entrenador ent ON g.entrenador_id = ent.id
         JOIN programa pr ON g.programa_id = pr.id
         JOIN escalador e ON i.escalador_id = e.id
-        LEFT JOIN pago p ON p.inscripcion_id = i.id
-        WHERE i.estado IN ('activa', 'completada')${w3}
+        LEFT JOIN pago p ON p.inscripcion_id = i.id${j3}
+        WHERE ${mes ? "TRUE" : "i.estado IN ('activa', 'completada')"}${w3}
         GROUP BY ent.id, ent.nombre
         ORDER BY recaudado DESC
       `, ...p3),
 
-      // 5. Stats inscripciones
+      // 5. Inscripciones: del mes (con mensualidad) y cuántas pagaron
       prisma.$queryRawUnsafe(`
         SELECT
-          COUNT(*) FILTER (WHERE i.estado = 'activa') AS inscripciones_activas,
-          COUNT(*) AS inscripciones_total
+          COUNT(DISTINCT i.id) FILTER (WHERE ${estadoInsc}) AS inscripciones_activas,
+          COUNT(DISTINCT i.id) AS inscripciones_total,
+          COUNT(DISTINCT i.id) FILTER (WHERE p.estado = 'pagado') AS inscripciones_pagadas
         FROM inscripcion i
         JOIN grupo g ON i.grupo_id = g.id
         JOIN programa pr ON g.programa_id = pr.id
         JOIN escalador e ON i.escalador_id = e.id
+        LEFT JOIN pago p ON p.inscripcion_id = i.id${j4}
         WHERE 1=1${w4}
       `, ...p4),
 
-      // 6. Stats grupos
+      // 6. Grupos y ocupación (del mes elegido)
       prisma.$queryRawUnsafe(`
         SELECT
           COUNT(*) FILTER (WHERE g.estado = 'abierta') AS grupos_abiertos,
           COUNT(*) FILTER (WHERE g.estado = 'en_curso') AS grupos_en_curso,
-          COALESCE(SUM((SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'activa'))
-                   FILTER (WHERE g.estado IN ('abierta','en_curso')), 0) AS total_inscritos,
+          COALESCE(SUM(${n5}) FILTER (WHERE g.estado IN ('abierta','en_curso')), 0) AS total_inscritos,
           COALESCE(SUM(g.cupo_maximo) FILTER (WHERE g.estado IN ('abierta','en_curso')), 0) AS capacidad_total
         FROM grupo g
         JOIN programa pr ON g.programa_id = pr.id
@@ -131,7 +160,7 @@ router.get("/", authorize("admin"), async (req, res) => {
         JOIN escalador e ON i.escalador_id = e.id
         JOIN grupo g ON i.grupo_id = g.id
         JOIN programa pr ON g.programa_id = pr.id
-        WHERE i.estado = 'activa'${w6}
+        WHERE ${estadoInsc}${w6}
         GROUP BY e.rango_etario
         ORDER BY n DESC
       `, ...p6),
@@ -188,22 +217,28 @@ router.get("/", authorize("admin"), async (req, res) => {
         FROM escalador e
       `),
 
-      // 13. Recaudo de los últimos 6 meses, por mes cubierto
+      // 13. Recaudo de los últimos 6 meses de ciclo ya iniciados
       prisma.$queryRawUnsafe(`
-        SELECT TO_CHAR(periodo, 'YYYY-MM') AS periodo,
-               COALESCE(SUM(monto), 0) AS total
-        FROM pago
-        WHERE estado = 'pagado'
-          AND periodo >= date_trunc('month', CURRENT_DATE)::date - INTERVAL '5 months'
-        GROUP BY 1
-        ORDER BY 1 ASC
+        SELECT * FROM (
+          SELECT cm.clave, cm.mes, cm.fecha_inicio, cm.fecha_fin, TO_CHAR(cm.periodo, 'YYYY-MM') AS periodo,
+                 COALESCE(SUM(p.monto) FILTER (WHERE p.estado = 'pagado'), 0) AS total,
+                 COALESCE(SUM(p.monto), 0) AS esperado
+          FROM ciclo_mes cm
+          LEFT JOIN grupo g ON g.ciclo_id = cm.ciclo_id
+          LEFT JOIN inscripcion i ON i.grupo_id = g.id
+          LEFT JOIN pago p ON p.inscripcion_id = i.id AND p.mes = cm.mes
+          WHERE cm.fecha_inicio <= CURRENT_DATE
+          GROUP BY cm.clave, cm.mes, cm.fecha_inicio, cm.fecha_fin, cm.periodo
+          ORDER BY cm.fecha_inicio DESC
+          LIMIT 6
+        ) x ORDER BY fecha_inicio ASC
       `),
 
-      // 14. Escaladores con 2+ ciclos (renovación)
+      // 14. Renovación: escaladores que pagaron 2 o más meses
       prisma.$queryRawUnsafe(`
-        SELECT COUNT(DISTINCT escalador_id) AS escaladores_renovados
-        FROM (
-          SELECT escalador_id FROM inscripcion GROUP BY escalador_id HAVING COUNT(*) >= 2
+        SELECT COUNT(*) AS escaladores_renovados FROM (
+          SELECT i.escalador_id FROM pago p JOIN inscripcion i ON i.id = p.inscripcion_id
+          WHERE p.estado = 'pagado' GROUP BY i.escalador_id HAVING COUNT(*) >= 2
         ) AS renovados
       `),
 
@@ -212,10 +247,13 @@ router.get("/", authorize("admin"), async (req, res) => {
 
       // 16. Opciones de filtro: entrenadores
       prisma.$queryRawUnsafe(`SELECT id, nombre FROM entrenador ORDER BY nombre`),
+
+      // 17. Opciones de filtro: meses de los ciclos
+      todosLosMeses(),
     ]);
 
     const f  = finanzas[0];
-    const g  = mes[0];
+    const g  = mesActual[0];
     const gs = gruposStats[0];
     const es = escaladoresStats[0];
     const is = inscStats[0];
@@ -247,6 +285,7 @@ router.get("/", authorize("admin"), async (req, res) => {
       menores:                Number(es.menores) || 0,
       inscripciones_activas:  Number(is.inscripciones_activas) || 0,
       inscripciones_total:    Number(is.inscripciones_total) || 0,
+      inscripciones_pagadas:  Number(is.inscripciones_pagadas) || 0,
       grupos_abiertos:        Number(gs.grupos_abiertos) || 0,
       grupos_en_curso:        Number(gs.grupos_en_curso) || 0,
       total_inscritos:        totalInscritos,
@@ -268,9 +307,15 @@ router.get("/", authorize("admin"), async (req, res) => {
       // Escaladores sin grupo asignado
       pendientes,
 
+      // Periodo de las cifras: mes del ciclo elegido (null = ciclo completo o histórico)
+      filtro_mes:   cicloId && mes ? await infoMes(cicloId, mes) : null,
+      filtro_ciclo: cicloId || null,
+      mes_referencia: mesRef ? await infoMes(mesRef.cicloId, mesRef.mes) : null,
+
       // Opciones para filtros del frontend
       _ciclos:       ciclos,
       _entrenadores: entrenadores,
+      _meses:        meses,
     });
   } catch (err) {
     console.error("Error GET /dashboard:", err);

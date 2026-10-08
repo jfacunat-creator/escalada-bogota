@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, CreditCard, BookOpen, ChevronDown, ChevronUp, ClipboardList, CheckCircle2 } from 'lucide-react';
 import { IconoMuro, IconoCronometro, IconoEscalador, IconoCheck, IconoFalta } from '../components/Icons';
-import { HORARIO_LABEL as horarioLabel, fmtHora } from '../components/ui';
+import { HORARIO_LABEL as horarioLabel, fmtHora, fmtRango, ESTADO_PAGO } from '../components/ui';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 const tipoColor  = { regular: '#D4AF37', juego_cierre: '#c084fc', test: '#f59e0b', checkpoint_fest: '#ef4444' };
@@ -234,6 +234,28 @@ export default function MiGrupoPage() {
         </div>
       </div>
 
+      {/* Meses del ciclo: el servicio se paga por mes y el plan se habilita mes a mes */}
+      {grupo.ciclo?.meses?.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+          {grupo.ciclo.meses.map(m => {
+            const est = ESTADO_PAGO[m.estadoPago];
+            const vigente = m.mes === grupo.ciclo.mesVigente;
+            return (
+              <div key={m.mes} style={{ background: C.surface, border: `1px solid ${vigente ? C.accent + '80' : C.border}`, borderRadius: '10px', padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontFamily: 'Antonio', fontSize: '1.05rem', color: C.text }}>Mes {m.mes}</span>
+                  {vigente && <span style={{ fontFamily: 'Poppins', fontSize: '0.65rem', fontWeight: 700, color: C.accent }}>EN CURSO</span>}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: '0.75rem', color: C.text2 }}>{fmtRango(m.fechaInicio, m.fechaFin)}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: '0.75rem', marginTop: '6px', fontWeight: 600, color: est?.color || '#666' }}>
+                  {est ? (m.estadoPago === 'pagado' ? '✓ Pagado · plan habilitado' : est.label) : 'Sin inscribir'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Banner sesión actual */}
       {sesionActual && (
         <div style={{ background: '#1a1400', border: `1px solid ${C.accent}30`, borderLeft: `3px solid ${sesionActual.tipo === 'test' ? '#f59e0b' : C.accent}`, borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
@@ -281,7 +303,7 @@ export default function MiGrupoPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' }} className="mis-stats">
         <style>{`@media(max-width:600px){.mis-stats{grid-template-columns:repeat(2,1fr)!important}}`}</style>
         {[
-          [sesiones.length,         'Total sesiones', C.text2],
+          [sesiones.length,         'Sesiones del ciclo', C.text2],
           [res.asistencias,         'Asistencias',    '#22c55e'],
           [res.faltas,              'Faltas',          '#ef4444'],
           [res.porcentaje + '%',    'Asistencia',      res.porcentaje >= 80 ? '#22c55e' : '#f59e0b'],

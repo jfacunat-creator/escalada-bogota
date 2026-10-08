@@ -1,16 +1,19 @@
 /**
  * PagosPage.jsx — Mensualidades (admin).
- * Cada inscripción activa paga una tarifa por MES según su modalidad (autónomo / acompañado).
- * Consume: /pagos, /pagos/resumen, /pagos/generar, /inscripciones, /catalogos/tarifas
+ * Cada inscripción paga una tarifa por MES según su modalidad (autónomo / acompañado). El mes es
+ * un mes del ciclo de su grupo (Mes 1 = S0–S4, Mes 2 = S5–S8, Mes 3 = S9–S12), con sus fechas.
+ * Consume: /pagos, /pagos/resumen, /pagos/generar, /inscripciones, /catalogos/tarifas, /catalogos/meses
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, ChevronLeft, ChevronRight, Search, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import {
-  C, fmtCOP, fmtFecha, fmtMes, mesActual, sumarMeses, MODALIDAD, ESTADO_PAGO, ESTADO_INSC,
-  Btn, Modal, Field, Input, Select, Aviso, Badge, Confirmar,
+  C, fmtCOP, fmtFecha, fmtMes, fmtRango, MODALIDAD, ESTADO_PAGO, ESTADO_INSC,
+  Btn, Modal, Field, Input, Select, Aviso, Badge, Confirmar, MesesChips,
 } from '../components/ui';
+
+const etiqueta = (m) => (m ? `${m.cicloCodigo} · Mes ${m.mes}` : '—');
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -24,11 +27,19 @@ function Kpi({ label, value, color = C.text, sub }) {
   );
 }
 
-// Registrar el pago de un mes (sobre una mensualidad existente o una inscripción).
-function ModalRegistrarPago({ pago, inscripcion, tarifas, onClose, onHecho }) {
+// Mes sugerido para registrar: el primero sin pagar desde el mes en curso; si todos están pagados, el en curso.
+function mesSugerido(i) {
+  const est = i?.meses_estado || {};
+  const vig = Number(i?.mes_vigente) || 1;
+  return [vig, vig + 1, vig + 2].find(m => m <= 3 && est[m] !== 'pagado') || vig;
+}
+
+// Registrar el pago de un mes del ciclo (sobre una mensualidad existente o una inscripción).
+function ModalRegistrarPago({ pago, inscripcion, tarifas, meses, onClose, onHecho }) {
   const montoBase = pago ? pago.monto : (tarifas?.[inscripcion?.modalidad] ?? '');
+  const mesesCiclo = (meses || []).filter(m => m.cicloId === (pago?.ciclo_id || inscripcion?.ciclo_id)).sort((a, b) => a.mes - b.mes);
   const [form, setForm] = useState({
-    periodo: pago?.periodo_mes || (inscripcion?.pagado_hasta ? sumarMeses(inscripcion.pagado_hasta, 1) : mesActual()),
+    mes: String(pago?.mes || mesSugerido(inscripcion)),
     monto: String(parseFloat(montoBase) || ''), metodo: 'transferencia', referencia: '', fechaPago: hoy(),
   });
   const [guardando, setGuardando] = useState(false);
@@ -43,7 +54,7 @@ function ModalRegistrarPago({ pago, inscripcion, tarifas, onClose, onHecho }) {
       if (pago) {
         await api.updatePago(pago.id, { estado: 'pagado', monto: parseFloat(form.monto), metodo: form.metodo, referencia: form.referencia, fechaPago: form.fechaPago });
       } else {
-        await api.registrarPago({ inscripcionId: inscripcion.id, periodo: form.periodo, monto: parseFloat(form.monto), metodo: form.metodo, referencia: form.referencia, fechaPago: form.fechaPago });
+        await api.registrarPago({ inscripcionId: inscripcion.id, mes: Number(form.mes), monto: parseFloat(form.monto), metodo: form.metodo, referencia: form.referencia, fechaPago: form.fechaPago });
       }
       onHecho(); onClose();
     } catch (e) { setError(e.error); } finally { setGuardando(false); }
@@ -55,8 +66,17 @@ function ModalRegistrarPago({ pago, inscripcion, tarifas, onClose, onHecho }) {
       <Btn onClick={guardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Registrar pago'}</Btn>
     </>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <Field label="Mes que cubre" required hint={pago ? undefined : 'Si la mensualidad de ese mes ya existe, se marca como pagada.'}>
-          <Input type="month" value={form.periodo} disabled={!!pago} onChange={e => set('periodo', e.target.value)} />
+        <Field label="Mes del ciclo que cubre" required hint={pago ? undefined : 'Pagar el mes da acceso al plan de ese mes. Si la mensualidad ya existe, se marca como pagada.'}>
+          <Select value={form.mes} disabled={!!pago} onChange={e => set('mes', e.target.value)}>
+            {(mesesCiclo.length ? mesesCiclo : [1, 2, 3].map(m => ({ mes: m }))).map(m => {
+              const est = inscripcion?.meses_estado?.[m.mes];
+              return (
+                <option key={m.mes} value={m.mes}>
+                  Mes {m.mes}{m.fechaInicio ? ` · ${fmtRango(m.fechaInicio, m.fechaFin)}` : ''}{est ? ` · ${ESTADO_PAGO[est]?.label.toLowerCase()}` : ''}
+                </option>
+              );
+            })}
+          </Select>
         </Field>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <Field label="Monto (COP)" required><Input type="number" min="1" value={form.monto} onChange={e => set('monto', e.target.value)} /></Field>
@@ -77,7 +97,7 @@ function ModalRegistrarPago({ pago, inscripcion, tarifas, onClose, onHecho }) {
   );
 }
 
-function TablaMensualidades({ periodo, tarifas, onCambio }) {
+function TablaMensualidades({ sel, tarifas, meses, onCambio }) {
   const [pagos, setPagos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState({ estado: '', modalidad: '', buscar: '' });
@@ -88,19 +108,19 @@ function TablaMensualidades({ periodo, tarifas, onCambio }) {
 
   const cargar = useCallback(() => {
     setLoading(true);
-    const params = { periodo };
+    const params = { cicloId: sel.cicloId, mes: sel.mes };
     if (filtro.estado) params.estado = filtro.estado;
     if (filtro.modalidad) params.modalidad = filtro.modalidad;
     api.getPagos(params).then(setPagos).catch(e => setError(e.error)).finally(() => setLoading(false));
-  }, [periodo, filtro.estado, filtro.modalidad]);
+  }, [sel.cicloId, sel.mes, filtro.estado, filtro.modalidad]);
   useEffect(() => { cargar(); }, [cargar]);
   const refrescar = () => { cargar(); onCambio(); };
 
   const generar = async () => {
     setError(null); setAviso(null);
     try {
-      const r = await api.generarMensualidades(periodo);
-      setAviso(r.creadas ? `${r.creadas} mensualidad(es) generada(s) para ${fmtMes(periodo)}` : `Todas las inscripciones activas ya tenían su mensualidad de ${fmtMes(periodo)}`);
+      const r = await api.generarMensualidades(sel.cicloId, sel.mes);
+      setAviso(r.creadas ? `${r.creadas} mensualidad(es) generada(s) para ${etiqueta(sel)}` : `Todas las inscripciones activas del ciclo ya tenían su mensualidad del mes ${sel.mes}`);
       refrescar();
     }
     catch (e) { setError(e.error); }
@@ -127,8 +147,8 @@ function TablaMensualidades({ periodo, tarifas, onCambio }) {
           <option value="autonomo">Autónomo</option>
           <option value="acompanado">Acompañado</option>
         </select>
-        <Btn variant="dark" onClick={generar} title="Crea la mensualidad pendiente de este mes a cada inscripción activa que aún no la tenga">
-          Generar mensualidades de {fmtMes(periodo)}
+        <Btn variant="dark" onClick={generar} title="Crea la mensualidad pendiente de este mes a cada inscripción activa del ciclo que aún no la tenga. Quien pagó el mes anterior la recibe sola una semana antes.">
+          Generar mensualidades del mes {sel.mes}
         </Btn>
       </div>
       <Aviso tipo="ok" onClose={() => setAviso(null)}>{aviso}</Aviso>
@@ -137,7 +157,7 @@ function TablaMensualidades({ periodo, tarifas, onCambio }) {
       {loading ? <div style={{ padding: '40px', textAlign: 'center' }}><Loader2 className="animate-spin" style={{ color: C.accent, margin: '0 auto' }} /></div>
         : visibles.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', color: C.text2, fontFamily: 'Poppins', fontSize: '0.9rem' }}>
-            No hay mensualidades de {fmtMes(periodo)}{filtro.estado || filtro.modalidad || filtro.buscar ? ' con esos filtros' : ''}.
+            No hay mensualidades de {etiqueta(sel)}{filtro.estado || filtro.modalidad || filtro.buscar ? ' con esos filtros' : ''}.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -176,22 +196,22 @@ function TablaMensualidades({ periodo, tarifas, onCambio }) {
           </div>
         )}
 
-      {pagar && <ModalRegistrarPago pago={pagar} tarifas={tarifas} onClose={() => setPagar(null)} onHecho={refrescar} />}
+      {pagar && <ModalRegistrarPago pago={pagar} tarifas={tarifas} meses={meses} onClose={() => setPagar(null)} onHecho={refrescar} />}
       {confirmar?.tipo === 'eliminar' && (
         <Confirmar peligro titulo="Eliminar mensualidad" textoBoton="Eliminar" onClose={() => setConfirmar(null)}
-          mensaje={<>Se eliminará la mensualidad de <strong style={{ color: C.text }}>{fmtMes(confirmar.p.periodo_mes)}</strong> de {confirmar.p.nombre} {confirmar.p.apellido} ({fmtCOP(confirmar.p.monto)}).</>}
+          mensaje={<>Se eliminará la mensualidad del <strong style={{ color: C.text }}>mes {confirmar.p.mes}</strong> ({fmtRango(confirmar.p.mes_inicio, confirmar.p.mes_fin)}) de {confirmar.p.nombre} {confirmar.p.apellido} ({fmtCOP(confirmar.p.monto)}). Sin esa mensualidad no tiene inscripción ese mes.</>}
           onConfirm={async () => { await api.deletePago(confirmar.p.id); refrescar(); }} />
       )}
       {confirmar?.tipo === 'revertir' && (
         <Confirmar titulo="Anular pago" textoBoton="Volver a pendiente" onClose={() => setConfirmar(null)}
-          mensaje={<>La mensualidad de {fmtMes(confirmar.p.periodo_mes)} de {confirmar.p.nombre} {confirmar.p.apellido} vuelve a quedar <strong>pendiente</strong>.</>}
+          mensaje={<>La mensualidad del mes {confirmar.p.mes} de {confirmar.p.nombre} {confirmar.p.apellido} vuelve a quedar <strong>pendiente</strong> y pierde el acceso al plan de ese mes.</>}
           onConfirm={async () => { await api.updatePago(confirmar.p.id, { estado: 'pendiente' }); refrescar(); }} />
       )}
     </div>
   );
 }
 
-function TablaInscripciones({ tarifas, onCambio }) {
+function TablaInscripciones({ tarifas, meses, onCambio }) {
   const [inscripciones, setInscripciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [estado, setEstado] = useState('');
@@ -227,7 +247,7 @@ function TablaInscripciones({ tarifas, onCambio }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px', fontFamily: 'Poppins', fontSize: '0.84rem' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.border}`, color: C.text2, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left' }}>
-                  {['Escalador', 'Grupo', 'Tarifa / mes', 'Pagado hasta', 'Debe', 'Estado', ''].map(h => <th key={h} style={{ padding: '10px 8px', fontWeight: 600 }}>{h}</th>)}
+                  {['Escalador', 'Grupo', 'Tarifa / mes', 'Meses del ciclo', 'Debe', 'Estado', ''].map(h => <th key={h} style={{ padding: '10px 8px', fontWeight: 600 }}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -239,7 +259,7 @@ function TablaInscripciones({ tarifas, onCambio }) {
                       <td style={{ padding: '10px 8px' }}><div style={{ color: C.text, fontWeight: 600 }}>{i.nombre} {i.apellido}</div><div style={{ fontSize: '0.72rem', color: C.text3 }}>{i.email}</div></td>
                       <td style={{ padding: '10px 8px', color: C.text2 }}>{i.programa}<div style={{ fontSize: '0.72rem', color: C.text3 }}>{MODALIDAD[i.modalidad]} · {i.ciclo}</div></td>
                       <td style={{ padding: '10px 8px', color: C.accent, fontFamily: 'Antonio', fontSize: '1rem' }}>{fmtCOP(i.precio_mensual)}</td>
-                      <td style={{ padding: '10px 8px', color: C.text2 }}>{i.pagado_hasta ? fmtMes(i.pagado_hasta) : '—'}</td>
+                      <td style={{ padding: '10px 8px' }}><MesesChips estados={i.meses_estado || {}} vigente={Number(i.mes_vigente)} /></td>
                       <td style={{ padding: '10px 8px', color: debe > 0 ? C.danger : C.ok, fontWeight: 600 }}>{debe > 0 ? `${fmtCOP(debe)} (${i.pagos_pendientes})` : 'Al día'}</td>
                       <td style={{ padding: '10px 8px' }}><Badge color={est.color}>{est.label}</Badge></td>
                       <td style={{ padding: '10px 8px' }}>
@@ -260,10 +280,10 @@ function TablaInscripciones({ tarifas, onCambio }) {
             </table>
           </div>
         )}
-      {pagar && <ModalRegistrarPago inscripcion={pagar} tarifas={tarifas} onClose={() => setPagar(null)} onHecho={refrescar} />}
+      {pagar && <ModalRegistrarPago inscripcion={pagar} tarifas={tarifas} meses={meses} onClose={() => setPagar(null)} onHecho={refrescar} />}
       {confirmar?.tipo === 'cancelar' && (
         <Confirmar titulo="Cancelar inscripción" textoBoton="Cancelar inscripción" peligro onClose={() => setConfirmar(null)}
-          mensaje={<>{confirmar.i.nombre} {confirmar.i.apellido} deja el grupo {confirmar.i.programa}. Se liberan su cupo y sus mensualidades pendientes desde este mes; las pagadas y las vencidas se conservan.</>}
+          mensaje={<>{confirmar.i.nombre} {confirmar.i.apellido} deja el grupo {confirmar.i.programa}. Se liberan su cupo y sus mensualidades sin pagar desde el mes en curso del ciclo; las pagadas y las de meses anteriores se conservan.</>}
           onConfirm={async () => { await api.cambiarEstadoInscripcion(confirmar.i.id, 'cancelada'); refrescar(); }} />
       )}
       {confirmar?.tipo === 'eliminar' && (
@@ -277,14 +297,25 @@ function TablaInscripciones({ tarifas, onCambio }) {
 
 export default function PagosPage() {
   const [tab, setTab] = useState('mensualidades');
-  const [periodo, setPeriodo] = useState(mesActual());
+  const [meses, setMeses] = useState([]);   // meses de todos los ciclos, del más reciente al más antiguo
+  const [sel, setSel] = useState(null);     // { cicloId, mes, ... } mes del ciclo elegido
   const [resumen, setResumen] = useState(null);
   const [tarifas, setTarifas] = useState(null);
   const [version, setVersion] = useState(0);
 
   useEffect(() => { api.getTarifas().then(setTarifas).catch(() => {}); }, []);
-  useEffect(() => { api.getResumenPagos(periodo).then(setResumen).catch(() => setResumen(null)); }, [periodo, version]);
+  useEffect(() => {
+    api.getMeses().then(r => {
+      setMeses(r.meses);
+      setSel(r.meses.find(m => m.cicloId === r.enCurso?.cicloId && m.mes === r.enCurso?.mes) || r.meses[0] || null);
+    }).catch(() => setMeses([]));
+  }, []);
+  useEffect(() => {
+    if (!sel) return;
+    api.getResumenPagos({ cicloId: sel.cicloId, mes: sel.mes }).then(setResumen).catch(() => setResumen(null));
+  }, [sel, version]);
   const onCambio = () => setVersion(v => v + 1);
+  const idx = sel ? meses.findIndex(m => m.clave === sel.clave) : -1;
 
   return (
     <div>
@@ -296,21 +327,28 @@ export default function PagosPage() {
             {' · '}<Link to="/app/configuracion" style={{ color: C.accent }}>Editar tarifas</Link>
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '4px' }}>
-          <button aria-label="Mes anterior" onClick={() => setPeriodo(p => sumarMeses(p, -1))} style={{ background: 'none', border: 'none', color: C.text2, cursor: 'pointer', display: 'flex', padding: '6px' }}><ChevronLeft size={18} /></button>
-          <span style={{ fontFamily: 'Antonio', fontSize: '1.05rem', color: C.text, minWidth: '140px', textAlign: 'center', textTransform: 'capitalize' }}>{fmtMes(periodo)}</span>
-          <button aria-label="Mes siguiente" onClick={() => setPeriodo(p => sumarMeses(p, 1))} style={{ background: 'none', border: 'none', color: C.text2, cursor: 'pointer', display: 'flex', padding: '6px' }}><ChevronRight size={18} /></button>
-        </div>
+        {sel && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '4px' }}>
+            <button aria-label="Mes anterior" disabled={idx >= meses.length - 1} onClick={() => setSel(meses[idx + 1])} style={{ background: 'none', border: 'none', color: C.text2, cursor: 'pointer', display: 'flex', padding: '6px', opacity: idx >= meses.length - 1 ? 0.3 : 1 }}><ChevronLeft size={18} /></button>
+            <div style={{ minWidth: '170px', textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Antonio', fontSize: '1.05rem', color: C.text }}>{etiqueta(sel)}{sel.vigente ? ' · en curso' : ''}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: '0.7rem', color: C.text2 }}>{fmtRango(sel.fechaInicio, sel.fechaFin)} · ≈ {fmtMes(sel.periodo)}</div>
+            </div>
+            <button aria-label="Mes siguiente" disabled={idx <= 0} onClick={() => setSel(meses[idx - 1])} style={{ background: 'none', border: 'none', color: C.text2, cursor: 'pointer', display: 'flex', padding: '6px', opacity: idx <= 0 ? 0.3 : 1 }}><ChevronRight size={18} /></button>
+          </div>
+        )}
       </div>
 
-      {resumen && (
+      {!sel && <Aviso tipo="warn">No hay ciclos configurados. Crea uno en Configuración para empezar a cobrar mensualidades.</Aviso>}
+
+      {sel && resumen && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '20px' }}>
-          <Kpi label={`Esperado ${fmtMes(periodo)}`} value={fmtCOP(resumen.esperado)} />
+          <Kpi label="Inscritos este mes" value={resumen.inscritos} color={C.accent} sub={`${resumen.pagados} con el mes pagado`} />
+          <Kpi label="Esperado del mes" value={fmtCOP(resumen.esperado)} />
           <Kpi label="Recaudado" value={fmtCOP(resumen.recaudado)} color={C.ok} sub={`${resumen.tasa_recaudo}% del esperado`} />
           <Kpi label="Pendientes" value={resumen.pendientes} color={resumen.pendientes > 0 ? C.warn : C.ok} />
           <Kpi label="Vencidas" value={resumen.vencidos} color={resumen.vencidos > 0 ? C.danger : C.ok} />
           <Kpi label="Deuda vencida (todos los meses)" value={fmtCOP(resumen.deuda_vencida)} color={resumen.deuda_vencida > 0 ? C.danger : C.ok} sub={`${resumen.pagos_vencidos} mensualidad(es)`} />
-          <Kpi label="Inscripciones activas" value={resumen.inscripciones_activas} color={C.accent} />
         </div>
       )}
 
@@ -325,8 +363,8 @@ export default function PagosPage() {
 
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '16px' }}>
         {tab === 'mensualidades'
-          ? <TablaMensualidades periodo={periodo} tarifas={tarifas} onCambio={onCambio} />
-          : <TablaInscripciones tarifas={tarifas} onCambio={onCambio} />}
+          ? (sel ? <TablaMensualidades sel={sel} tarifas={tarifas} meses={meses} onCambio={onCambio} /> : null)
+          : <TablaInscripciones tarifas={tarifas} meses={meses} onCambio={onCambio} />}
       </div>
     </div>
   );

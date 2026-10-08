@@ -1,7 +1,8 @@
 const express = require("express");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
-const { tarifas } = require("../utils/pagos");
+const { tarifas, SQL_SIN_PAGAR_DESDE_HOY } = require("../utils/pagos");
+const { todosLosMeses, mesEnCurso } = require("../utils/meses");
 const { generarSesiones, borrarSesiones, tieneAsistencia } = require("../utils/sesiones");
 
 const router = express.Router();
@@ -39,9 +40,9 @@ router.put("/tarifas/:modalidad", authenticate, authorize("admin"), async (req, 
       );
       return tx.$executeRawUnsafe(
         `UPDATE pago p SET monto = $2, updated_at = NOW()
-         FROM inscripcion i, grupo g
-         WHERE p.inscripcion_id = i.id AND i.grupo_id = g.id AND g.modalidad = $1::"ModalidadPlan"
-           AND p.estado IN ('pendiente', 'vencido') AND p.periodo >= date_trunc('month', CURRENT_DATE)::date`,
+         FROM inscripcion i, grupo g, ciclo ci
+         WHERE p.inscripcion_id = i.id AND i.grupo_id = g.id AND ci.id = g.ciclo_id AND g.modalidad = $1::"ModalidadPlan"
+           AND ${SQL_SIN_PAGAR_DESDE_HOY}`,
         modalidad, precio
       );
     });
@@ -81,16 +82,37 @@ router.put("/programas/:id", authenticate, authorize("admin"), async (req, res) 
 });
 
 // ─── GET /catalogos/ciclos ────────────────────────────────
+// Cada ciclo trae sus 3 meses (fechas de inicio y fin y mes calendario aproximado).
 router.get("/ciclos", async (req, res) => {
   try {
     const { anio } = req.query;
-    let sql = `SELECT c.*, (SELECT COUNT(*) FROM grupo g WHERE g.ciclo_id = c.id) AS grupos FROM ciclo c`;
+    let sql = `SELECT c.*, (SELECT COUNT(*) FROM grupo g WHERE g.ciclo_id = c.id) AS grupos,
+                      (SELECT json_agg(json_build_object('mes', cm.mes, 'clave', cm.clave,
+                                'fecha_inicio', cm.fecha_inicio, 'fecha_fin', cm.fecha_fin,
+                                'periodo', to_char(cm.periodo, 'YYYY-MM')) ORDER BY cm.mes)
+                         FROM ciclo_mes cm WHERE cm.ciclo_id = c.id) AS meses
+               FROM ciclo c`;
     const params = [];
     if (anio) { params.push(parseInt(anio)); sql += ` WHERE anio = $${params.length}`; }
     sql += " ORDER BY anio DESC, trimestre DESC";
     res.json(await prisma.$queryRawUnsafe(sql, ...params));
   } catch (e) { manejarError(res, e, "GET /catalogos/ciclos"); }
 });
+
+// ─── GET /catalogos/meses ─────────────────────────────────
+// Meses de servicio de todos los ciclos (selector de periodo de pagos y estadísticas).
+router.get("/meses", authenticate, authorize("admin", "entrenador"), async (req, res) => {
+  try {
+    res.json({ meses: await todosLosMeses(), enCurso: await mesEnCurso() });
+  } catch (e) { manejarError(res, e, "GET /catalogos/meses"); }
+});
+
+// Un ciclo se vende en 3 meses de 4 semanas más la semana S0: 13 semanas.
+function avisoDuracion(fechaInicio, fechaFin) {
+  const dias = Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1;
+  return dias === 91 ? null
+    : `El ciclo dura ${dias} días; los 3 meses están pensados para 13 semanas (91 días): Mes 1 = S0–S4, Mes 2 = S5–S8, Mes 3 = S9–S12.`;
+}
 
 function validarCiclo({ anio, trimestre, fechaInicio, fechaFin, semanaEmpalme }) {
   const a = parseInt(anio), t = parseInt(trimestre);
@@ -116,7 +138,8 @@ router.post("/ciclos", authenticate, authorize("admin"), async (req, res) => {
        VALUES ($1, $2, $3, $4::date, $5::date, $6::date) RETURNING *`,
       codigo, a, t, req.body.fechaInicio, req.body.fechaFin, empalme
     );
-    res.status(201).json(r[0]);
+    const aviso = avisoDuracion(req.body.fechaInicio, req.body.fechaFin);
+    res.status(201).json({ ...r[0], avisos: aviso ? [aviso] : [] });
   } catch (e) { manejarError(res, e, "POST /catalogos/ciclos"); }
 });
 
@@ -149,6 +172,14 @@ router.put("/ciclos/:id", authenticate, authorize("admin"), async (req, res) => 
         }
         if (regenerados) avisos.push(`Sesiones regeneradas en ${regenerados} grupo(s)`);
         if (conAsistencia) avisos.push(`${conAsistencia} grupo(s) ya tienen asistencia: sus sesiones no se modificaron`);
+        // Las fechas de los meses cambian: recalcula el mes calendario aproximado de sus pagos (trigger).
+        await tx.$executeRawUnsafe(
+          `UPDATE pago p SET mes = p.mes FROM inscripcion i JOIN grupo g ON g.id = i.grupo_id
+           WHERE p.inscripcion_id = i.id AND g.ciclo_id = $1::uuid`,
+          req.params.id
+        );
+        const aviso = avisoDuracion(req.body.fechaInicio, req.body.fechaFin);
+        if (aviso) avisos.push(aviso);
       }
       return { ...r[0], avisos };
     });

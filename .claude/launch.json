@@ -20,6 +20,16 @@
       ],
       "port": 3001,
       "cwd": "/Users/jfat/Documents/GitHub/escalada-bogota/backend"
+    },
+    {
+      "name": "backend-test",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "DATABASE_URL=postgresql://postgres:test@localhost:55432/escalada_test PORT=3001 node --watch src/index.js"
+      ],
+      "port": 3001,
+      "cwd": "/Users/jfat/Documents/GitHub/escalada-bogota/backend"
     }
   ]
 }

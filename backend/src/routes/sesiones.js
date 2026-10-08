@@ -31,11 +31,12 @@ router.get("/", async (req, res) => {
     }
 
     const result = await prisma.$queryRawUnsafe(
-      `SELECT s.*, g.modalidad, p.nombre AS programa,
+      `SELECT s.*, g.modalidad, p.nombre AS programa, ciclo_mes_de(ci.fecha_inicio, s.fecha) AS mes,
               (SELECT COUNT(*) FROM asistencia a WHERE a.sesion_id = s.id) AS total_asistencias
        FROM sesion s
        JOIN grupo g ON s.grupo_id = g.id
        JOIN programa p ON g.programa_id = p.id
+       JOIN ciclo ci ON ci.id = g.ciclo_id
        WHERE s.grupo_id = $1
        ORDER BY s.fecha ASC, s.hora_inicio ASC`,
       grupoId

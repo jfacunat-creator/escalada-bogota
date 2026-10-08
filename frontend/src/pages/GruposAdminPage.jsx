@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus, ChevronRight, X, AlertCircle, Trash2, Pencil } from 'lucide-react';
 import api from '../services/api';
 import { IconoCronometro, IconoMuro, IconoCuerda } from '../components/Icons';
-import { HORARIOS, HORARIO_LABEL as horarioLabel } from '../components/ui';
+import { HORARIOS, HORARIO_LABEL as horarioLabel, fmtRango } from '../components/ui';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', accent2: '#9E721D', sidebar: '#4A2F0F', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 
@@ -134,14 +134,17 @@ function GrupoRow({ grupo, onEstado, onDetalle, onDelete, onEdit }) {
         </div>
       </div>
 
-      {/* Stats inline */}
+      {/* Cifras del mes del ciclo en curso (el servicio se paga por mes) */}
+      <div style={{ fontSize: '0.7rem', color: C.text2, fontFamily: 'Poppins', marginBottom: '-6px' }}>
+        <strong style={{ color: C.accent }}>Mes {grupo.mes_vigente} de 3</strong> · {fmtRango(grupo.mes_inicio, grupo.mes_fin)}
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
         {[
-          [grupo.total_sesiones || '0', 'Sesiones', '#A09A8C'],
-          [grupo.asistencia_pct == null ? '—' : grupo.asistencia_pct + '%', 'Asistencia', grupo.asistencia_pct == null ? '#A09A8C' : parseInt(grupo.asistencia_pct) >= 80 ? '#22c55e' : '#f59e0b'],
-          [new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(grupo.ingresos_grupo || 0), 'Ingresos', '#22c55e'],
-          [parseInt(grupo.pagos_pendientes_grupo) > 0 ? grupo.pagos_pendientes_grupo : '✓', 'Pagos', parseInt(grupo.pagos_pendientes_grupo) > 0 ? '#ef4444' : '#22c55e'],
-          [grupo.fecha_inicio ? new Date(grupo.fecha_inicio).toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short' }) : '—', 'Inicio', '#60a5fa'],
+          [grupo.mes_inscritos || '0', 'Inscritos mes', C.accent],
+          [`${grupo.mes_pagados || 0}/${grupo.mes_inscritos || 0}`, 'Pagaron', Number(grupo.mes_pagados) < Number(grupo.mes_inscritos) ? '#f59e0b' : '#22c55e'],
+          [new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(grupo.mes_recaudado || 0), 'Ingresos mes', '#22c55e'],
+          [grupo.mes_asistencia_pct == null ? '—' : grupo.mes_asistencia_pct + '%', 'Asistencia', grupo.mes_asistencia_pct == null ? '#A09A8C' : parseInt(grupo.mes_asistencia_pct) >= 80 ? '#22c55e' : '#f59e0b'],
+          [grupo.total_sesiones || '0', 'Sesiones ciclo', '#A09A8C'],
         ].map(([v, l, c]) => (
           <div key={l} style={{ background: '#242424', borderRadius: '5px', padding: '5px 4px', textAlign: 'center' }}>
             <div style={{ fontFamily: 'Antonio', fontSize: '0.9rem', color: c, lineHeight: 1.2 }}>{v}</div>
@@ -542,7 +545,7 @@ export default function GruposAdminPage() {
   };
 
   // Stats
-  const totalInscritos = grupos.reduce((s, c) => s + (Number(c.inscritos_actual) || 0), 0);
+  const totalInscritos = grupos.reduce((s, c) => s + (Number(c.mes_inscritos) || 0), 0);
   const abiertas = grupos.filter(c => c.estado === 'abierta').length;
   const enCurso = grupos.filter(c => c.estado === 'en_curso').length;
 
@@ -553,7 +556,7 @@ export default function GruposAdminPage() {
         <div>
           <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text, marginBottom: '4px' }}>Gestión de Grupos</h1>
           <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>
-            {grupos.length} grupos · {totalInscritos} inscritos · {abiertas} abiertas · {enCurso} en curso
+            {grupos.length} grupos · {totalInscritos} inscritos en el mes en curso · {abiertas} abiertas · {enCurso} en curso
           </p>
         </div>
         <button onClick={() => setShowCrear(true)} style={{

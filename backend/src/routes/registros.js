@@ -8,11 +8,13 @@
  *   POST /registros/sincronizar                   → subir lo que haya en el navegador y recibir lo del servidor
  *
  * Conflictos: gana el registro más reciente según datos.ts (momento en que se guardó en el dispositivo).
+ * El escalador solo guarda registros de semanas de meses que pagó y que ya empezaron (ver utils/meses.js).
  */
 const express = require("express");
 const prisma = require("../config/prisma");
 const { authenticate } = require("../middleware/auth");
 const { puedeVerEscalador } = require("../utils/acceso");
+const { accesoEscalador, puedeRegistrar } = require("../utils/meses");
 
 const router = express.Router();
 router.use(authenticate);
@@ -136,6 +138,10 @@ router.put("/:semana/:sesionNum", async (req, res) => {
   const trimestre = trimestreDe(req.body.trimestre);
   const sesionNum = Number(m[2]);
   try {
+    const acc = await accesoEscalador(req.user.escalador.id);
+    if (!puedeRegistrar(acc, trimestre, req.params.semana)) {
+      return res.status(403).json({ error: "Esa semana no corresponde a un mes pagado de tu ciclo" });
+    }
     const guardado = await upsertRegistro(req.user.escalador.id, trimestre, req.params.semana, sesionNum, datos);
     res.json({ ok: true, guardado });
   } catch (err) {
@@ -154,9 +160,12 @@ router.post("/sincronizar", async (req, res) => {
   if (entradas.length > MAX_REGISTROS) return res.status(400).json({ error: "Demasiados registros" });
   const escaladorId = req.user.escalador.id;
   try {
+    // Lo del navegador que no corresponda a un mes pagado se ignora (no se sube).
+    const acc = await accesoEscalador(escaladorId);
     let subidos = 0;
     for (const [clave, datos] of entradas) {
       const [, sem, num] = clave.match(RE_CLAVE);
+      if (!puedeRegistrar(acc, trimestre, `S${sem}`)) continue;
       if (await upsertRegistro(escaladorId, trimestre, `S${sem}`, Number(num), datos)) subidos++;
     }
     // El perfil local solo se sube si el servidor aún no tiene uno

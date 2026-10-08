@@ -138,15 +138,15 @@ function ContenidoPrograma({ programa, ciclos }) {
 
   return (
     <Tarjeta titulo="Contenido para los escaladores" color={C.info}
-      accion={<Btn small variant="dark" onClick={() => setNuevo({ cicloId: ciclos[0]?.id || '', tipo: 'video_tecnica', titulo: '', archivoUrl: '', descripcion: '' })}><Plus size={13} /> Agregar</Btn>}>
+      accion={<Btn small variant="dark" onClick={() => setNuevo({ cicloId: ciclos[0]?.id || '', mes: '', tipo: 'video_tecnica', titulo: '', archivoUrl: '', descripcion: '' })}><Plus size={13} /> Agregar</Btn>}>
       <Aviso onClose={() => setError(null)}>{error}</Aviso>
       {loading ? <Loader2 className="animate-spin" style={{ color: C.accent }} />
-        : items.length === 0 ? <div style={{ color: C.text3, fontFamily: 'Poppins', fontSize: '0.84rem' }}>Sin contenido. Lo que agregues aquí aparece en “Contenido” para los escaladores inscritos en este programa durante el ciclo elegido.</div>
+        : items.length === 0 ? <div style={{ color: C.text3, fontFamily: 'Poppins', fontSize: '0.84rem' }}>Sin contenido. Lo que agregues aquí aparece en “Contenido” para los escaladores inscritos en este programa que tengan pagado el mes en curso del ciclo elegido.</div>
         : items.map(c => (
           <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid #242424', opacity: c.visible ? 1 : 0.5 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '0.85rem', color: C.text, fontFamily: 'Poppins', fontWeight: 600 }}>{c.titulo}</div>
-              <div style={{ fontSize: '0.72rem', color: C.text3, fontFamily: 'Poppins' }}>{TIPO_CONTENIDO[c.tipo]} · {c.ciclo_codigo}{c.visible ? '' : ' · oculto'}</div>
+              <div style={{ fontSize: '0.72rem', color: C.text3, fontFamily: 'Poppins' }}>{TIPO_CONTENIDO[c.tipo]} · {c.ciclo_codigo} · {c.mes ? `solo mes ${c.mes}` : 'todo el ciclo'}{c.visible ? '' : ' · oculto'}</div>
             </div>
             <a href={c.archivo_url} target="_blank" rel="noopener noreferrer" title="Abrir" style={{ color: C.text2, display: 'flex' }}><ExternalLink size={15} /></a>
             <Btn small variant="secondary" title={c.visible ? 'Ocultar a los escaladores' : 'Mostrar'} onClick={() => toggle(c)}>{c.visible ? <EyeOff size={13} /> : <Eye size={13} />}</Btn>
@@ -163,6 +163,12 @@ function ContenidoPrograma({ programa, ciclos }) {
               <Select value={nuevo.cicloId} onChange={e => setNuevo(n => ({ ...n, cicloId: e.target.value }))}>
                 {ciclos.length === 0 && <option value="">No hay ciclos: créalos en Configuración</option>}
                 {ciclos.map(c => <option key={c.id} value={c.id}>{c.codigo}</option>)}
+              </Select>
+            </Field>
+            <Field label="Visible en" hint="El escalador solo ve el material del mes en curso, y solo si lo tiene pagado. Para planes y documentos de un mes, elige ese mes.">
+              <Select value={nuevo.mes} onChange={e => setNuevo(n => ({ ...n, mes: e.target.value }))}>
+                <option value="">Todo el ciclo (mientras tenga el mes en curso pagado)</option>
+                {[1, 2, 3].map(m => <option key={m} value={m}>Solo el mes {m} ({['S0–S4', 'S5–S8', 'S9–S12'][m - 1]})</option>)}
               </Select>
             </Field>
             <Field label="Tipo" required>

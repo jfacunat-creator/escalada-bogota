@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { generateTokens } = require("../utils/jwt");
+const { SQL_MES_VIGENTE } = require("../utils/meses");
 
 const router = express.Router();
 
@@ -191,6 +192,10 @@ router.get(
              p.descripcion AS prog_desc, p.incluye_fisio, p.incluye_nutricion,
              ci.id   AS ciclo_id,     ci.codigo AS ciclo_codigo,
              ci.fecha_inicio,         ci.fecha_fin,      ci.semana_empalme,
+             ${SQL_MES_VIGENTE()} AS mes_vigente, CURRENT_DATE > ci.fecha_fin AS ciclo_terminado,
+             (SELECT json_agg(json_build_object('mes', cm.mes, 'fechaInicio', cm.fecha_inicio, 'fechaFin', cm.fecha_fin,
+                        'periodo', to_char(cm.periodo, 'YYYY-MM'), 'clave', cm.clave) ORDER BY cm.mes)
+                FROM ciclo_mes cm WHERE cm.ciclo_id = ci.id) AS meses,
              m.id    AS muro_id,      m.nombre  AS muro_nombre, m.direccion AS muro_dir,
              ent.id  AS entrenador_id, ent.nombre AS entrenador_nombre,
              t.precio_mensual
@@ -207,12 +212,12 @@ router.get(
         );
         const pagosRes = await prisma.$queryRawUnsafe(
           `SELECT pa.id, pa.inscripcion_id, pa.monto, pa.fecha_pago,
-                  pa.fecha_vencimiento, pa.metodo, pa.estado, pa.referencia,
+                  pa.fecha_vencimiento, pa.metodo, pa.estado, pa.referencia, pa.mes,
                   to_char(pa.periodo, 'YYYY-MM') AS periodo
            FROM pago pa
            JOIN inscripcion i ON pa.inscripcion_id = i.id
            WHERE i.escalador_id = $1
-           ORDER BY pa.periodo DESC`,
+           ORDER BY pa.mes DESC`,
           row.esc_id
         );
         const pagosByInsc = {};
@@ -226,6 +231,7 @@ router.get(
             metodo: p.metodo,
             estado: p.estado,
             referencia: p.referencia,
+            mes: p.mes,
             periodo: p.periodo,
           });
         }
@@ -257,6 +263,12 @@ router.get(
               fechaInicio: r.fecha_inicio,
               fechaFin: r.fecha_fin,
               semanaEmpalme: r.semana_empalme,
+              mesVigente: r.ciclo_terminado ? null : Number(r.mes_vigente),
+              // Meses del ciclo (4 semanas c/u) con el estado de la mensualidad de esta inscripción.
+              meses: (r.meses || []).map(m => ({
+                ...m,
+                estadoPago: (pagosByInsc[r.id] || []).find(p => p.mes === m.mes)?.estado || null,
+              })),
             },
             muro: r.muro_id ? { id: r.muro_id, nombre: r.muro_nombre, direccion: r.muro_dir } : null,
             entrenador: { id: r.entrenador_id, nombre: r.entrenador_nombre },

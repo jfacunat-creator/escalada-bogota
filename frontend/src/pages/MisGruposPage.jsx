@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2 } from 'lucide-react';
 import { IconoEscalador, IconoMuro, IconoCronometro } from '../components/Icons';
-import { HORARIO_LABEL } from '../components/ui';
+import { HORARIO_LABEL, fmtRango } from '../components/ui';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C', text3: '#666' };
 
@@ -75,7 +75,7 @@ export default function MisGruposPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {grupos.map(g => {
-            const pct = g.cupo_maximo > 0 ? Math.round((parseInt(g.inscritos) / g.cupo_maximo) * 100) : 0;
+            const pct = g.cupo_maximo > 0 ? Math.round((parseInt(g.mes_inscritos) / g.cupo_maximo) * 100) : 0;
             const nivelColor = NIVEL_COLOR[g.nivel] || C.accent;
 
             return (
@@ -108,23 +108,23 @@ export default function MisGruposPage() {
                 <div style={{ padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px,1fr))', gap: '14px' }}>
                   {/* Ocupación */}
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontFamily: 'Antonio', fontSize: '1.4rem', color: C.accent }}>{g.inscritos}/{g.cupo_maximo}</div>
-                    <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins', marginBottom: '4px' }}>Inscritos</div>
+                    <div style={{ fontFamily: 'Antonio', fontSize: '1.4rem', color: C.accent }}>{g.mes_inscritos}/{g.cupo_maximo}</div>
+                    <div style={{ fontSize: '0.72rem', color: C.text2, fontFamily: 'Poppins', marginBottom: '4px' }}>Inscritos mes {g.mes_vigente} · {g.mes_pagados} pagaron</div>
                     <div style={{ height: '4px', background: '#252525', borderRadius: '2px' }}>
                       <div style={{ width: `${pct}%`, height: '100%', background: pct >= 80 ? '#f59e0b' : '#22c55e', borderRadius: '2px' }} />
                     </div>
                   </div>
 
-                  {/* Fechas */}
+                  {/* Fechas: mes del ciclo en curso y ciclo completo */}
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '0.8rem', color: C.text, fontFamily: 'Poppins', fontWeight: 500 }}>
-                      {g.fecha_inicio ? new Date(g.fecha_inicio).toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short' }) : '—'}
+                      Mes {g.mes_vigente} · {fmtRango(g.mes_inicio, g.mes_fin)}
                     </div>
-                    <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>Inicio</div>
+                    <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>Mes en curso</div>
                     <div style={{ fontSize: '0.8rem', color: C.text, fontFamily: 'Poppins', fontWeight: 500, marginTop: '4px' }}>
-                      {g.fecha_fin ? new Date(g.fecha_fin).toLocaleDateString('es-CO', { timeZone: 'UTC', day: '2-digit', month: 'short' }) : '—'}
+                      {fmtRango(g.fecha_inicio, g.fecha_fin)}
                     </div>
-                    <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>Fin</div>
+                    <div style={{ fontSize: '0.68rem', color: C.text2, fontFamily: 'Poppins' }}>Ciclo (3 meses)</div>
                   </div>
 
                   {/* Modalidad */}

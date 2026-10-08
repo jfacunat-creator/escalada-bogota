@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { HORARIO_LABEL } from '../components/ui';
+import { HORARIO_LABEL, fmtRango } from '../components/ui';
 import { Loader2 } from 'lucide-react';
 import { IconoEscalador, IconoPresa, IconoCronometro, IconoMuro } from '../components/Icons';
 
@@ -55,7 +55,7 @@ export default function EntrenadorDashboard() {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
         <StatCard icon={IconoMuro} label="Grupos activos" value={stats.grupos_activos || 0} color="#D4AF37" />
-        <StatCard icon={IconoEscalador} label="Escaladores activos" value={stats.escaladores_activos || 0} color="#9E721D" />
+        <StatCard icon={IconoEscalador} label="Escaladores con el mes pagado" value={`${stats.escaladores_mes_pagado || 0}/${stats.escaladores_activos || 0}`} color="#9E721D" />
         <StatCard icon={IconoCronometro} label="Grupos histórico" value={stats.total_grupos_historico || 0} color="#A09A8C" />
         <StatCard icon={IconoPresa} label="Máx. grupos" value={data?.max_grupos || 6} color="#A09A8C" />
       </div>
@@ -77,6 +77,7 @@ export default function EntrenadorDashboard() {
               <div style={{ padding: '14px 16px', background: '#4A2F0F', borderBottom: '1px solid #5a3a14' }}>
                 <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.05rem', color: '#F0EDE8' }}>{g.programa_nombre}</div>
                 <div style={{ fontSize: '0.75rem', color: '#D4AF37', marginTop: '2px' }}>{g.ciclo_codigo} · {g.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'}</div>
+                <div style={{ fontSize: '0.72rem', color: '#A09A8C', marginTop: '2px' }}>Mes {g.mes_vigente} de 3 · {fmtRango(g.mes_inicio, g.mes_fin)}</div>
               </div>
               <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ fontSize: '0.85rem', color: '#A09A8C', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -88,9 +89,15 @@ export default function EntrenadorDashboard() {
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #2e2e2e' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#A09A8C' }}>Inscritos</span>
-                  <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: parseInt(g.inscritos) >= g.cupo_maximo ? '#f87171' : '#D4AF37' }}>
-                    {g.inscritos}/{g.cupo_maximo}
+                  <span style={{ fontSize: '0.85rem', color: '#A09A8C' }}>Inscritos este mes</span>
+                  <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: parseInt(g.mes_inscritos) >= g.cupo_maximo ? '#f87171' : '#D4AF37' }}>
+                    {g.mes_inscritos}/{g.cupo_maximo}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#A09A8C' }}>Con el mes pagado</span>
+                  <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: Number(g.mes_pagados) < Number(g.mes_inscritos) ? '#f59e0b' : '#22c55e' }}>
+                    {g.mes_pagados}/{g.mes_inscritos}
                   </span>
                 </div>
                 <button onClick={() => navigate(`/app/mis-grupos/${g.id}`)} style={{ marginTop: '4px', padding: '7px', borderRadius: '6px', background: '#4A2F0F', border: 'none', color: '#D4AF37', fontFamily: 'Poppins', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>

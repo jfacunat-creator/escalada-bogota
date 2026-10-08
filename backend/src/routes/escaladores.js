@@ -2,7 +2,7 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
-const { recontarGrupo } = require("../utils/pagos");
+const { recontarGrupo, liberarMensualidades } = require("../utils/pagos");
 const { borrarEscalador } = require("../utils/borrado");
 
 const router = express.Router();
@@ -133,9 +133,12 @@ router.get("/:id", async (req, res) => {
     if (req.user.rol !== "entrenador") {
       pagos = await prisma.$queryRawUnsafe(
         `SELECT pa.id, pa.inscripcion_id, pa.monto, pa.estado, pa.metodo, pa.referencia, pa.fecha_pago,
-                pa.fecha_vencimiento, to_char(pa.periodo, 'YYYY-MM') AS periodo_mes
+                pa.fecha_vencimiento, to_char(pa.periodo, 'YYYY-MM') AS periodo_mes,
+                pa.mes, cm.clave AS mes_clave, cm.fecha_inicio AS mes_inicio, cm.fecha_fin AS mes_fin
          FROM pago pa JOIN inscripcion i ON i.id = pa.inscripcion_id
-         WHERE i.escalador_id = $1 ORDER BY pa.periodo DESC`,
+         JOIN grupo g ON g.id = i.grupo_id
+         JOIN ciclo_mes cm ON cm.ciclo_id = g.ciclo_id AND cm.mes = pa.mes
+         WHERE i.escalador_id = $1 ORDER BY cm.fecha_inicio DESC`,
         id
       );
     }
@@ -270,11 +273,7 @@ router.patch("/:id/estado", authorize("admin"), [body("estado").isIn(["activo", 
       );
       if (!cambiadas.length) return;
       if (transicion[1] !== "activa") {
-        await tx.$executeRawUnsafe(
-          `DELETE FROM pago WHERE inscripcion_id = ANY($1::uuid[]) AND estado = 'pendiente'
-             AND periodo >= date_trunc('month', CURRENT_DATE)::date`,
-          cambiadas.map(c => c.id)
-        );
+        await liberarMensualidades(cambiadas.map(c => c.id), tx);
       }
       for (const c of cambiadas) await recontarGrupo(c.grupo_id, tx);
       avisos.push(`${cambiadas.length} inscripción(es) pasaron a ${transicion[1]}`);

@@ -43,7 +43,7 @@ export default function ContenidoPage() {
         <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '60px', textAlign: 'center' }}>
           <IconoCandado style={{ width: '48px', height: '48px', color: '#2e2e2e', margin: '0 auto 12px' }} />
           <h3 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#A09A8C', marginBottom: '8px' }}>Sin contenido disponible</h3>
-          <p style={{ color: '#666', fontSize: '0.85rem' }}>El contenido se habilita con una inscripción activa.</p>
+          <p style={{ color: '#666', fontSize: '0.85rem' }}>El contenido se habilita mes a mes: verás el material del mes en curso cuando su mensualidad esté pagada.</p>
         </div>
       ) : (
         <>
