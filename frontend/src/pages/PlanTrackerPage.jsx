@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import {
@@ -1494,6 +1494,8 @@ export default function PlanTrackerPage() {
   const [logs, setLogs]       = useState({});
   const [perfil, setPerfil]   = useState(() => (user?.id ? cargarPerfil(user.id) : null));
   const [vistaRegistro, setVistaRegistro] = useState("registrar");
+  // Enlace directo a una sesión (?semana=S3&sesion=2), p. ej. desde el calendario de Mi Grupo
+  const [params, setParams] = useSearchParams();
 
   const [sync, setSync]       = useState("ok"); // "ok" | "local" (sin conexión con el servidor)
   // Copia local por trimestre (respaldo si no hay conexión). La fuente de verdad es la BD.
@@ -1562,6 +1564,12 @@ export default function PlanTrackerPage() {
         setPlan(data);
         // Arranca en la primera semana del mes en curso (o, sin mes pagado, en el historial).
         setWeek((data.semanas?.find(w => !w.historica) || data.semanas?.[0])?.id || null);
+        const destino = data.semanas?.find(w => w.id === params.get("semana") && !w.historica);
+        const numDestino = Number(params.get("sesion"));
+        if (destino?.sesiones.some(s => s.num === numDestino)) {
+          setWeek(destino.id); setSession(numDestino); setTab("sesion");
+        }
+        if (params.has("semana")) setParams({}, { replace: true });
         const clave = `plan_logs_${user.id}_${data.trimestre}`;
         const claveAntigua = `plan_logs_${user.id}`; // versión anterior: sin trimestre
         let local = {};

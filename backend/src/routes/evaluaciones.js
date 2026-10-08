@@ -145,62 +145,45 @@ router.get("/progreso/:escaladorId", async (req, res) => {
       return res.status(403).json({ error: "Sin acceso al progreso de este escalador" });
     }
 
+    // Una fila por resultado, ordenadas por fecha del test. Cada evaluación (test) es un punto
+    // de la curva: con menos de 2 no hay progreso que graficar.
     const result = await prisma.$queryRawUnsafe(
-      `SELECT rt.metrica, rt.valor, rt.unidad, rt.semaforo, rt.percentil,
-              ev.tipo as eval_tipo, ev.fecha as eval_fecha,
-              ci.codigo as ciclo, ci.trimestre, ci.anio,
-              p.nombre as programa
-       FROM resultado_test rt
-       JOIN evaluacion ev ON rt.evaluacion_id = ev.id
-       JOIN grupo g ON ev.grupo_id = g.id
-       JOIN ciclo ci ON g.ciclo_id = ci.id
+      `SELECT ev.id AS evaluacion_id, ev.tipo::text AS eval_tipo, to_char(ev.fecha, 'YYYY-MM-DD') AS eval_fecha,
+              ev.notas, ci.codigo AS ciclo, p.nombre AS programa,
+              rt.metrica, rt.valor, rt.unidad, rt.semaforo::text AS semaforo, rt.percentil
+       FROM evaluacion ev
+       JOIN grupo g    ON ev.grupo_id = g.id
+       JOIN ciclo ci   ON g.ciclo_id = ci.id
        JOIN programa p ON g.programa_id = p.id
-       WHERE ev.escalador_id = $1
+       JOIN resultado_test rt ON rt.evaluacion_id = ev.id
+       WHERE ev.escalador_id = $1::uuid
          AND ev.estado = 'realizada'
-       ORDER BY ci.fecha_inicio ASC, ev.tipo ASC`,
+       ORDER BY ev.fecha ASC, ev.created_at ASC, rt.metrica ASC`,
       escaladorId
     );
 
-    if (result.length === 0) {
-      return res.json({ escaladorId, metricas: {}, evaluaciones: [], hayDatos: false });
-    }
-
     const metricas = {};
-    const evaluaciones = [];
-    const evalSet = new Set();
-
+    const porId = new Map();
     for (const row of result) {
-      if (!metricas[row.metrica]) {
-        metricas[row.metrica] = { unidad: row.unidad, puntos: [] };
+      const valor = parseFloat(row.valor);
+      if (!porId.has(row.evaluacion_id)) {
+        porId.set(row.evaluacion_id, {
+          id: row.evaluacion_id, tipo: row.eval_tipo, fecha: row.eval_fecha,
+          ciclo: row.ciclo, programa: row.programa, notas: row.notas, resultados: [],
+        });
       }
-      metricas[row.metrica].puntos.push({
-        ciclo: row.ciclo,
-        tipo: row.eval_tipo,
-        valor: parseFloat(row.valor),
-        semaforo: row.semaforo,
-        fecha: row.eval_fecha,
-        percentil: row.percentil,
+      porId.get(row.evaluacion_id).resultados.push({
+        metrica: row.metrica, valor, unidad: row.unidad, semaforo: row.semaforo, percentil: row.percentil,
       });
-
-      const evalKey = `${row.ciclo}-${row.eval_tipo}`;
-      if (!evalSet.has(evalKey)) {
-        evalSet.add(evalKey);
-        evaluaciones.push({ ciclo: row.ciclo, tipo: row.eval_tipo, fecha: row.eval_fecha, programa: row.programa });
-      }
+      if (!metricas[row.metrica]) metricas[row.metrica] = { unidad: row.unidad, puntos: [] };
+      metricas[row.metrica].puntos.push({
+        evaluacionId: row.evaluacion_id, fecha: row.eval_fecha, tipo: row.eval_tipo, ciclo: row.ciclo,
+        valor, semaforo: row.semaforo, percentil: row.percentil,
+      });
     }
+    const evaluaciones = [...porId.values()];
 
-    for (const [, data] of Object.entries(metricas)) {
-      const puntos = data.puntos;
-      if (puntos.length >= 2) {
-        const primero = puntos[0].valor;
-        const ultimo = puntos[puntos.length - 1].valor;
-        const cambio = ultimo - primero;
-        const cambioPct = primero !== 0 ? Math.round((cambio / primero) * 100) : 0;
-        data.tendencia = { cambio, cambioPct, mejoro: cambio > 0 };
-      }
-    }
-
-    res.json({ escaladorId, metricas, evaluaciones, hayDatos: true, totalPuntos: result.length });
+    res.json({ escaladorId, metricas, evaluaciones, hayDatos: evaluaciones.length > 0 });
   } catch (err) {
     console.error("Error obteniendo progreso:", err);
     res.status(500).json({ error: "Error interno" });
