@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
+const { SQL_MES_VIGENTE } = require("../utils/meses");
 
 const router = express.Router();
 router.use(authenticate);
@@ -88,10 +89,17 @@ router.get("/:id", async (req, res) => {
     const grupos = await prisma.$queryRawUnsafe(
       `SELECT g.*, p.nombre AS programa_nombre, p.nivel,
               ci.codigo AS ciclo_codigo, ci.fecha_inicio, ci.fecha_fin, m.nombre AS muro_nombre,
-              (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'activa') AS inscritos
+              (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'activa') AS inscritos,
+              -- Mes del ciclo en curso: inscritos ese mes (con mensualidad) y cuántos la pagaron.
+              cm.mes AS mes_vigente, cm.fecha_inicio AS mes_inicio, cm.fecha_fin AS mes_fin,
+              (SELECT COUNT(*) FROM pago pa JOIN inscripcion i ON i.id = pa.inscripcion_id
+                 WHERE i.grupo_id = g.id AND pa.mes = cm.mes) AS mes_inscritos,
+              (SELECT COUNT(*) FROM pago pa JOIN inscripcion i ON i.id = pa.inscripcion_id
+                 WHERE i.grupo_id = g.id AND pa.mes = cm.mes AND pa.estado = 'pagado') AS mes_pagados
        FROM grupo g
        JOIN programa p ON g.programa_id = p.id
        JOIN ciclo ci ON g.ciclo_id = ci.id
+       JOIN ciclo_mes cm ON cm.ciclo_id = ci.id AND cm.mes = ${SQL_MES_VIGENTE()}
        LEFT JOIN muro_aliado m ON g.muro_id = m.id
        WHERE g.entrenador_id = $1 AND g.estado IN ('abierta', 'en_curso')
        ORDER BY ci.fecha_inicio DESC`,
@@ -102,8 +110,12 @@ router.get("/:id", async (req, res) => {
       `SELECT
          COUNT(DISTINCT g.id) FILTER (WHERE g.estado IN ('abierta','en_curso')) AS grupos_activos,
          COUNT(DISTINCT i.escalador_id) AS escaladores_activos,
+         COUNT(DISTINCT i.escalador_id) FILTER (WHERE EXISTS (
+           SELECT 1 FROM pago pa WHERE pa.inscripcion_id = i.id AND pa.estado = 'pagado' AND pa.mes = ${SQL_MES_VIGENTE()}
+         )) AS escaladores_mes_pagado,
          COUNT(DISTINCT g.id) AS total_grupos_historico
        FROM grupo g
+       JOIN ciclo ci ON ci.id = g.ciclo_id
        LEFT JOIN inscripcion i ON i.grupo_id = g.id AND i.estado = 'activa'
        WHERE g.entrenador_id = $1`,
       id

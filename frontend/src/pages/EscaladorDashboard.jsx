@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { whatsappUrl, EMAIL_CONTACTO as EMAIL } from '../config';
+import { fmtRango } from '../components/ui';
 import { Loader2 } from 'lucide-react';
 import { IconoPresa, IconoRoca, IconoCronometro, IconoMuro, IconoEscalador } from '../components/Icons';
 
@@ -50,7 +51,7 @@ export default function EscaladorDashboard() {
         <Stat icon={IconoPresa} label="Estado plataforma" value={estadoLabel[esc?.estado] || 'Activo'} color={esc?.estado === 'activo' ? '#22c55e' : esc?.estado === 'pendiente' ? '#f59e0b' : '#666'} />
         <Stat icon={IconoRoca} label="Nivel" value={{ iniciacion: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' }[esc?.nivel] || (esc?.nivel ? esc.nivel : '—')} />
         <Stat icon={IconoMuro} label="Grupo activo" value={activa ? activa.cohorte?.programa?.nombre?.split(' ')[0] || 'Sí' : 'Sin grupo'} color={activa ? '#22c55e' : '#A09A8C'} />
-        <Stat icon={IconoCronometro} label="Ciclo" value={activa?.cohorte?.ciclo?.codigo || '—'} />
+        <Stat icon={IconoCronometro} label="Ciclo · mes en curso" value={activa?.cohorte?.ciclo?.codigo ? `${activa.cohorte.ciclo.codigo}${activa.cohorte.ciclo.mesVigente ? ` · M${activa.cohorte.ciclo.mesVigente}` : ''}` : '—'} />
         <Stat icon={IconoRoca} label="Miembro desde" value={esc?.createdAt ? new Date(esc.createdAt).toLocaleDateString('es-CO', { timeZone: 'UTC', month: 'short', year: 'numeric' }) : '—'} color='#A09A8C' />
       </div>
 
@@ -62,6 +63,19 @@ export default function EscaladorDashboard() {
             <div style={{ background: '#4A2F0F', padding: '16px 20px' }}>
               <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.2rem', color: '#F0EDE8' }}>{activa.cohorte?.programa?.nombre || activa.programa || 'Mi Grupo'}</div>
               <div style={{ fontSize: '0.8rem', color: '#D4AF37', marginTop: '2px' }}>{activa.cohorte?.ciclo?.codigo || activa.ciclo || ''} · {activa.cohorte?.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'}</div>
+              {(() => {
+                const c = activa.cohorte?.ciclo;
+                const m = c?.meses?.find(x => x.mes === c.mesVigente);
+                if (!m) return null;
+                return (
+                  <div style={{ fontSize: '0.78rem', color: '#F0EDE8', marginTop: '6px', fontFamily: 'Poppins' }}>
+                    Mes {m.mes} de 3 · {fmtRango(m.fechaInicio, m.fechaFin)} ·{' '}
+                    {m.estadoPago === 'pagado'
+                      ? <span style={{ color: '#22c55e' }}>pagado, tu plan del mes está habilitado</span>
+                      : <span style={{ color: '#f59e0b', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => navigate('/app/mis-pagos')}>mensualidad pendiente: paga para ver tu plan</span>}
+                  </div>
+                );
+              })()}
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: '#A09A8C' }}><IconoCronometro style={{ width: '15px', height: '15px' }} /> {activa.cohorte?.horario || activa.horario || '—'}</div>

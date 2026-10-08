@@ -2,7 +2,8 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
-const { tarifaMensual, recontarGrupo } = require("../utils/pagos");
+const { tarifaMensual, recontarGrupo, crearMensualidad, liberarMensualidades } = require("../utils/pagos");
+const { SQL_MES_ENTRADA, SQL_MES_VIGENTE, mesValido } = require("../utils/meses");
 
 const router = express.Router();
 router.use(authenticate);
@@ -23,8 +24,9 @@ async function validarInscripcion(tx, escaladorId, grupoId) {
   const g = await tx.$queryRawUnsafe(
     `SELECT g.id, g.estado::text AS estado, g.cupo_maximo, g.modalidad::text AS modalidad,
             p.nivel::text AS nivel, p.poblacion::text AS poblacion,
+            CURRENT_DATE > ci.fecha_fin AS ciclo_terminado, ${SQL_MES_ENTRADA()} AS mes_entrada,
             (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado IN ('activa','reservada')) AS ocupados
-     FROM grupo g JOIN programa p ON g.programa_id = p.id
+     FROM grupo g JOIN programa p ON g.programa_id = p.id JOIN ciclo ci ON ci.id = g.ciclo_id
      WHERE g.id = $1
      FOR UPDATE OF g`,
     grupoId
@@ -32,6 +34,7 @@ async function validarInscripcion(tx, escaladorId, grupoId) {
   if (!g.length) throw err(404, "Grupo no encontrado");
   const grupo = g[0];
   if (!["abierta", "en_curso"].includes(grupo.estado)) throw err(400, "El grupo no está abierto para inscripciones");
+  if (grupo.ciclo_terminado) throw err(400, "El ciclo de este grupo ya terminó");
   if (Number(grupo.ocupados) >= grupo.cupo_maximo) throw err(400, "Grupo sin cupos disponibles");
 
   const e = await tx.$queryRawUnsafe(
@@ -70,16 +73,6 @@ async function crearOReactivar(tx, escaladorId, grupoId, estado) {
   return r[0];
 }
 
-// Primera mensualidad (mes en curso). ON CONFLICT: al reactivar puede existir ya la del mes.
-async function crearPrimeraMensualidad(tx, inscripcionId, precio, diasParaPagar) {
-  await tx.$executeRawUnsafe(
-    `INSERT INTO pago (inscripcion_id, monto, estado, periodo, fecha_vencimiento)
-     VALUES ($1, $2, 'pendiente', date_trunc('month', CURRENT_DATE)::date, CURRENT_DATE + $3::int)
-     ON CONFLICT (inscripcion_id, periodo) DO NOTHING`,
-    inscripcionId, precio, diasParaPagar
-  );
-}
-
 // ─── GET /inscripciones ──────────────────────────────────
 router.get("/", async (req, res) => {
   try {
@@ -94,7 +87,8 @@ router.get("/", async (req, res) => {
              (SELECT COALESCE(SUM(pa.monto) FILTER (WHERE pa.estado='pagado'),0) FROM pago pa WHERE pa.inscripcion_id=i.id) as total_pagado,
              (SELECT COALESCE(SUM(pa.monto) FILTER (WHERE pa.estado IN ('pendiente','vencido')),0) FROM pago pa WHERE pa.inscripcion_id=i.id) as total_pendiente,
              (SELECT COUNT(*) FROM pago pa WHERE pa.inscripcion_id=i.id AND pa.estado IN ('pendiente','vencido')) as pagos_pendientes,
-             (SELECT to_char(MAX(pa.periodo), 'YYYY-MM') FROM pago pa WHERE pa.inscripcion_id=i.id AND pa.estado='pagado') as pagado_hasta,
+             (SELECT json_object_agg(pa.mes, pa.estado) FROM pago pa WHERE pa.inscripcion_id=i.id) as meses_estado,
+             co.ciclo_id, ${SQL_MES_VIGENTE()} AS mes_vigente,
              (SELECT fecha_vencimiento FROM pago pa WHERE pa.inscripcion_id=i.id AND pa.estado IN ('pendiente','vencido') ORDER BY fecha_vencimiento ASC LIMIT 1) as fecha_vencimiento_reserva
       FROM inscripcion i
       JOIN escalador e ON i.escalador_id = e.id
@@ -120,13 +114,17 @@ router.get("/", async (req, res) => {
 });
 
 // ─── POST /inscripciones (admin) ─────────────────────────
-// Inscribe directamente (queda activa) y crea la mensualidad del mes en curso, pendiente.
+// Inscribe directamente (queda activa) y crea, pendiente, la mensualidad del mes del ciclo en que
+// entra: `mes` (1–3) o, por defecto, el mes en curso (el siguiente si al actual le queda < 1 semana).
 router.post("/", authorize("admin"), [
   body("escaladorId").isUUID(),
   body("grupoId").isUUID(),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ error: "Escalador y grupo son obligatorios" });
+  if (req.body.mes != null && req.body.mes !== "" && !mesValido(req.body.mes)) {
+    return res.status(400).json({ error: "El mes del ciclo debe ser 1, 2 o 3" });
+  }
 
   try {
     const { escaladorId, grupoId } = req.body;
@@ -138,13 +136,14 @@ router.post("/", authorize("admin"), [
       if (!esc.nivel) {
         await tx.$executeRawUnsafe(`UPDATE escalador SET nivel = $1::"NivelPrograma", updated_at = NOW() WHERE id = $2`, grupo.nivel, escaladorId);
       }
-      const precio = await tarifaMensual(grupo.modalidad, tx);
+      await tarifaMensual(grupo.modalidad, tx); // falla si la modalidad no tiene tarifa
+      const mes = mesValido(req.body.mes) || Number(grupo.mes_entrada);
       const ins = await crearOReactivar(tx, escaladorId, grupoId, "activa");
-      await crearPrimeraMensualidad(tx, ins.id, precio, 5);
+      await crearMensualidad(ins.id, mes, {}, tx);
       await recontarGrupo(grupoId, tx);
-      return ins;
+      return { ...ins, mes };
     });
-    res.status(201).json({ message: "Inscripción creada con la mensualidad del mes pendiente", inscripcion });
+    res.status(201).json({ message: `Inscripción creada con la mensualidad del mes ${inscripcion.mes} pendiente`, inscripcion });
   } catch (e) { manejarError(res, e, "POST /inscripciones"); }
 });
 
@@ -163,23 +162,25 @@ router.post("/autoservicio", authorize("escalador"), [body("grupoId").isUUID()],
       if (!esc.nivel) throw err(403, "El equipo aún no te ha asignado un nivel. Espera a ser contactado.");
       if (esc.nivel !== grupo.nivel) throw err(400, `Este grupo es de nivel ${grupo.nivel}, pero tu nivel asignado es ${esc.nivel}.`);
 
-      const precio = await tarifaMensual(grupo.modalidad, tx);
+      await tarifaMensual(grupo.modalidad, tx);
+      const mes = Number(grupo.mes_entrada);
       const ins = await crearOReactivar(tx, escaladorId, grupoId, "reservada");
-      // Primera mensualidad: el cupo se reserva 24 h mientras llega el soporte de pago.
-      await crearPrimeraMensualidad(tx, ins.id, precio, 1);
-      return ins;
+      // Mensualidad del mes en que entra: el cupo se reserva 24 h mientras llega el soporte de pago.
+      const vence = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      await crearMensualidad(ins.id, mes, { vence }, tx);
+      return { ...ins, mes };
     });
 
     res.status(201).json({
-      message: "Cupo reservado. Tienes 24 horas para enviar el soporte de pago. El equipo activará tu inscripción al confirmar el pago.",
+      message: `Cupo reservado para el mes ${inscripcion.mes} del ciclo. Tienes 24 horas para enviar el soporte de pago. El equipo activará tu inscripción al confirmar el pago.`,
       inscripcion,
     });
   } catch (e) { manejarError(res, e, "POST /inscripciones/autoservicio"); }
 });
 
 // ─── PATCH /inscripciones/:id/estado ─────────────────────
-// Congelar / cancelar / completar deja de cobrar: se borran las mensualidades PENDIENTES
-// desde el mes en curso (las pagadas y las vencidas se conservan).
+// Congelar / cancelar / completar deja de cobrar: se borran las mensualidades SIN PAGAR del mes
+// del ciclo en curso en adelante (las pagadas y las vencidas de meses anteriores se conservan).
 router.patch("/:id/estado", authorize("admin", "entrenador"), [
   body("estado").isIn(["activa", "congelada", "cancelada", "completada", "reservada"]),
 ], async (req, res) => {
@@ -212,10 +213,7 @@ router.patch("/:id/estado", authorize("admin", "entrenador"), [
         `UPDATE inscripcion SET estado = $1::"EstadoInscripcion", updated_at = NOW() WHERE id = $2`, estado, req.params.id
       );
       if (["congelada", "cancelada", "completada"].includes(estado)) {
-        await tx.$executeRawUnsafe(
-          `DELETE FROM pago WHERE inscripcion_id = $1 AND estado = 'pendiente' AND periodo >= date_trunc('month', CURRENT_DATE)::date`,
-          req.params.id
-        );
+        await liberarMensualidades([req.params.id], tx);
       }
       await recontarGrupo(grupo_id, tx);
     });

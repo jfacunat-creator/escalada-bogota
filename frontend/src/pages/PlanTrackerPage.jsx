@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import {
@@ -13,6 +13,7 @@ import {
   camposFaltantes, perfilCompleto, perfilDesdeTestS0, calcularParametros, fmtRangoKg,
 } from "../plan/perfil";
 import { personalizarBloques } from "../plan/personalizar";
+import { fmtRango } from "../components/ui";
 import { evaluarSobrecarga, esSobrecarga, dolorVigente, regletaPrevia, aplicarAdaptaciones } from "../plan/adaptacion";
 import {
   seriePse, mapaDolor, serieHangboard, esSesionTest, objetivoSalida, evaluarSalida,
@@ -375,17 +376,21 @@ function MovilidadTab({ nivel }) {
 }
 
 // ─── PLAN TAB ─────────────────────────────────────────────
-function PlanTab({ semanas, logs, onSelect, curWeek }) {
+// El escalador recibe el contenido del mes en curso (pagado) y, de los meses anteriores pagados,
+// solo sus registros: esas semanas abren el registro, no la sesión.
+function PlanTab({ semanas, logs, onSelect, onHistorial, curWeek, meses, mesVigente }) {
+  const futuros = (meses || []).filter(m => m.mes > mesVigente);
   return (
     <div>
       <p style={{ color: C.sub, fontSize: 12, marginBottom: 14, fontFamily: "Poppins" }}>
-        {semanas.length} semanas · Toca una sesión para ir directamente a ella
+        Toca una sesión para ir directamente a ella · los meses anteriores muestran solo tus registros
       </p>
       {semanas.map(w => {
         const done = w.sesiones.filter(s => logs[`${w.id}_${s.num}`]?.pse).length;
         const isCur = w.id === curWeek;
+        const hist = !!w.historica;
         return (
-          <div key={w.id} style={{ background: isCur ? C.accentA : C.card,
+          <div key={w.id} style={{ background: isCur ? C.accentA : C.card, opacity: hist ? 0.75 : 1,
             border: `1px solid ${isCur ? C.accent : C.border}`,
             borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
@@ -396,6 +401,12 @@ function PlanTab({ semanas, logs, onSelect, curWeek }) {
                 </div>
               </div>
               <div style={{ flex: 1 }}>
+                {hist && (
+                  <span style={{ background: C.cardAlt, color: C.sub, fontSize: 9, fontWeight: 700, padding: "1px 6px",
+                    borderRadius: 999, fontFamily: "Poppins", marginBottom: 4, marginRight: 6, display: "inline-block" }}>
+                    🔒 Mes {w.mes} · solo registros
+                  </span>
+                )}
                 {done > 0 && (
                   <span style={{ background: C.greenA, color: C.green, fontSize: 9,
                     fontWeight: 700, padding: "1px 6px", borderRadius: 999,
@@ -411,7 +422,7 @@ function PlanTab({ semanas, logs, onSelect, curWeek }) {
                 const lg = logs[`${w.id}_${s.num}`];
                 const tc = TIPO_COLOR[s.type?.toLowerCase()] || C.sub;
                 return (
-                  <button key={s.num} onClick={() => onSelect(w.id, s.num)}
+                  <button key={s.num} onClick={() => (hist ? onHistorial : onSelect)(w.id, s.num)}
                     style={{ flex: 1, minWidth: 60,
                       background: lg?.completed ? C.greenA : lg?.pse ? C.accentA : C.cardAlt,
                       border: `1px solid ${lg?.completed ? C.green : lg?.pse ? C.accent : C.border}`,
@@ -428,6 +439,13 @@ function PlanTab({ semanas, logs, onSelect, curWeek }) {
           </div>
         );
       })}
+      {futuros.map(m => (
+        <div key={m.mes} style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
+          padding: "12px 14px", marginBottom: 8, color: C.sub, fontSize: 12, fontFamily: "Poppins" }}>
+          🔒 <strong style={{ color: C.text }}>Mes {m.mes}</strong> · {fmtRango(m.fechaInicio, m.fechaFin)} · semanas {m.semanas[0]}–{m.semanas[m.semanas.length - 1]}
+          <div style={{ fontSize: 11, marginTop: 3 }}>Se habilita cuando empiece ese mes y esté pagado.</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -442,6 +460,7 @@ const SUGERENCIA_AMARILLO = {
 
 function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSessionChange, onLog, onPerfil, onOverride }) {
   const semanas = plan.semanas;
+  const delMes = semanas.filter(w => !w.historica);
   const wd = semanas.find(w => w.id === week);
   const sd = wd?.sesiones.find(s => s.num === session);
   const lg = logs[`${week}_${session}`];
@@ -468,6 +487,13 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
       : { sess: "A", color: C.accent, msg: "Sesión A · Pre-sesión (10–12 min) — antes del bloque principal." }
     : null;
 
+  if (!delMes.length || wd?.historica) return (
+    <div style={{ padding: 20, color: C.sub, textAlign: "center", fontFamily: "Poppins", fontSize: 13, lineHeight: 1.6 }}>
+      🔒 {wd?.historica
+        ? `${week} es del mes ${wd.mes}, que ya terminó: puedes consultar tu registro, no el contenido de la sesión.`
+        : "No tienes un mes pagado en curso. El contenido de las sesiones se habilita con la mensualidad del mes."}
+    </div>
+  );
   if (!sd) return (
     <div style={{ padding: 20, color: C.sub, textAlign: "center", fontFamily: "Poppins" }}>
       Sin sesión {session} para {week}
@@ -476,10 +502,10 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
 
   return (
     <div>
-      {/* Semana selector */}
+      {/* Semana selector (solo las del mes en curso) */}
       <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 8,
         marginBottom: 10, scrollbarWidth: "none" }}>
-        {semanas.map(w => (
+        {delMes.map(w => (
           <button key={w.id} onClick={() => { onWeekChange(w.id); onSessionChange(1); }}
             style={{ background: w.id === week ? C.accentA : C.cardAlt,
               border: `1px solid ${w.id === week ? C.accent : C.border}`,
@@ -1158,7 +1184,7 @@ function ProgresionView({ plan, logs, perfil }) {
 
       {/* Exportación */}
       <div style={card}>
-        <div style={titulo}>📤 Exportar trimestre</div>
+        <div style={titulo}>📤 Exportar mis registros</div>
         <div style={sub}>Todos tus registros, perfil y comparativa S0 vs S12 para compartir con tu entrenador.</div>
         <div style={{ display: "flex", gap: 8 }}>
           <button style={btnExport}
@@ -1380,7 +1406,7 @@ function Skeleton() {
   );
 }
 
-function Bloqueado({ estado, nombre }) {
+function Bloqueado({ estado, nombre, mensaje }) {
   const navigate = useNavigate();
   return (
     <div style={{ maxWidth: 480, margin: "60px auto", textAlign: "center", padding: "0 24px" }}>
@@ -1395,13 +1421,17 @@ function Bloqueado({ estado, nombre }) {
           Hola, {nombre}
         </p>
       )}
-      <p style={{ color: C.sub, fontSize: "0.85rem", marginBottom: 6, fontFamily: "Poppins" }}>
-        Tu perfil está <strong style={{ color: "#f59e0b" }}>{estado || "inactivo"}</strong>.
-      </p>
-      <p style={{ color: C.sub, fontSize: "0.8rem", marginBottom: 28, lineHeight: 1.6, fontFamily: "Poppins" }}>
-        Para acceder al plan debes tener tu ciclo al día.
-        Revisa el estado de tus pagos o contacta a tu entrenador.
-      </p>
+      {mensaje ? (
+        <p style={{ color: C.sub, fontSize: "0.85rem", marginBottom: 28, lineHeight: 1.6, fontFamily: "Poppins" }}>{mensaje}</p>
+      ) : <>
+        <p style={{ color: C.sub, fontSize: "0.85rem", marginBottom: 6, fontFamily: "Poppins" }}>
+          Tu perfil está <strong style={{ color: "#f59e0b" }}>{estado || "inactivo"}</strong>.
+        </p>
+        <p style={{ color: C.sub, fontSize: "0.8rem", marginBottom: 28, lineHeight: 1.6, fontFamily: "Poppins" }}>
+          Para acceder al plan debes tener al día la mensualidad del mes en curso.
+          Revisa el estado de tus pagos o contacta a tu entrenador.
+        </p>
+      </>}
       <button onClick={() => navigate("/app/mis-pagos")}
         style={{ background: C.accent, border: "none", borderRadius: 8, padding: "12px 28px",
           cursor: "pointer", color: "#121212", fontSize: "0.9rem",
@@ -1530,7 +1560,8 @@ export default function PlanTrackerPage() {
     api.getMyPlan()
       .then(async data => {
         setPlan(data);
-        setWeek(data.semanas?.[0]?.id || null);
+        // Arranca en la primera semana del mes en curso (o, sin mes pagado, en el historial).
+        setWeek((data.semanas?.find(w => !w.historica) || data.semanas?.[0])?.id || null);
         const clave = `plan_logs_${user.id}_${data.trimestre}`;
         const claveAntigua = `plan_logs_${user.id}`; // versión anterior: sin trimestre
         let local = {};
@@ -1554,6 +1585,7 @@ export default function PlanTrackerPage() {
   }, [user?.id]);
 
   const goToSession = (w, s) => { setWeek(w); setSession(s); setTab("sesion"); };
+  const goToRegistro = (w, s) => { setWeek(w); setSession(s); setVistaRegistro("registrar"); setTab("registro"); };
 
   if (loading) return <Skeleton />;
 
@@ -1575,6 +1607,13 @@ export default function PlanTrackerPage() {
   }
   if (!plan) return null;
 
+  const mesActual = plan.meses?.find(m => m.mes === plan.mesVigente);
+  if (!plan.semanas.length) {
+    return <Bloqueado nombre={plan.nombre} mensaje={plan.acceso === "ciclo_terminado"
+      ? `Tu ciclo ${plan.cicloCodigo} terminó. Inscríbete al siguiente ciclo para continuar.`
+      : `El plan se entrega mes a mes. La mensualidad del mes ${plan.mesVigente} (${fmtRango(mesActual?.fechaInicio, mesActual?.fechaFin)}) está pendiente: al pagarla verás las sesiones de ese mes.`} />;
+  }
+
   const nivelLabel  = { iniciacion: "Principiante", intermedio: "Intermedio", avanzado: "Avanzado" }[plan.nivel] || plan.nivel;
   const nivelColor  = NIVEL_COLOR[plan.nivel] || C.accent;
   const onboarding  = !perfilCompleto(perfil);
@@ -1594,7 +1633,8 @@ export default function PlanTrackerPage() {
           </span>
         </div>
         <p style={{ color: C.sub, fontSize: "0.85rem", fontFamily: "Poppins" }}>
-          {user?.escalador?.nombre || plan.nombre} · {plan.semanas.length} semanas
+          {user?.escalador?.nombre || plan.nombre} · {plan.cicloCodigo}
+          {mesActual && plan.acceso !== "ciclo_terminado" && <> · <strong style={{ color: C.text }}>Mes {mesActual.mes} de 3</strong> ({fmtRango(mesActual.fechaInicio, mesActual.fechaFin)})</>}
         </p>
         <span title={plan.fuente === "ai"
             ? `${plan.aiSesiones} sesiones ajustadas por tu entrenador a partir de tus datos`
@@ -1607,6 +1647,16 @@ export default function PlanTrackerPage() {
           {plan.fuente === "ai" ? "✨ Plan personalizado" : "Plan base"}
         </span>
       </div>
+
+      {plan.acceso !== "completo" && (
+        <div style={{ background: C.orangeA, border: `1px solid ${C.orange}55`, borderRadius: 9,
+          padding: "9px 12px", marginBottom: 14, color: C.orange, fontSize: 12, lineHeight: 1.5,
+          fontFamily: "Poppins" }}>
+          {plan.acceso === "ciclo_terminado"
+            ? `🔒 Tu ciclo ${plan.cicloCodigo} terminó. Puedes consultar y exportar tus registros; el contenido de las sesiones ya no está disponible.`
+            : <>🔒 La mensualidad del mes {plan.mesVigente} ({fmtRango(mesActual?.fechaInicio, mesActual?.fechaFin)}) está pendiente. Al pagarla verás sus sesiones; mientras tanto puedes consultar tus registros. <Link to="/app/mis-pagos" style={{ color: C.accent }}>Ver mis pagos</Link></>}
+        </div>
+      )}
 
       {sync === "local" && (
         <div style={{ background: C.orangeA, border: `1px solid ${C.orange}55`, borderRadius: 9,
@@ -1639,7 +1689,8 @@ export default function PlanTrackerPage() {
 
       {/* Content */}
       {tab === "plan" && (
-        <PlanTab semanas={plan.semanas} logs={logs} onSelect={goToSession} curWeek={week} />
+        <PlanTab semanas={plan.semanas} logs={logs} onSelect={goToSession} onHistorial={goToRegistro} curWeek={week}
+          meses={plan.meses} mesVigente={plan.acceso === "ciclo_terminado" ? 3 : plan.mesVigente} />
       )}
       {tab === "sesion" && week && (
         <SesionTab plan={plan} week={week} session={session} logs={logs} calc={calc} perfil={perfil}

@@ -2,9 +2,10 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
-const { recontarGrupo } = require("../utils/pagos");
+const { recontarGrupo, liberarMensualidades, SQL_SIN_PAGAR_DESDE_HOY } = require("../utils/pagos");
 const { HORARIO_MAP, generarSesiones, borrarSesiones, tieneAsistencia } = require("../utils/sesiones");
 const { borrarGrupo } = require("../utils/borrado");
+const { SQL_MES_VIGENTE, SQL_MES_ENTRADA, mesesDeCiclo } = require("../utils/meses");
 
 const router = express.Router();
 router.use(authenticate);
@@ -21,7 +22,25 @@ function manejarError(res, e, ruta) {
 
 const ESTADOS = ["abierta", "en_curso", "cerrada", "finalizada"];
 
+// Estadísticas de UN mes del ciclo de un grupo (alias grupo `g`, mes `cm` de la vista ciclo_mes).
+// Inscritos del mes = inscripciones con mensualidad de ese mes (pagada o no).
+const SQL_STATS_MES = `
+  SELECT COUNT(*)                                                     AS inscritos,
+         COUNT(*) FILTER (WHERE pa.estado = 'pagado')                 AS pagados,
+         COUNT(*) FILTER (WHERE pa.estado = 'pendiente')              AS pendientes,
+         COUNT(*) FILTER (WHERE pa.estado = 'vencido')                AS vencidos,
+         COALESCE(SUM(pa.monto), 0)                                   AS esperado,
+         COALESCE(SUM(pa.monto) FILTER (WHERE pa.estado = 'pagado'), 0) AS recaudado,
+         (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE a.asistio) / NULLIF(COUNT(*), 0))
+            FROM asistencia a JOIN sesion s ON s.id = a.sesion_id
+           WHERE s.grupo_id = g.id AND s.fecha BETWEEN cm.fecha_inicio AND cm.fecha_fin) AS asistencia_pct,
+         (SELECT COUNT(*) FROM sesion s WHERE s.grupo_id = g.id AND s.fecha BETWEEN cm.fecha_inicio AND cm.fecha_fin) AS sesiones
+  FROM pago pa JOIN inscripcion i ON i.id = pa.inscripcion_id
+  WHERE i.grupo_id = g.id AND pa.mes = cm.mes`;
+
 // ─── GET /grupos ──────────────────────────────────────────
+// La configuración del grupo es la del ciclo completo; las cifras (inscritos, ingresos,
+// asistencia) son del mes del ciclo en curso: mes_* .
 router.get("/", authorize("admin", "entrenador"), async (req, res) => {
   try {
     const { estado, cicloId, programaId, entrenadorId, nivel } = req.query;
@@ -29,6 +48,11 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
       SELECT g.*, p.nombre AS programa_nombre, p.nivel, p.poblacion,
              ci.codigo AS ciclo_codigo, ci.anio, ci.trimestre,
              ci.fecha_inicio, ci.fecha_fin,
+             cm.mes AS mes_vigente, cm.fecha_inicio AS mes_inicio, cm.fecha_fin AS mes_fin,
+             to_char(cm.periodo, 'YYYY-MM') AS mes_periodo,
+             st.inscritos AS mes_inscritos, st.pagados AS mes_pagados, st.pendientes AS mes_pendientes,
+             st.vencidos AS mes_vencidos, st.recaudado AS mes_recaudado, st.esperado AS mes_esperado,
+             st.asistencia_pct AS mes_asistencia_pct,
              m.nombre AS muro_nombre, ent.nombre AS entrenador_nombre,
              (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado = 'reservada') AS reservas,
              (SELECT COUNT(*) FROM sesion s WHERE s.grupo_id = g.id) AS total_sesiones,
@@ -42,6 +66,8 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
       FROM grupo g
       JOIN programa p ON g.programa_id = p.id
       JOIN ciclo ci ON g.ciclo_id = ci.id
+      JOIN ciclo_mes cm ON cm.ciclo_id = ci.id AND cm.mes = ${SQL_MES_VIGENTE()}
+      CROSS JOIN LATERAL (${SQL_STATS_MES}) st
       LEFT JOIN muro_aliado m ON g.muro_id = m.id
       JOIN entrenador ent ON g.entrenador_id = ent.id
       WHERE 1=1`;
@@ -61,7 +87,8 @@ router.get("/", authorize("admin", "entrenador"), async (req, res) => {
 });
 
 // ─── GET /grupos/disponibles ──────────────────────────────
-// Catálogo para inscribirse: grupos abiertos o en curso, con la tarifa mensual de su modalidad.
+// Catálogo para inscribirse: grupos abiertos o en curso de ciclos no terminados, con la tarifa
+// mensual de su modalidad y el mes del ciclo en que entraría quien se inscriba hoy (y sus fechas).
 router.get("/disponibles", async (req, res) => {
   try {
     const escaladorId = req.user.escalador?.id || null;
@@ -73,6 +100,9 @@ router.get("/disponibles", async (req, res) => {
               m.nombre AS muro_nombre, m.direccion AS muro_direccion,
               ent.nombre AS entrenador_nombre, ent.licencia_ley181,
               t.precio_mensual,
+              me.mes AS mes_entrada, me.fecha_inicio AS mes_entrada_inicio, me.fecha_fin AS mes_entrada_fin,
+              (SELECT json_agg(json_build_object('mes', cm.mes, 'fechaInicio', cm.fecha_inicio, 'fechaFin', cm.fecha_fin) ORDER BY cm.mes)
+                 FROM ciclo_mes cm WHERE cm.ciclo_id = ci.id) AS meses,
               (SELECT COUNT(*) FROM inscripcion i WHERE i.grupo_id = g.id AND i.estado IN ('activa','reservada')) AS inscritos_actual,
               EXISTS (SELECT 1 FROM inscripcion i WHERE i.grupo_id = g.id AND i.escalador_id = $1::uuid
                         AND i.estado IN ('activa','reservada')) AS ya_inscrito
@@ -82,7 +112,8 @@ router.get("/disponibles", async (req, res) => {
        LEFT JOIN muro_aliado m ON g.muro_id = m.id
        JOIN entrenador ent ON g.entrenador_id = ent.id
        LEFT JOIN tarifa t ON t.modalidad = g.modalidad
-       WHERE g.estado IN ('abierta', 'en_curso')
+       JOIN ciclo_mes me ON me.ciclo_id = ci.id AND me.mes = ${SQL_MES_ENTRADA()}
+       WHERE g.estado IN ('abierta', 'en_curso') AND CURRENT_DATE <= ci.fecha_fin
        ORDER BY p.nombre`,
       escaladorId
     );
@@ -111,24 +142,53 @@ router.get("/:id", async (req, res) => {
     if (req.user.rol === "entrenador" && grupo.entrenador_id !== req.user.entrenador?.id) {
       return res.status(403).json({ error: "Este grupo no es tuyo" });
     }
+    const meses = await mesesDeCiclo(grupo.ciclo_id);
     if (req.user.rol === "escalador") {
       const propio = await prisma.$queryRawUnsafe(
         "SELECT 1 FROM inscripcion WHERE grupo_id = $1 AND escalador_id = $2", req.params.id, req.user.escalador?.id
       );
       if (!propio.length) return res.status(403).json({ error: "Sin acceso a este grupo" });
-      return res.json(grupo);
+      return res.json({ ...grupo, meses });
     }
 
-    const escaladores = await prisma.$queryRawUnsafe(
-      `SELECT e.id, e.nombre, e.apellido, e.estado, e.rango_etario, u.email, i.estado AS inscripcion_estado
+    // Cifras de cada mes del ciclo: inscritos, pagos, ingresos y asistencia.
+    const stats = await prisma.$queryRawUnsafe(
+      `SELECT cm.mes, st.* FROM grupo g
+       JOIN ciclo_mes cm ON cm.ciclo_id = g.ciclo_id
+       CROSS JOIN LATERAL (${SQL_STATS_MES}) st
+       WHERE g.id = $1 ORDER BY cm.mes`,
+      req.params.id
+    );
+    const statsDe = Object.fromEntries(stats.map(r => [r.mes, r]));
+    const mesesConStats = meses.map(m => {
+      const r = statsDe[m.mes] || {};
+      return {
+        ...m,
+        inscritos: Number(r.inscritos || 0), pagados: Number(r.pagados || 0),
+        pendientes: Number(r.pendientes || 0), vencidos: Number(r.vencidos || 0),
+        esperado: parseFloat(r.esperado || 0), recaudado: parseFloat(r.recaudado || 0),
+        asistenciaPct: r.asistencia_pct != null ? Number(r.asistencia_pct) : null,
+        sesiones: Number(r.sesiones || 0),
+      };
+    });
+
+    // Escaladores del grupo con el estado de su mensualidad en cada mes (null = no inscrito ese mes).
+    // `escaladores` = inscripciones activas (lista, asistencia); `porMes` incluye a quienes ya salieron.
+    const filas = await prisma.$queryRawUnsafe(
+      `SELECT e.id, e.nombre, e.apellido, e.estado, e.rango_etario, u.email, i.estado AS inscripcion_estado,
+              i.id AS inscripcion_id,
+              (SELECT json_object_agg(pa.mes, pa.estado) FROM pago pa WHERE pa.inscripcion_id = i.id) AS meses_estado
        FROM inscripcion i
        JOIN escalador e ON i.escalador_id = e.id
        JOIN usuario u ON e.usuario_id = u.id
-       WHERE i.grupo_id = $1 AND i.estado = 'activa'
-       ORDER BY e.nombre`,
+       WHERE i.grupo_id = $1
+         AND (i.estado IN ('activa', 'reservada') OR EXISTS (SELECT 1 FROM pago pa WHERE pa.inscripcion_id = i.id))
+       ORDER BY e.nombre, e.apellido`,
       req.params.id
     );
-    res.json({ ...grupo, escaladores });
+    const porMes = filas.map(f => ({ ...f, meses_estado: f.meses_estado || {} }));
+    const escaladores = porMes.filter(f => f.inscripcion_estado === "activa");
+    res.json({ ...grupo, meses: mesesConStats, escaladores, porMes });
   } catch (e) { manejarError(res, e, "GET /grupos/:id"); }
 });
 
@@ -253,9 +313,9 @@ router.put("/:id", authorize("admin"), async (req, res) => {
       if (nuevaModalidad !== g.modalidad_txt) {
         const n = await tx.$executeRawUnsafe(
           `UPDATE pago p SET monto = t.precio_mensual, updated_at = NOW()
-           FROM inscripcion i, tarifa t
-           WHERE p.inscripcion_id = i.id AND i.grupo_id = $1 AND t.modalidad = $2::"ModalidadPlan"
-             AND p.estado IN ('pendiente', 'vencido') AND p.periodo >= date_trunc('month', CURRENT_DATE)::date`,
+           FROM inscripcion i, tarifa t, grupo g, ciclo ci
+           WHERE p.inscripcion_id = i.id AND i.grupo_id = $1 AND g.id = i.grupo_id AND ci.id = g.ciclo_id
+             AND t.modalidad = $2::"ModalidadPlan" AND ${SQL_SIN_PAGAR_DESDE_HOY}`,
           grupoId, nuevaModalidad
         );
         if (n) avisos.push(`${n} mensualidad(es) pendiente(s) actualizada(s) a la tarifa ${nuevaModalidad}`);
@@ -311,11 +371,7 @@ router.patch("/:id/estado", authorize("admin"), async (req, res) => {
            WHERE grupo_id = $1 AND estado IN ('activa', 'reservada') RETURNING id`, req.params.id
         );
         if (ids.length) {
-          await tx.$executeRawUnsafe(
-            `DELETE FROM pago WHERE inscripcion_id = ANY($1::uuid[]) AND estado = 'pendiente'
-               AND periodo >= date_trunc('month', CURRENT_DATE)::date`,
-            ids.map(i => i.id)
-          );
+          await liberarMensualidades(ids.map(i => i.id), tx);
           avisos.push(`${ids.length} inscripción(es) marcada(s) como completada(s)`);
         }
       }

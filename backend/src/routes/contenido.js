@@ -2,9 +2,23 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
+const { SQL_MES_VIGENTE } = require("../utils/meses");
 
 const router = express.Router();
 router.use(authenticate);
+
+// El escalador solo ve material mientras tenga pagado el mes del ciclo en curso: el de todo el
+// ciclo (mes NULL) y el de ese mes. Ver utils/meses.js.
+const SQL_ACCESO_ESCALADOR = `
+  JOIN grupo g ON g.ciclo_id = cc.ciclo_id
+    AND (cc.programa_id IS NULL OR cc.programa_id = g.programa_id)
+  JOIN ciclo ci ON ci.id = g.ciclo_id
+  JOIN inscripcion i ON i.grupo_id = g.id
+  WHERE i.escalador_id = $2::uuid AND i.estado = 'activa' AND cc.visible = true
+    AND CURRENT_DATE <= ci.fecha_fin
+    AND EXISTS (SELECT 1 FROM pago pa WHERE pa.inscripcion_id = i.id AND pa.estado = 'pagado'
+                  AND pa.mes = ${SQL_MES_VIGENTE()})
+    AND (cc.mes IS NULL OR cc.mes = ${SQL_MES_VIGENTE()})`;
 
 // ─── GET /contenido ───────────────────────────────────────
 router.get("/", async (req, res) => {
@@ -16,14 +30,9 @@ router.get("/", async (req, res) => {
         SELECT cc.*, p.nombre as programa_nombre,
                pc.visto, pc.progreso_pct
         FROM contenido_ciclo cc
-        JOIN grupo g ON g.ciclo_id = cc.ciclo_id
-          AND (cc.programa_id IS NULL OR cc.programa_id = g.programa_id)
-        JOIN inscripcion i ON i.grupo_id = g.id
         LEFT JOIN programa p ON cc.programa_id = p.id
-        LEFT JOIN progreso_contenido pc ON pc.contenido_id = cc.id AND pc.escalador_id = $1
-        WHERE i.escalador_id = $1
-          AND i.estado = 'activa'
-          AND cc.visible = true
+        LEFT JOIN progreso_contenido pc ON pc.contenido_id = cc.id AND pc.escalador_id = $1::uuid
+        ${SQL_ACCESO_ESCALADOR.replace("$2::uuid", "$1::uuid")}
       `;
       const params = [req.user.escalador.id];
 
@@ -70,6 +79,7 @@ router.post(
     body("programaId").optional().isUUID(),
     body("descripcion").optional().isString(),
     body("orden").optional().isInt({ min: 0 }),
+    body("mes").optional({ values: "falsy" }).isInt({ min: 1, max: 3 }),
     body("duracionSeg").optional().isInt({ min: 0 }),
     body("tamanoBytes").optional().isInt({ min: 0 }),
   ],
@@ -80,10 +90,11 @@ router.post(
     try {
       const d = req.body;
       const result = await prisma.$queryRawUnsafe(
-        `INSERT INTO contenido_ciclo (ciclo_id, programa_id, tipo, titulo, descripcion, archivo_url, mime_type, tamano_bytes, duracion_seg, orden)
-         VALUES ($1, $2, $3::"TipoContenido", $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        `INSERT INTO contenido_ciclo (ciclo_id, programa_id, tipo, titulo, descripcion, archivo_url, mime_type, tamano_bytes, duracion_seg, orden, mes)
+         VALUES ($1, $2, $3::"TipoContenido", $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
         d.cicloId, d.programaId || null, d.tipo, d.titulo, d.descripcion || null,
-        d.archivoUrl, d.mimeType || "text/uri-list", d.tamanoBytes || null, d.duracionSeg || null, d.orden || 0
+        d.archivoUrl, d.mimeType || "text/uri-list", d.tamanoBytes || null, d.duracionSeg || null, d.orden || 0,
+        d.mes ? Number(d.mes) : null
       );
 
       res.status(201).json(result[0]);
@@ -103,10 +114,7 @@ router.put("/:id/progreso", authorize("escalador"), async (req, res) => {
     const visto = (progresoPct || 0) >= 90;
 
     const access = await prisma.$queryRawUnsafe(
-      `SELECT cc.id FROM contenido_ciclo cc
-       JOIN grupo g ON g.ciclo_id = cc.ciclo_id
-       JOIN inscripcion i ON i.grupo_id = g.id
-       WHERE cc.id = $1 AND i.escalador_id = $2 AND i.estado = 'activa'`,
+      `SELECT cc.id FROM contenido_ciclo cc ${SQL_ACCESO_ESCALADOR} AND cc.id = $1::uuid`,
       id, escaladorId
     );
     if (access.length === 0) return res.status(403).json({ error: "Sin acceso a este contenido" });

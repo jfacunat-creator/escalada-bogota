@@ -12,7 +12,7 @@ import { Loader2, MapPin, Clock, Calendar, ChevronRight, CheckCircle2, AlertCirc
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { whatsappUrl } from '../config';
-import { HORARIO_LABEL } from '../components/ui';
+import { HORARIO_LABEL, fmtRango } from '../components/ui';
 
 const NIVEL_LABEL = {
   iniciacion: 'Principiante',
@@ -89,7 +89,7 @@ function GrupoCard({ grupo, onInscribirse, tieneInscripcionActiva }) {
     ciclo_codigo, fecha_inicio, fecha_fin,
     muro_nombre, muro_direccion,
     entrenador_nombre, licencia_ley181,
-    ya_inscrito, precio_mensual,
+    ya_inscrito, precio_mensual, mes_entrada, mes_entrada_inicio, mes_entrada_fin,
   } = grupo;
 
   const lleno = !['abierta', 'en_curso'].includes(estado) || inscritos_actual >= cupo_maximo;
@@ -159,7 +159,12 @@ function GrupoCard({ grupo, onInscribirse, tieneInscripcionActiva }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <InfoRow icon={Clock}>{HORARIO_LABEL[horario] || (horario ? horario : 'Horario libre (autónomo)')}</InfoRow>
           <InfoRow icon={MapPin}>{muro_nombre}{muro_direccion ? ` · ${muro_direccion}` : ''}</InfoRow>
-          <InfoRow icon={Calendar}>{formatFecha(fecha_inicio)} → {formatFecha(fecha_fin)}</InfoRow>
+          <InfoRow icon={Calendar}>Ciclo {formatFecha(fecha_inicio)} → {formatFecha(fecha_fin)} (3 meses)</InfoRow>
+          {mes_entrada && (
+            <InfoRow icon={Calendar}>
+              <span>Entras en el <strong style={{ color: '#D4AF37' }}>mes {mes_entrada}</strong> · {fmtRango(mes_entrada_inicio, mes_entrada_fin)}</span>
+            </InfoRow>
+          )}
         </div>
 
         <CapacidadBar actual={inscritos_actual} max={cupo_maximo} />
@@ -227,9 +232,9 @@ function ModalConfirmacion({ grupo, onConfirmar, onCerrar, loading, error, confi
     ['Entrenador',  grupo.entrenador_nombre],
     ['Muro',        grupo.muro_nombre],
     ['Horario',     HORARIO_LABEL[grupo.horario] || 'Horario libre (autónomo)'],
-    ['Inicio',      formatFecha(grupo.fecha_inicio)],
-    ['Fin',         formatFecha(grupo.fecha_fin)],
-    ['Mensualidad', `${formatCOP(grupo.precio_mensual)} / mes`],
+    ['Ciclo completo', `${formatFecha(grupo.fecha_inicio)} → ${formatFecha(grupo.fecha_fin)}`],
+    ['Primer mes',  `Mes ${grupo.mes_entrada} · ${fmtRango(grupo.mes_entrada_inicio, grupo.mes_entrada_fin)}`],
+    ['Mensualidad', `${formatCOP(grupo.precio_mensual)} / mes (4 semanas)`],
   ];
 
   return (
@@ -292,7 +297,8 @@ function ModalConfirmacion({ grupo, onConfirmar, onCerrar, loading, error, confi
             }}>
               Al confirmar acepto el <span style={{ color: '#D4AF37' }}>consentimiento informado</span>,
               la <span style={{ color: '#D4AF37' }}>política de tratamiento de datos personales</span> (Ley 1581/2012)
-              y el pago de una mensualidad fija por mes según la modalidad, que vence el día 5 de cada mes.
+              y el pago de una mensualidad fija por mes según la modalidad. Cada mes del ciclo dura 4 semanas
+              y su mensualidad vence el 5.º día de ese mes; pagar un mes da acceso al plan de entrenamiento de ese mes.
             </div>
 
             {error && (

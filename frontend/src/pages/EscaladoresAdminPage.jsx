@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, Search, ChevronRight, Trash2 } from 'lucide-react';
 import { IconoEscalador, IconoPresa, IconoMuro, IconoCronometro } from '../components/Icons';
-import { Btn, Modal, Field, Input, Select, Aviso, Badge, fmtMes, ESTADO_PAGO, ESTADO_INSC, MODALIDAD, NIVEL } from '../components/ui';
+import { Btn, Modal, Field, Input, Select, Aviso, Badge, fmtMes, fmtRango, ESTADO_PAGO, ESTADO_INSC, MODALIDAD, NIVEL } from '../components/ui';
 
 const ESTADO_ESC = { activo: 'Activo', pendiente: 'Pendiente de activación', congelado: 'Congelado', inactivo: 'Inactivo' };
 
@@ -52,6 +52,7 @@ function ModalEditarEscalador({ escalador, onClose, onGuardado }) {
 function ModalInscribir({ escalador, onClose, onHecho }) {
   const [grupos, setGrupos] = useState(null);
   const [grupoId, setGrupoId] = useState('');
+  const [mes, setMes] = useState('');
   const [error, setError] = useState(null);
   const [guardando, setGuardando] = useState(false);
   useEffect(() => {
@@ -60,12 +61,13 @@ function ModalInscribir({ escalador, onClose, onHecho }) {
       setGrupos(aptos); setGrupoId(aptos[0]?.id || '');
     }).catch(e => setError(e.error));
   }, [escalador]);
+  const g = grupos?.find(x => x.id === grupoId);
+  useEffect(() => { setMes(g ? String(g.mes_entrada) : ''); }, [g]);
   const inscribir = async () => {
     setGuardando(true); setError(null);
-    try { await api.crearInscripcion({ escaladorId: escalador.id, grupoId }); onHecho(); onClose(); }
+    try { await api.crearInscripcion({ escaladorId: escalador.id, grupoId, mes: Number(mes) || undefined }); onHecho(); onClose(); }
     catch (e) { setError(e.error); } finally { setGuardando(false); }
   };
-  const g = grupos?.find(x => x.id === grupoId);
   return (
     <Modal title={`Inscribir · ${escalador.nombre} ${escalador.apellido}`} onClose={onClose} footer={<>
       <Btn variant="secondary" onClick={onClose}>Cancelar</Btn>
@@ -81,8 +83,19 @@ function ModalInscribir({ escalador, onClose, onHecho }) {
               {grupos.map(x => <option key={x.id} value={x.id}>{x.programa_nombre} · {x.ciclo_codigo} · {MODALIDAD[x.modalidad]} · {x.entrenador_nombre} ({x.inscritos_actual}/{x.cupo_maximo})</option>)}
             </Select>
           </Field>
+          {g && (
+            <div style={{ marginTop: '12px' }}>
+              <Field label="Mes del ciclo en que entra" hint="El servicio se paga por mes (4 semanas). Solo verá el plan de los meses que pague.">
+                <Select value={mes} onChange={e => setMes(e.target.value)}>
+                  {(g.meses || []).filter(m => m.mes >= g.mes_entrada).map(m => (
+                    <option key={m.mes} value={m.mes}>Mes {m.mes} · {fmtRango(m.fechaInicio, m.fechaFin)}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          )}
           {g && <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins', marginTop: '10px', lineHeight: 1.6 }}>
-            Mensualidad: <strong style={{ color: C.accent }}>{fmt(g.precio_mensual)}</strong>. Queda inscrito como <strong>activo</strong> con la mensualidad de este mes pendiente (vence en 5 días).
+            Mensualidad: <strong style={{ color: C.accent }}>{fmt(g.precio_mensual)}</strong>. Queda inscrito como <strong>activo</strong> con la mensualidad del mes {mes} pendiente.
             {!escalador.nivel && <> Su nivel quedará como <strong>{NIVEL[g.nivel]}</strong>.</>}
           </div>}
         </>}
@@ -416,7 +429,7 @@ export default function EscaladoresAdminPage() {
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                 {detalle.pagos.map(p => (
                                   <div key={p.id} style={{ background: '#242424', borderRadius: '8px', padding: '6px 10px', fontFamily: 'Poppins', fontSize: '0.78rem', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                    <span style={{ color: C.text, textTransform: 'capitalize' }}>{fmtMes(p.periodo_mes)}</span>
+                                    <span style={{ color: C.text }} title={fmtRango(p.mes_inicio, p.mes_fin)}>{p.mes_clave || fmtMes(p.periodo_mes)}</span>
                                     <span style={{ color: C.text2 }}>{fmt(p.monto)}</span>
                                     <Badge color={ESTADO_PAGO[p.estado].color}>{ESTADO_PAGO[p.estado].label}</Badge>
                                   </div>

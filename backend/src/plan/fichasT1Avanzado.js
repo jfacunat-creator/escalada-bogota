@@ -1,9 +1,11 @@
 /**
- * frontend/src/plan/t1Avanzado.js
+ * backend/src/plan/fichasT1Avanzado.js
  * Descripciones completas de ejercicios del programa T1 Avanzado.
  * Fuente: T1_Avanzado_Guia_Completa.md (v1.0 · Julio 2026).
  *
  * Se superpone al JSON de plan_contenido (que solo trae parámetros telegráficos).
+ * Vive en el backend: GET /plan/my adjunta la ficha a cada bloque SOLO de las semanas del mes
+ * que el escalador tiene pagado (antes iba en el JS del frontend y cualquiera podía leer el ciclo completo).
  * Clave: `${semana}_${sesion}` → nombre exacto del bloque en la BD → ficha.
  * Si la BD renombra un bloque, la ficha simplemente no se aplica.
  *
@@ -223,7 +225,7 @@ const TEST = (como, anota) => ({
 // ─── OVERLAY POR SESIÓN ──────────────────────────────────
 const SUSP_SESION = (nota) => ({ ...SUSPENSION_MAX, como: [...SUSPENSION_MAX.como, nota] });
 
-export const T1_AVANZADO = {
+const T1_AVANZADO = {
   S0_1: {
     'T2 — Tracción máxima con lastre': TEST([
       'Barra estándar, pronación, ancho de hombros, sin balanceo. Arnés con discos.',
@@ -483,6 +485,8 @@ export const T1_AVANZADO = {
   },
 };
 
-export function fichaT1Avanzado(semana, sesion, nombreBloque) {
+function fichaT1Avanzado(semana, sesion, nombreBloque) {
   return T1_AVANZADO[`${semana}_${sesion}`]?.[nombreBloque] || null;
 }
+
+module.exports = { fichaT1Avanzado };

@@ -1,6 +1,7 @@
 /**
  * AdminDashboard.jsx v3
- * Filtros: ciclo, nivel, modalidad, entrenador, rango etario
+ * Filtros: periodo (mes del ciclo en curso por defecto · otro mes · ciclo completo · histórico),
+ *          nivel, modalidad, entrenador, rango etario. El servicio se paga por mes: las cifras son del mes.
  * Secciones: Financiero (flujo de caja) · Operación (dinámico) · Alertas
  */
 import { useState, useEffect } from 'react';
@@ -44,10 +45,14 @@ function BarChart({ data, valueKey = 'total', labelKey = 'periodo', color = C.ac
         const val = parseFloat(d[valueKey]) || 0;
         const pct = max > 0 ? (val / max) * 100 : 0;
         const p = d[labelKey];
-        const label = p?.includes('-') ? MESES[parseInt(p.split('-')[1]) - 1] + ' ' + p.split('-')[0].slice(2) : p;
+        const aprox = p?.includes('-') ? MESES[parseInt(p.split('-')[1]) - 1] + ' ' + p.split('-')[0].slice(2) : p;
+        // Mes del ciclo ("2026-T4-M1" → "T4 · M1") con su mes calendario aproximado debajo.
+        const label = d.clave ? d.clave.slice(5).replace('-', ' · ') : aprox;
         return (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '50px', fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins', textAlign: 'right', flexShrink: 0 }}>{label}</div>
+            <div style={{ width: '64px', fontSize: '0.78rem', color: C.text2, fontFamily: 'Poppins', textAlign: 'right', flexShrink: 0, lineHeight: 1.1 }}>
+              {label}{d.clave && <div style={{ fontSize: '0.65rem', color: C.text3 }}>≈ {aprox}</div>}
+            </div>
             <div style={{ flex: 1, height: '24px', background: '#252525', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
               <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '4px', transition: 'width 0.5s', minWidth: pct > 0 ? '2px' : 0 }} />
               <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.72rem', fontWeight: 600, color: C.text, fontFamily: 'Poppins' }}>{fmt(val)}</span>
@@ -89,14 +94,23 @@ function NivelRow({ nivel, modalidad, inscripciones, recaudado }) {
   );
 }
 
-function FilterBar({ filtro, setFiltro, ciclos, entrenadores }) {
+const FILTRO_VACIO = { periodo: '', nivel: '', modalidad: '', entrenadorId: '', rangoEtario: '' };
+const rango = (m) => `${new Date(m.fechaInicio + 'T12:00:00Z').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'UTC' })} – ${new Date(m.fechaFin + 'T12:00:00Z').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`;
+
+function FilterBar({ filtro, setFiltro, ciclos, meses, entrenadores }) {
   return (
     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-      {/* Ciclo */}
-      <select value={filtro.cicloId} onChange={e => setFiltro(f => ({ ...f, cicloId: e.target.value }))}
-        style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text2, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
-        <option value="">Todos los ciclos</option>
-        {ciclos.map(c => <option key={c.id} value={c.id}>{c.codigo}</option>)}
+      {/* Periodo: un mes del ciclo (por defecto el en curso), un ciclo completo o todo el histórico */}
+      <select value={filtro.periodo} onChange={e => setFiltro(f => ({ ...f, periodo: e.target.value }))}
+        style={{ background: C.surface, border: `1px solid ${C.accent}55`, color: C.text, padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.8rem', cursor: 'pointer' }}>
+        <option value="">Mes en curso</option>
+        <optgroup label="Mes del ciclo">
+          {meses.map(m => <option key={m.clave} value={`m:${m.cicloId}:${m.mes}`}>{m.cicloCodigo} · Mes {m.mes} · {rango(m)}{m.vigente ? ' (en curso)' : ''}</option>)}
+        </optgroup>
+        <optgroup label="Ciclo completo (3 meses)">
+          {ciclos.map(c => <option key={c.id} value={`c:${c.id}`}>{c.codigo} completo</option>)}
+        </optgroup>
+        <option value="todo">Todo el histórico</option>
       </select>
       {/* Nivel */}
       <select value={filtro.nivel || ''} onChange={e => setFiltro(f => ({ ...f, nivel: e.target.value }))}
@@ -130,7 +144,7 @@ function FilterBar({ filtro, setFiltro, ciclos, entrenadores }) {
       </select>
       {/* Limpiar */}
       {Object.values(filtro).some(v => v) && (
-        <button onClick={() => setFiltro({ cicloId: '', nivel: '', modalidad: '', entrenadorId: '', rangoEtario: '' })}
+        <button onClick={() => setFiltro(FILTRO_VACIO)}
           style={{ background: 'none', border: `1px solid ${C.border}`, color: '#ef4444', padding: '7px 10px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.78rem', cursor: 'pointer' }}>
           ✕ Limpiar
         </button>
@@ -242,7 +256,7 @@ export default function AdminDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filtro, setFiltro] = useState({ cicloId: '', nivel: '', modalidad: '', entrenadorId: '', rangoEtario: '' });
+  const [filtro, setFiltro] = useState(FILTRO_VACIO);
   const [escaladorActivar, setEscaladorActivar] = useState(null);
   const [pendientes, setPendientes] = useState([]);
 
@@ -251,7 +265,10 @@ export default function AdminDashboard() {
   const fetchData = () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (filtro.cicloId) params.set('cicloId', filtro.cicloId);
+    const [tipo, cicloId, mes] = filtro.periodo.split(':');
+    if (filtro.periodo === 'todo') params.set('todo', '1');
+    if (tipo === 'c' || tipo === 'm') params.set('cicloId', cicloId);
+    if (tipo === 'm') params.set('mes', mes);
     if (filtro.nivel) params.set('nivel', filtro.nivel);
     if (filtro.modalidad) params.set('modalidad', filtro.modalidad);
     if (filtro.entrenadorId) params.set('entrenadorId', filtro.entrenadorId);
@@ -263,7 +280,7 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(); }, [filtro.cicloId, filtro.nivel, filtro.modalidad, filtro.entrenadorId, filtro.rangoEtario]);
+  useEffect(() => { fetchData(); }, [filtro.periodo, filtro.nivel, filtro.modalidad, filtro.entrenadorId, filtro.rangoEtario]);
 
   if (loading && !data) return <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}><Loader2 className="animate-spin" style={{ width: '32px', height: '32px', color: C.accent }} /></div>;
   if (error && !data) return (
@@ -275,7 +292,12 @@ export default function AdminDashboard() {
   if (!data) return null;
 
   const ciclos = data._ciclos || [];
+  const meses = data._meses || [];
   const entrenadores = data._entrenadores || [];
+  const fm = data.filtro_mes;      // mes del ciclo de las cifras (null = ciclo completo o histórico)
+  const ref = data.mes_referencia; // mes del ciclo de "esperado vs recaudado"
+  const alcance = fm ? `${fm.cicloCodigo} · Mes ${fm.mes} (${rango(fm)})`
+    : data.filtro_ciclo ? `${ciclos.find(c => c.id === data.filtro_ciclo)?.codigo || 'Ciclo'} completo` : 'Todo el histórico';
 
   return (
     <div>
@@ -283,7 +305,7 @@ export default function AdminDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
         <div>
           <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Panel de Administración</h1>
-          <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>Vista financiera y operativa</p>
+          <p style={{ color: C.text2, fontSize: '0.9rem', fontFamily: 'Poppins' }}>Vista financiera y operativa · <strong style={{ color: C.accent }}>{alcance}</strong></p>
         </div>
         <button onClick={fetchData} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: C.surface, border: `1px solid ${C.border}`, color: C.accent, padding: '8px 14px', borderRadius: '8px', fontFamily: 'Poppins', fontSize: '0.82rem', cursor: 'pointer' }}>
           <RefreshCw size={14} style={{ opacity: loading ? 1 : 0.5 }} className={loading ? 'animate-spin' : ''} /> Actualizar
@@ -292,15 +314,15 @@ export default function AdminDashboard() {
 
       {/* Filtros */}
       <div style={{ marginBottom: '20px' }}>
-        <FilterBar filtro={filtro} setFiltro={setFiltro} ciclos={ciclos} entrenadores={entrenadores} />
+        <FilterBar filtro={filtro} setFiltro={setFiltro} ciclos={ciclos} meses={meses} entrenadores={entrenadores} />
       </div>
 
       {/* ── FINANCIERO ────────────────────── */}
       <SectionTitle>Flujo de Caja</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '4px' }}>
-        <StatCard icon={IconoRoca} label="Recaudado este mes" value={fmt(data.recaudado_mes)} sub={`de ${fmt(data.esperado_mes)} esperado`} color="#22c55e" onClick={() => navigate('/app/pagos')} />
-        <StatCard icon={data.recaudado_mes >= data.esperado_mes ? TrendingUp : TrendingDown} label="Por recaudar este mes" value={fmt(Math.max(0, data.esperado_mes - data.recaudado_mes))} color={data.recaudado_mes >= data.esperado_mes ? '#22c55e' : '#f59e0b'} onClick={() => navigate('/app/pagos')} />
-        <StatCard icon={IconoCuerda} label="Recaudado histórico" value={fmt(data.ingresos_recibidos)} sub="Todas las mensualidades pagadas" color="#9E721D" />
+        <StatCard icon={IconoRoca} label={`Recaudado · ${ref ? `${ref.cicloCodigo} Mes ${ref.mes}` : 'mes'}`} value={fmt(data.recaudado_mes)} sub={`de ${fmt(data.esperado_mes)} esperado${ref ? ` · ${rango(ref)}` : ''}`} color="#22c55e" onClick={() => navigate('/app/pagos')} />
+        <StatCard icon={data.recaudado_mes >= data.esperado_mes ? TrendingUp : TrendingDown} label="Por recaudar en ese mes" value={fmt(Math.max(0, data.esperado_mes - data.recaudado_mes))} color={data.recaudado_mes >= data.esperado_mes ? '#22c55e' : '#f59e0b'} onClick={() => navigate('/app/pagos')} />
+        <StatCard icon={IconoCuerda} label={fm ? 'Recaudado del mes (con filtros)' : 'Recaudado'} value={fmt(data.ingresos_recibidos)} sub={fm ? 'Mensualidades pagadas de ese mes' : 'Todas las mensualidades pagadas del periodo'} color="#9E721D" />
         <StatCard icon={IconoCronometro} label="Mensualidades sin pagar" value={data.pagos_pendientes} sub={fmt(data.ingresos_vencidos) + " vencido"} color="#f59e0b" onClick={() => navigate('/app/pagos')} />
       </div>
 
@@ -331,7 +353,7 @@ export default function AdminDashboard() {
 
       {/* Ingresos por mes */}
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', marginTop: '20px' }}>
-        <div style={{ fontSize: '0.72rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '14px', fontFamily: 'Poppins' }}>Ingresos últimos 6 meses</div>
+        <div style={{ fontSize: '0.72rem', color: C.accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '14px', fontFamily: 'Poppins' }}>Ingresos últimos 6 meses de ciclo</div>
         <BarChart data={data.ingresos_por_mes} color="#22c55e" />
       </div>
 
@@ -339,10 +361,10 @@ export default function AdminDashboard() {
       <SectionTitle color={C.accent2}>Operación</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
         <StatCard icon={IconoEscalador} label="Escaladores activos" value={data.escaladores_activos} sub={`${data.escaladores_total} registrados · ${data.adultos} adultos · ${data.menores} menores`} color="#22c55e" onClick={() => navigate('/app/escaladores')} />
-        <StatCard icon={IconoPresa} label="Inscripciones activas" value={data.inscripciones_activas} sub={`${data.inscripciones_total} total`} color={C.accent} />
+        <StatCard icon={IconoPresa} label={fm ? 'Inscritos del mes' : 'Inscripciones activas'} value={data.inscripciones_activas} sub={fm ? `${data.inscripciones_pagadas} con el mes pagado` : `${data.inscripciones_total} total`} color={C.accent} />
         <StatCard icon={IconoMuro} label="Grupos abiertos" value={data.grupos_abiertos} sub={`${data.grupos_en_curso} en curso`} color="#60a5fa" onClick={() => navigate('/app/grupos')} />
         <StatCard icon={IconoPlanEntreno} label="Capacidad" value={`${data.total_inscritos}/${data.capacidad_total}`} sub={`${data.ocupacion_pct}% ocupación`} color={data.ocupacion_pct >= 70 ? '#22c55e' : '#f59e0b'} />
-        <StatCard icon={IconoCronometro} label="Renovación" value={data.escaladores_renovados} sub="2+ ciclos" color="#a78bfa" />
+        <StatCard icon={IconoCronometro} label="Renovación" value={data.escaladores_renovados} sub="pagaron 2+ meses" color="#a78bfa" />
       </div>
 
       {/* Distribución */}

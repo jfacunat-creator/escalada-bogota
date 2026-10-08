@@ -173,6 +173,7 @@ async function main() {
       estado: "pagado",
       metodo: "transferencia",
       referencia: "REF-T3-001",
+      mes: 1, // mes 1 del ciclo (S0–S4); el trigger de la BD ajusta `periodo`
       periodo: new Date("2026-07-01"),
       fechaPago: new Date("2026-07-07"),
       fechaVencimiento: new Date("2026-07-05"),

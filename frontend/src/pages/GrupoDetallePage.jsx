@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Loader2, ArrowLeft, Search } from 'lucide-react';
 import { IconoEscalador, IconoCheck, IconoFalta, IconoMagnesia, IconoCuerda } from '../components/Icons';
-import { HORARIO_LABEL as horarioLabel, fmtHora } from '../components/ui';
+import { HORARIO_LABEL as horarioLabel, fmtHora, fmtRango, fmtCOP, fmtMes, MesesChips, ESTADO_INSC } from '../components/ui';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 
@@ -165,13 +165,18 @@ function TabSesiones({ grupoId, isAdmin }) {
               </div>
             )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {sesiones.map(s => {
+            {sesiones.map((s, i) => {
               const fs = s.fecha?.split('T')[0];
               const esHoy = fs === hoy;
               const isSelected = selected?.id === s.id;
               const tieneAsist = parseInt(s.asistentes) > 0;
+              const nuevoMes = s.mes && s.mes !== sesiones[i - 1]?.mes;
               return (
-                <button key={s.id} onClick={() => setSelected(isSelected ? null : s)}
+                <div key={s.id}>
+                {nuevoMes && (
+                  <div style={{ fontFamily: 'Poppins', fontSize: '0.7rem', fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', padding: i ? '12px 4px 4px' : '0 4px 4px' }}>Mes {s.mes}</div>
+                )}
+                <button onClick={() => setSelected(isSelected ? null : s)}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '8px', border: `1px solid ${isSelected ? `${C.accent}40` : esHoy ? 'rgba(245,158,11,0.25)' : C.border}`, background: isSelected ? 'rgba(212,175,55,0.08)' : esHoy ? 'rgba(245,158,11,0.05)' : 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s', width: '100%' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <span style={{ fontFamily: 'Antonio', fontSize: '1rem', color: C.accent, width: '32px' }}>#{s.numero_sesion}</span>
@@ -193,6 +198,7 @@ function TabSesiones({ grupoId, isAdmin }) {
                     </span>
                   </div>
                 </button>
+                </div>
               );
             })}
           </div>
@@ -408,6 +414,65 @@ function TabEvaluaciones({ grupoId }) {
   );
 }
 
+// ── TAB POR MES ───────────────────────────────────────────
+// La configuración del grupo es la misma los 3 meses; inscritos, pagos, ingresos y asistencia
+// son de cada mes (no todos los inscritos pagan los 3 meses).
+function TabMeses({ grupo, isAdmin }) {
+  const meses = grupo.meses || [];
+  const vigente = meses.find(m => m.vigente)?.mes;
+  const th = { padding: '10px 8px', fontSize: '0.7rem', color: C.text2, fontWeight: 600, fontFamily: 'Poppins', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left' };
+  const td = { padding: '10px 8px', fontFamily: 'Poppins', fontSize: '0.85rem', color: C.text2 };
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+        {meses.map(m => (
+          <div key={m.mes} style={{ border: `1px solid ${m.vigente ? C.accent + '80' : C.border}`, borderRadius: '10px', padding: '14px', background: m.vigente ? 'rgba(212,175,55,0.06)' : 'transparent' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ fontFamily: 'Antonio', fontSize: '1.2rem', color: C.text }}>Mes {m.mes}</span>
+              {m.vigente && <span style={{ fontSize: '0.68rem', color: C.accent, fontFamily: 'Poppins', fontWeight: 700 }}>EN CURSO</span>}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: C.text2, fontFamily: 'Poppins' }}>{fmtRango(m.fechaInicio, m.fechaFin)} · ≈ {fmtMes(m.periodo)}</div>
+            <div style={{ fontSize: '0.7rem', color: '#666', fontFamily: 'Poppins', marginBottom: '10px' }}>Semanas {m.semanas[0]}–{m.semanas[m.semanas.length - 1]} · {m.sesiones} sesiones</div>
+            {[
+              ['Inscritos', m.inscritos, C.accent],
+              ['Pagaron', `${m.pagados}/${m.inscritos}`, m.pagados < m.inscritos ? '#f59e0b' : '#22c55e'],
+              ...(isAdmin ? [['Recaudado', `${fmtCOP(m.recaudado)} de ${fmtCOP(m.esperado)}`, '#22c55e']] : []),
+              ['Asistencia', m.asistenciaPct == null ? '—' : `${m.asistenciaPct}%`, m.asistenciaPct == null ? C.text2 : m.asistenciaPct >= 80 ? '#22c55e' : '#f59e0b'],
+            ].map(([k, v, c]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderTop: '1px solid #242424', fontFamily: 'Poppins', fontSize: '0.8rem' }}>
+                <span style={{ color: C.text2 }}>{k}</span><span style={{ color: c, fontWeight: 600 }}>{v}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: '0.72rem', color: C.text2, fontWeight: 600, fontFamily: 'Poppins', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Escaladores por mes</div>
+      {(grupo.porMes || []).length === 0
+        ? <div style={{ color: C.text2, fontFamily: 'Poppins', fontSize: '0.85rem', padding: '20px', textAlign: 'center' }}>Aún no hay inscritos.</div>
+        : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '460px' }}>
+              <thead><tr style={{ borderBottom: `1px solid ${C.border}` }}>{['Escalador', 'Meses', 'Inscripción'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {grupo.porMes.map(e => (
+                  <tr key={e.inscripcion_id} style={{ borderBottom: '1px solid rgba(46,46,46,0.5)' }}>
+                    <td style={{ ...td, color: C.text, fontWeight: 600 }}>{e.nombre} {e.apellido}</td>
+                    <td style={td}><MesesChips estados={e.meses_estado} vigente={vigente} /></td>
+                    <td style={{ ...td, color: ESTADO_INSC[e.inscripcion_estado]?.color }}>{ESTADO_INSC[e.inscripcion_estado]?.label || e.inscripcion_estado}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ fontSize: '0.72rem', color: '#666', fontFamily: 'Poppins', marginTop: '8px' }}>
+              Verde: mes pagado (ve el plan de ese mes) · ámbar: pendiente · rojo: vencido · gris: no inscrito ese mes.
+            </div>
+          </div>
+        )}
+    </div>
+  );
+}
+
 // ── TAB RESUMEN ASISTENCIA ────────────────────────────────
 function TabResumen({ grupoId }) {
   const [resumen, setResumen] = useState([]);
@@ -463,7 +528,7 @@ export default function GrupoDetallePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [grupo, setGrupo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const tab = searchParams.get('tab') || 'sesiones';
+  const tab = searchParams.get('tab') || 'meses';
   const setTab = (t) => setSearchParams({ tab: t }, { replace: true });
 
   const isAdmin = user?.rol === 'admin';
@@ -477,6 +542,7 @@ export default function GrupoDetallePage() {
   if (!grupo) return <div style={{ padding: '60px', textAlign: 'center', color: '#A09A8C', fontFamily: 'Poppins' }}>Grupo no encontrado.</div>;
 
   const tabs = [
+    { id: 'meses', label: 'Por mes' },
     { id: 'sesiones', label: 'Sesiones y asistencia' },
     { id: 'escaladores', label: 'Escaladores' },
     { id: 'resumen', label: 'Resumen asistencia' },
@@ -496,7 +562,7 @@ export default function GrupoDetallePage() {
         <div style={{ background: '#4A2F0F', padding: '18px 22px' }}>
           <div style={{ fontFamily: 'Antonio', fontSize: '1.5rem', color: '#F0EDE8' }}>{grupo.programa_nombre}</div>
           <div style={{ fontFamily: 'Poppins', fontSize: '0.82rem', color: '#D4AF37', marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            <span>{grupo.ciclo_codigo}</span>
+            <span>{grupo.ciclo_codigo} · {fmtRango(grupo.fecha_inicio, grupo.fecha_fin)}</span>
             <span>{horarioLabel[grupo.horario] || 'Horario libre (autónomo)'}</span>
             <span>{grupo.muro_nombre}</span>
             <span style={{ color: '#22c55e' }}>{grupo.inscritos_actual || 0}/{grupo.cupo_maximo} inscritos</span>
@@ -524,6 +590,7 @@ export default function GrupoDetallePage() {
 
       {/* Contenido del tab */}
       <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '20px' }}>
+        {tab === 'meses' && <TabMeses grupo={grupo} isAdmin={isAdmin} />}
         {tab === 'sesiones' && <TabSesiones grupoId={id} isAdmin={isAdmin} />}
         {tab === 'escaladores' && <TabEscaladores grupoId={id} isAdmin={isAdmin} />}
         {tab === 'resumen' && <TabResumen grupoId={id} />}

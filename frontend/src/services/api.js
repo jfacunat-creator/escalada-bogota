@@ -78,6 +78,7 @@ class ApiService {
   crearCiclo(data)      { return this.request('/catalogos/ciclos', { method: 'POST', body: JSON.stringify(data) }); }
   updateCiclo(id, data) { return this.request(`/catalogos/ciclos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   deleteCiclo(id)       { return this.request(`/catalogos/ciclos/${id}`, { method: 'DELETE' }); }
+  getMeses()            { return this.request('/catalogos/meses'); }
   getMuros(todos)       { return this.request(`/catalogos/muros${todos ? '?todos=1' : ''}`); }
   crearMuro(data)       { return this.request('/catalogos/muros', { method: 'POST', body: JSON.stringify(data) }); }
   updateMuro(id, data)  { return this.request(`/catalogos/muros/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
@@ -151,9 +152,10 @@ class ApiService {
   // Pagos (mensualidades)
   getPagosConfig()                  { return this.request('/pagos/config'); }
   getPagos(params)                  { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos${q}`); }
-  getResumenPagos(periodo)          { return this.request(`/pagos/resumen${periodo ? `?periodo=${periodo}` : ''}`); }
+  // Pagos por mes del ciclo: { cicloId, mes } (1–3); sin parámetros, el mes en curso.
+  getResumenPagos(params)           { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/pagos/resumen${q}`); }
   registrarPago(data)               { return this.request('/pagos', { method: 'POST', body: JSON.stringify(data) }); }
-  generarMensualidades(periodo)     { return this.request('/pagos/generar', { method: 'POST', body: JSON.stringify({ periodo }) }); }
+  generarMensualidades(cicloId, mes){ return this.request('/pagos/generar', { method: 'POST', body: JSON.stringify({ cicloId, mes }) }); }
   updatePago(id, data)              { return this.request(`/pagos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   deletePago(id)                    { return this.request(`/pagos/${id}`, { method: 'DELETE' }); }
   generarLinkPago(id)               { return this.request(`/pagos/${id}/link-pago`, { method: 'POST' }); }

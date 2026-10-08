@@ -7,7 +7,6 @@ import { restarGrados, fmtRangoKg, fmtKg } from './perfil';
 
 const RE_SALIDA_PCT = /\+(\d+)\s*[–-]\s*(\d+)%\s*vs\s*S0/i;
 const RE_SALIDA_CIRC = /\+(\d+)%\s*(?:de\s*)?movimientos\s*vs\s*S0/i;
-import { fichaT1Avanzado } from './t1Avanzado';
 
 const RE_PCT_T2 = /(\d+)\s*(?:[–-]\s*(\d+))?\s*%\s*de\s*(?:tu\s*)?T2(?:\s*en\s*S0)?/i;
 const RE_EJEMPLO = /\s*\(ej:[^)]*\)/i;
@@ -88,16 +87,15 @@ function personalizarParams(b, calc) {
 /**
  * @param plan    { trimestre, nivel }
  * @param semana  'S0'…'S12'
- * @param sd      sesión del JSON ({ num, name, blocks: [{ n, i, params }] })
+ * @param sd      sesión del JSON ({ num, name, blocks: [{ n, i, params, ficha? }] }).
+ *                La ficha de ejecución la adjunta el backend solo en las semanas del mes pagado.
  * @param calc    calcularParametros(perfil) o null
  * @returns       bloques con { ...b, params, ficha, avisos, oculto, motivoOculto }
  */
 export function personalizarBloques(plan, semana, sd, calc) {
-  const usaFichas = plan?.trimestre === 'T1' && plan?.nivel === 'avanzado';
-
   return (sd.blocks || []).map(b0 => {
     let b = { ...b0, params: [...(b0.params || [])], avisos: [], ficha: null, oculto: false };
-    let ficha = usaFichas ? fichaT1Avanzado(semana, sd.num, b.n) : null;
+    let ficha = b0.ficha || null;
 
     // Campus según aptitud (≥3 años y dolor ≤2 en dedos/codos)
     if (calc && esCampus(b) && !calc.campusApto) {

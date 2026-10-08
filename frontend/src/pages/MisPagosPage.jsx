@@ -1,6 +1,7 @@
 /**
  * MisPagosPage.jsx
- * Mensualidades del escalador: pendientes e historial.
+ * Mensualidades del escalador: pendientes e historial. Cada una cubre un mes del ciclo
+ * (4 semanas, con sus fechas) y da acceso al plan de ese mes.
  * Pago: link de Wompi si la pasarela está configurada; si no, soporte de transferencia por WhatsApp.
  * Consume:
  *   GET  /api/pagos, /api/pagos/config
@@ -11,7 +12,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, CreditCard, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import api from '../services/api';
 import { whatsappUrl } from '../config';
-import { fmtMes } from '../components/ui';
+import { fmtMes, fmtRango } from '../components/ui';
 
 const C = { surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 
@@ -44,8 +45,11 @@ function PagoCard({ pago, onPagar, pagando, wompi }) {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: C.text, textTransform: 'capitalize' }}>
-            Mensualidad {fmtMes(pago.periodo_mes)}
+          <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: C.text }}>
+            Mensualidad · Mes {pago.mes} del ciclo {pago.ciclo}
+          </div>
+          <div style={{ fontSize: '0.8rem', color: C.text, fontFamily: 'Poppins' }}>
+            {fmtRango(pago.mes_inicio, pago.mes_fin)} <span style={{ color: C.text2 }}>(≈ {fmtMes(pago.periodo_mes)})</span>
           </div>
           <div style={{ fontSize: '0.8rem', color: C.text2, fontFamily: 'Poppins' }}>
             {pago.programa} · {pago.modalidad === 'acompanado' ? 'Acompañado' : 'Autónomo'}
@@ -91,7 +95,7 @@ function PagoCard({ pago, onPagar, pagando, wompi }) {
 
       {/* Pago: Wompi (si está configurado) o soporte de transferencia por WhatsApp */}
       {pago.estado !== 'pagado' && !wompi && (
-        <a href={whatsappUrl(`Hola, envío el soporte de pago de mi mensualidad de ${fmtMes(pago.periodo_mes)} (${formatCOP(pago.monto)}) — ${pago.nombre} ${pago.apellido}.`)}
+        <a href={whatsappUrl(`Hola, envío el soporte de pago de mi mensualidad del mes ${pago.mes} del ciclo ${pago.ciclo}, ${fmtRango(pago.mes_inicio, pago.mes_fin)} (${formatCOP(pago.monto)}) — ${pago.nombre} ${pago.apellido}.`)}
           target="_blank" rel="noopener noreferrer"
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px',
@@ -169,7 +173,7 @@ export default function MisPagosPage() {
     <div>
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Mis Pagos</h1>
-        <p style={{ fontSize: '0.9rem', color: C.text2, fontFamily: 'Poppins' }}>Estado de tus mensualidades</p>
+        <p style={{ fontSize: '0.9rem', color: C.text2, fontFamily: 'Poppins' }}>Estado de tus mensualidades · cada mes pagado habilita el plan de ese mes</p>
       </div>
 
       {/* Resumen */}

@@ -204,7 +204,9 @@ model Pago {
   monto            Decimal     @db.Decimal(10, 2)
   fechaPago        DateTime?   @map("fecha_pago") @db.Date
   fechaVencimiento DateTime?   @map("fecha_vencimiento") @db.Date
-  /// Mes que cubre el pago (primer día del mes). Las mensualidades se cobran por mes.
+  /// Mes del ciclo que cubre el pago (1 = S0–S4, 2 = S5–S8, 3 = S9–S12). Ver prisma/sql/2026-10-08_meses_del_ciclo.sql
+  mes              Int         @db.SmallInt
+  /// Mes calendario aproximado de ese mes del ciclo (lo mantiene un trigger a partir de `mes`).
   periodo          DateTime    @default(dbgenerated("(date_trunc('month'::text, (CURRENT_DATE)::timestamp with time zone))::date")) @db.Date
   metodo           MetodoPago?
   estado           EstadoPago  @default(pendiente)
@@ -214,7 +216,7 @@ model Pago {
   updatedAt        DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   inscripcion      Inscripcion @relation(fields: [inscripcionId], references: [id])
 
-  @@unique([inscripcionId, periodo], map: "pago_inscripcion_periodo_key")
+  @@unique([inscripcionId, mes], map: "pago_inscripcion_mes_key")
   @@index([inscripcionId])
   @@index([estado])
   @@map("pago")
@@ -365,6 +367,8 @@ model ContenidoCiclo {
   tamanoBytes BigInt?             @map("tamano_bytes")
   duracionSeg Int?                @map("duracion_seg")
   orden       Int                 @default(0)
+  /// Mes del ciclo en que el escalador ve este material (NULL = todo el ciclo).
+  mes         Int?                @db.SmallInt
   visible     Boolean             @default(true)
   createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)

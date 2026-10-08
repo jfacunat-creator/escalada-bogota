@@ -16,6 +16,11 @@ export const fmtMes = (p) => { if (!p) return '—'; const [a, m] = String(p).sp
 // Columnas TIME llegan como "1970-01-01T18:00:00.000Z" (o "18:00:00"): devuelve "18:00".
 export const fmtHora = (t) => (t ? (String(t).match(/\d{2}:\d{2}/) || [''])[0] : '');
 export const mesActual = () => new Date().toISOString().slice(0, 7);
+// "2026-10-01", "2026-10-28" → "1 oct – 28 oct"
+const fechaCorta = (d) => new Date(String(d).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'UTC' }).replace('.', '');
+export const fmtRango = (inicio, fin) => (inicio && fin ? `${fechaCorta(inicio)} – ${fechaCorta(fin)}` : '—');
+// Mes del ciclo (4 semanas; el servicio se paga por mes): "Mes 2 · 1 oct – 28 oct"
+export const fmtMesCiclo = (m) => (m ? `Mes ${m.mes} · ${fmtRango(m.fechaInicio ?? m.fecha_inicio, m.fechaFin ?? m.fecha_fin)}` : '—');
 export const sumarMeses = (p, n) => { const [a, m] = p.split('-').map(Number); const d = new Date(Date.UTC(a, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 export const MODALIDAD = { autonomo: 'Autónomo', acompanado: 'Acompañado' };
 export const HORARIOS = [
@@ -115,6 +120,25 @@ export const ESTADO_INSC = {
   cancelada: { label: 'Cancelada', color: C.danger },
   completada: { label: 'Completada', color: C.info },
 };
+
+// Estado de la mensualidad de cada mes del ciclo: M1 M2 M3 (verde pagado, ámbar pendiente,
+// rojo vencido, gris sin inscribir). `estados` = { 1: 'pagado', 2: 'pendiente' }.
+export function MesesChips({ estados = {}, vigente }) {
+  return (
+    <span style={{ display: 'inline-flex', gap: '4px' }}>
+      {[1, 2, 3].map(m => {
+        const e = estados[m] ?? estados[String(m)];
+        const color = e ? ESTADO_PAGO[e]?.color : C.text3;
+        return (
+          <span key={m} title={`Mes ${m}: ${e ? ESTADO_PAGO[e]?.label : 'sin inscribir'}${m === vigente ? ' · en curso' : ''}`} style={{
+            fontSize: '0.68rem', fontWeight: 700, fontFamily: 'Poppins', padding: '1px 6px', borderRadius: '5px',
+            color, background: e ? color + '1c' : 'transparent', border: `1px solid ${m === vigente ? color : (e ? color + '55' : C.border)}`,
+          }}>M{m}</span>
+        );
+      })}
+    </span>
+  );
+}
 
 export function Confirmar({ titulo, mensaje, textoBoton = 'Confirmar', peligro, onConfirm, onClose }) {
   const [enviando, setEnviando] = useState(false);

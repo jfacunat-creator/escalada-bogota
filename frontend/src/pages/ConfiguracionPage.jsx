@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import api from '../services/api';
-import { C, fmtCOP, fmtFecha, Btn, Modal, Field, Input, Select, Aviso, Badge, Confirmar } from '../components/ui';
+import { C, fmtCOP, fmtFecha, fmtMes, fmtRango, Btn, Modal, Field, Input, Select, Aviso, Badge, Confirmar } from '../components/ui';
 
 function Seccion({ titulo, descripcion, accion, children }) {
   return (
@@ -101,7 +101,7 @@ function Ciclos() {
   };
 
   return (
-    <Seccion titulo="Ciclos" descripcion="Trimestres de 13 semanas. Los grupos se crean dentro de un ciclo; su número (T1–T4) define el mesociclo del plan."
+    <Seccion titulo="Ciclos" descripcion="Trimestres de 13 semanas que se venden en 3 meses: Mes 1 = S0–S4, Mes 2 = S5–S8, Mes 3 = S9–S12. Los grupos se crean dentro de un ciclo; su número (T1–T4) define el mesociclo del plan."
       accion={<Btn small variant="dark" onClick={nuevo}><Plus size={13} /> Nuevo ciclo</Btn>}>
       <Aviso tipo="ok" onClose={() => setAvisos([])}>{avisos}</Aviso>
       {!form && <Aviso onClose={() => setError(null)}>{error}</Aviso>}
@@ -115,6 +115,9 @@ function Ciclos() {
               <span style={{ fontFamily: 'Antonio', fontSize: '1.05rem', color: C.accent, width: '80px' }}>{c.codigo}</span>
               <span style={{ flex: 1, fontFamily: 'Poppins', fontSize: '0.84rem', color: C.text2 }}>
                 {fmtFecha(c.fecha_inicio)} → {fmtFecha(c.fecha_fin)} · empalme {fmtFecha(c.semana_empalme)} · {c.grupos} grupo(s)
+                <span style={{ display: 'block', fontSize: '0.74rem', color: C.text3 }}>
+                  {(c.meses || []).map(m => `Mes ${m.mes}: ${fmtRango(m.fecha_inicio, m.fecha_fin)} (≈ ${fmtMes(m.periodo)})`).join(' · ')}
+                </span>
               </span>
               {vigente && <Badge color={C.ok}>Vigente</Badge>}
               <Btn small variant="secondary" onClick={() => setForm({ id: c.id, anio: c.anio, trimestre: c.trimestre, fechaInicio: c.fecha_inicio.slice(0, 10), fechaFin: c.fecha_fin.slice(0, 10), semanaEmpalme: c.semana_empalme?.slice(0, 10) || '' })}><Pencil size={13} /></Btn>
