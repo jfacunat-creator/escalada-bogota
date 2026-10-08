@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Loader2, CreditCard, BookOpen, ChevronDown, ChevronUp, ClipboardList, CheckCircle2 } from 'lucide-react';
+import { Loader2, CreditCard, BookOpen, Dumbbell, ChevronDown, ChevronUp, ClipboardList, CheckCircle2 } from 'lucide-react';
 import { IconoMuro, IconoCronometro, IconoEscalador, IconoCheck, IconoFalta } from '../components/Icons';
 import { HORARIO_LABEL as horarioLabel, fmtHora, fmtRango, ESTADO_PAGO } from '../components/ui';
+import CalendarioPlan from '../components/CalendarioPlan';
 
 const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
 const tipoColor  = { regular: '#D4AF37', juego_cierre: '#c084fc', test: '#f59e0b', checkpoint_fest: '#ef4444' };
@@ -127,6 +128,7 @@ export default function MiGrupoPage() {
   const [profile, setProfile]       = useState(null);
   const [sesiones, setSesiones]     = useState([]);
   const [asistencia, setAsistencia] = useState(null);
+  const [plan, setPlan]             = useState(null); // plan del mes (solo si está pagado trae las sesiones)
   const [loading, setLoading]       = useState(true);
   const [testAbierto, setTestAbierto] = useState(null); // sesionId con form abierto
   const [testsCompletados, setTestsCompletados] = useState(new Set()); // sesionIds ya registrados
@@ -140,13 +142,15 @@ export default function MiGrupoPage() {
       const insc = p.escalador?.inscripciones || [];
       const act  = insc.find(i => i.estado === 'activa') || insc[0];
       if (act?.cohorte?.id) {
-        const [ses, asis, evaluaciones] = await Promise.all([
+        const [ses, asis, evaluaciones, pl] = await Promise.all([
           api.getSesiones(act.cohorte.id).catch(() => []),
           api.getAsistenciaEscalador(p.escalador.id, act.cohorte.id).catch(() => null),
           api.getEvaluaciones({ escaladorId: p.escalador.id }).catch(() => []),
+          api.getMyPlan().catch(() => null),
         ]);
         setSesiones(ses || []);
         setAsistencia(asis);
+        setPlan(pl);
         // Marcar sesiones de test ya completadas por fecha
         const fechasConEval = new Set((evaluaciones || []).map(e => e.fecha?.split('T')[0]));
         const completados = new Set();
@@ -299,11 +303,11 @@ export default function MiGrupoPage() {
         />
       )}
 
-      {/* Stats asistencia */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' }} className="mis-stats">
+      {/* Stats asistencia (solo si el grupo tiene sesiones programadas con entrenador) */}
+      {sesiones.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' }} className="mis-stats">
         <style>{`@media(max-width:600px){.mis-stats{grid-template-columns:repeat(2,1fr)!important}}`}</style>
         {[
-          [sesiones.length,         'Sesiones del ciclo', C.text2],
+          [sesiones.length,         'Sesiones programadas', C.text2],
           [res.asistencias,         'Asistencias',    '#22c55e'],
           [res.faltas,              'Faltas',          '#ef4444'],
           [res.porcentaje + '%',    'Asistencia',      res.porcentaje >= 80 ? '#22c55e' : '#f59e0b'],
@@ -316,10 +320,17 @@ export default function MiGrupoPage() {
             )}
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Accesos rápidos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+        <button onClick={() => navigate('/app/mi-plan')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 18px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+          <Dumbbell style={{ width: '22px', height: '22px', color: '#00D9B5', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.88rem', color: C.text }}>Mi Plan</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: '0.75rem', color: C.text2, marginTop: '2px' }}>Sesiones del mes, registro y progresión</div>
+          </div>
+        </button>
         <button onClick={() => navigate('/app/mis-pagos')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 18px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
           <CreditCard style={{ width: '22px', height: '22px', color: C.accent, flexShrink: 0 }} />
           <div>
@@ -336,16 +347,19 @@ export default function MiGrupoPage() {
         </button>
       </div>
 
-      {/* Lista de sesiones */}
-      <div style={{ fontFamily: 'Poppins', fontSize: '0.72rem', color: C.text2, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px', fontWeight: 600 }}>
-        Sesiones del ciclo
+      {/* Calendario del mes con la sugerencia de cuándo hacer cada sesión del plan */}
+      <CalendarioPlan plan={plan} sesionesGrupo={sesionesOrdenadas} asistMap={asistMap} />
+
+      {/* Sesiones programadas con el entrenador (fechas del grupo, asistencia y tests) */}
+      {sesiones.length > 0 && <>
+      <div style={{ fontFamily: 'Poppins', fontSize: '0.72rem', color: C.text2, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px', fontWeight: 600 }}>
+        Sesiones con tu grupo
       </div>
+      <p style={{ fontFamily: 'Poppins', fontSize: '0.75rem', color: C.text2, margin: '0 0 10px' }}>
+        Fechas de entrenamiento con tu entrenador en el muro: aquí ves tu asistencia y registras los tests.
+      </p>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        {sesiones.length === 0 ? (
-          <p style={{ color: C.text2, fontFamily: 'Poppins', padding: '20px', textAlign: 'center', fontSize: '0.85rem' }}>
-            Las sesiones aún no han sido generadas.
-          </p>
-        ) : sesionesOrdenadas.map(s => {
+        {sesionesOrdenadas.map(s => {
           const fs    = s.fecha?.split('T')[0];
           const a     = asistMap[fs];
           const past  = fs < hoy;
@@ -423,6 +437,7 @@ export default function MiGrupoPage() {
           );
         })}
       </div>
+      </>}
     </div>
   );
 }
