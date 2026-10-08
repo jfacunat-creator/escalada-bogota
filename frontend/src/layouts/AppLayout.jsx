@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { IconoMuro, IconoPresa, IconoEscalador, IconoCohorte, IconoPlanEntreno, IconoCronometro, IconoCuerda, IconoRoca } from '../components/Icons';
+import { IconoMuro, IconoPresa, IconoEscalador, IconoCohorte, IconoPlanEntreno, IconoCronometro, IconoCuerda, IconoRoca, IconoVideo } from '../components/Icons';
 import { LogOut, Menu, X } from 'lucide-react';
 
 const nav = {
@@ -18,6 +18,7 @@ const nav = {
     { to: '/app',                  icon: IconoPresa,     label: 'Inicio'      },
     { to: '/app/mis-grupos',       icon: IconoCohorte,   label: 'Mis Grupos'  },
     { to: '/app/mis-escaladores',  icon: IconoEscalador, label: 'Escaladores' },
+    { to: '/app/videos',           icon: IconoVideo,     label: 'Videos'      },
     { to: '/app/ajustes-ai',       icon: IconoPlanEntreno, label: 'Ajustes AI' },
   ],
   admin: [
@@ -26,6 +27,7 @@ const nav = {
     { to: '/app/escaladores',  icon: IconoEscalador,  label: 'Escaladores'  },
     { to: '/app/entrenadores', icon: IconoCuerda,     label: 'Entrenadores' },
     { to: '/app/programas',    icon: IconoPlanEntreno, label: 'Programas'    },
+    { to: '/app/videos',       icon: IconoVideo,      label: 'Videos'       },
     { to: '/app/ajustes-ai',   icon: IconoPlanEntreno, label: 'Ajustes AI'   },
     { to: '/app/pagos',        icon: IconoRoca,       label: 'Pagos'        },
     { to: '/app/rrhh',         icon: IconoCronometro, label: 'RRHH'         },

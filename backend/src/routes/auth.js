@@ -5,6 +5,7 @@ const { body, validationResult } = require("express-validator");
 const prisma = require("../config/prisma");
 const { generateTokens } = require("../utils/jwt");
 const { SQL_MES_VIGENTE } = require("../utils/meses");
+const { MAYORIA_EDAD, esMenor, validarConsentimiento, guardarConsentimiento, consentimientoVigente } = require("../utils/consentimiento");
 
 const router = express.Router();
 
@@ -32,6 +33,18 @@ router.post(
       hoy.getFullYear() -
       nacimiento.getFullYear() -
       (hoy < new Date(hoy.getFullYear(), nacimiento.getMonth(), nacimiento.getDate()) ? 1 : 0);
+
+    // Por ahora solo se atienden adultos (16+); el programa de menores no está abierto.
+    if (edad < 16)
+      return res.status(400).json({ error: "Por ahora solo atendemos escaladores de 16 años en adelante" });
+
+    // Menor de edad (16–17): su representante legal diligencia el consentimiento (Ley 1098/2006).
+    let consentimiento = null;
+    if (edad < MAYORIA_EDAD) {
+      const v = validarConsentimiento(req.body.consentimiento);
+      if (v.error) return res.status(400).json({ error: v.error });
+      consentimiento = v.datos;
+    }
 
     let rangoEtario = "adulto";
     if (edad < 10) rangoEtario = "menor_6_9";
@@ -61,11 +74,13 @@ router.post(
           `INSERT INTO escalador
              (id, usuario_id, nombre, apellido, fecha_nacimiento, rango_etario,
               peso_kg, telefono, contacto_emergencia, estado, updated_at)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', NOW())
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::"RangoEtario", $6, $7, $8, 'pendiente', NOW())
            RETURNING id, nombre, apellido, rango_etario, estado, created_at`,
           usuario.id, nombre, apellido, nacimiento, rangoEtario,
           pesoKg || null, telefono || null, contactoEmergencia
         );
+
+        if (consentimiento) await guardarConsentimiento(tx, escResult[0].id, consentimiento, req.ip);
 
         return { usuario, escalador: escResult[0] };
       });
@@ -169,7 +184,7 @@ router.get(
     try {
       const userRes = await prisma.$queryRawUnsafe(
         `SELECT u.id, u.email, u.rol,
-                e.id as esc_id, e.nombre, e.apellido, e.rango_etario,
+                e.id as esc_id, e.nombre, e.apellido, e.rango_etario, e.fecha_nacimiento,
                 e.estado as esc_estado, e.nivel as esc_nivel, e.telefono, e.contacto_emergencia,
                 e.created_at as esc_created,
                 t.id as ent_id, t.nombre as ent_nombre, t.licencia_ley181, t.max_grupos
@@ -285,6 +300,9 @@ router.get(
           telefono: row.telefono,
           contactoEmergencia: row.contacto_emergencia,
           createdAt: row.esc_created,
+          // Menor de edad sin consentimiento vigente: debe diligenciarlo antes de inscribirse.
+          esMenor: esMenor(row.fecha_nacimiento),
+          consentimientoPendiente: esMenor(row.fecha_nacimiento) && !(await consentimientoVigente(row.esc_id)),
           inscripciones,
         };
       }

@@ -4,6 +4,7 @@ const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
 const { tarifaMensual, recontarGrupo, crearMensualidad, liberarMensualidades } = require("../utils/pagos");
 const { SQL_MES_ENTRADA, SQL_MES_VIGENTE, mesValido } = require("../utils/meses");
+const { esMenor, consentimientoVigente } = require("../utils/consentimiento");
 
 const router = express.Router();
 router.use(authenticate);
@@ -38,12 +39,16 @@ async function validarInscripcion(tx, escaladorId, grupoId) {
   if (Number(grupo.ocupados) >= grupo.cupo_maximo) throw err(400, "Grupo sin cupos disponibles");
 
   const e = await tx.$queryRawUnsafe(
-    "SELECT id, nivel::text AS nivel, rango_etario::text AS rango_etario FROM escalador WHERE id = $1", escaladorId
+    "SELECT id, nivel::text AS nivel, rango_etario::text AS rango_etario, fecha_nacimiento FROM escalador WHERE id = $1", escaladorId
   );
   if (!e.length) throw err(404, "Escalador no encontrado");
   const esc = e[0];
   if (grupo.poblacion === "menor" && esc.rango_etario === "adulto") throw err(400, "Un adulto no puede inscribirse en un programa de menores");
   if (grupo.poblacion === "adulto" && esc.rango_etario !== "adulto") throw err(400, "Un menor no puede inscribirse en un programa de adultos");
+  // Menor de 18 al inscribirse: exige el consentimiento del representante legal (Ley 1098/2006).
+  if (esMenor(esc.fecha_nacimiento) && !(await consentimientoVigente(escaladorId, tx))) {
+    throw err(403, "Falta el consentimiento informado del representante legal (escalador menor de edad)");
+  }
 
   const vigentes = await tx.$queryRawUnsafe(
     `SELECT grupo_id FROM inscripcion WHERE escalador_id = $1 AND estado IN ('activa', 'reservada')`, escaladorId

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { IconoPlanEntreno, IconoVideo, IconoCuerda, IconoMagnesia, IconoCandado, IconoCheck, IconoRoca } from '../components/Icons';
 import { Loader2, ExternalLink } from 'lucide-react';
+import { MisVideos } from '../components/VideosRevision';
 
 const tipoConfig = {
   plan_entrenamiento: { label: 'Plan de Entreno', Icon: IconoPlanEntreno, color: '#D4AF37' },
@@ -38,6 +39,11 @@ export default function ContenidoPage() {
         <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8' }}>Contenido del Ciclo</h1>
         <p style={{ color: '#A09A8C', fontSize: '0.9rem' }}>Material de entrenamiento · Acceso con suscripción activa</p>
       </div>
+
+      {/* Videos para revisión: siempre visibles, aunque la mensualidad no esté al día */}
+      <MisVideos />
+
+      <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.4rem', color: '#F0EDE8', marginBottom: '12px' }}>Material del mes</h2>
 
       {contenido.length === 0 ? (
         <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '60px', textAlign: 'center' }}>

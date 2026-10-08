@@ -104,6 +104,12 @@ class ApiService {
   deleteEscalador(id)    { return this.request(`/escaladores/${id}`, { method: 'DELETE' }); }
   asignarNivel(id, nivel) { return this.request(`/escaladores/${id}/nivel`, { method: 'PATCH', body: JSON.stringify({ nivel }) }); }
   cambiarEstadoEscalador(id, estado) { return this.request(`/escaladores/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
+  firmarConsentimiento(id, data) { return this.request(`/escaladores/${id}/consentimiento`, { method: 'POST', body: JSON.stringify(data) }); }
+
+  // Videos para revisión
+  getVideos(params)       { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/videos${q}`); }
+  crearVideo(data)        { return this.request('/videos', { method: 'POST', body: JSON.stringify(data) }); }
+  observarVideo(id, texto) { return this.request(`/videos/${id}/observaciones`, { method: 'POST', body: JSON.stringify({ texto }) }); }
 
   // Entrenadores
   getEntrenadores()              { return this.request('/entrenadores'); }

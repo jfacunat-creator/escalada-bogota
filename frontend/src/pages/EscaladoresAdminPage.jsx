@@ -251,9 +251,6 @@ export default function EscaladoresAdminPage() {
         <select value={rangoEtario} onChange={e => setRangoEtario(e.target.value)} className="input-dark" style={{ width: 'auto', minWidth: '130px' }}>
           <option value="">Todos los rangos</option>
           <option value="adulto">Adultos</option>
-          <option value="menor_6_9">Menor 6–9</option>
-          <option value="menor_10_12">Menor 10–12</option>
-          <option value="menor_13_15">Menor 13–15</option>
         </select>
         <select value={nivel} onChange={e => setNivel(e.target.value)} className="input-dark" style={{ width: 'auto', minWidth: '140px' }}>
           <option value="">Todos los niveles</option>
@@ -377,6 +374,17 @@ export default function EscaladoresAdminPage() {
                             ['Contacto emergencia', detalle.contacto_emergencia || '—'],
                             ['Nacimiento', detalle.fecha_nacimiento ? new Date(detalle.fecha_nacimiento).toLocaleDateString('es-CO', { timeZone: 'UTC' }) : '—'],
                             ['Peso', detalle.peso_kg ? `${detalle.peso_kg} kg` : '—'],
+                            // Menor de edad: consentimiento del representante legal (Ley 1098/2006)
+                            ...(detalle.es_menor ? [
+                              ['Consentimiento menor', detalle.consentimiento
+                                ? <span style={{ color: C.ok }}>Firmado {new Date(detalle.consentimiento.firmado_at || detalle.consentimiento.fecha_firma).toLocaleDateString('es-CO')}</span>
+                                : <span style={{ color: C.warn }}>Pendiente</span>],
+                              ...(detalle.consentimiento ? [
+                                ['Representante', `${detalle.consentimiento.nombre_completo} (${detalle.consentimiento.parentesco})`],
+                                ['Documento repr.', `${detalle.consentimiento.tipo_documento || 'CC'} ${detalle.consentimiento.cedula}`],
+                                ['Teléfono repr.', <a href={`tel:${detalle.consentimiento.telefono}`} style={{ color: C.accent }}>{detalle.consentimiento.telefono}</a>],
+                              ] : []),
+                            ] : []),
                             ...(isAdmin ? [] : [['Estado', ESTADO_ESC[detalle.estado] || detalle.estado]]),
                             ...(isAdmin ? [['Total pagado', fmt(e.total_pagado || 0)]] : []),
                             ['Entrenador', e.entrenador_activo || '—'],

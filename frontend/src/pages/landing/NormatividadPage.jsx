@@ -8,12 +8,6 @@ const items = [
     color: '#38bdf8',
   },
   {
-    titulo: 'Habilitación de Entrenadores',
-    ley: 'Ley 181/1995 · Art. 35',
-    desc: 'Todos nuestros entrenadores están habilitados según la Ley del Deporte colombiana. Contamos con licencia para prestar servicios de entrenamiento deportivo de escalada a nivel amateur y competidor.',
-    color: '#22c55e',
-  },
-  {
     titulo: 'Protección al Consumidor',
     ley: 'Ley 1480/2011 (Estatuto del Consumidor)',
     desc: 'Tienes derecho a recibir el servicio en las condiciones ofrecidas, a información clara sobre precios y condiciones, y a radicar reclamaciones. Toda la información de planes y precios es pública y verificable.',

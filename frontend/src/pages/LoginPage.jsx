@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { IconoMuro } from '../components/Icons';
 
 export default function LoginPage() {
@@ -34,13 +34,13 @@ export default function LoginPage() {
         <style>{`@media(min-width:1024px){.lg-flex-col{display:flex!important}}`}</style>
         <div style={{ position: 'absolute', inset: 0, backgroundImage: "url('/climbing-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(18,18,18,0.88) 0%, rgba(74,47,15,0.65) 100%)' }} />
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <Link to="/" title="Ir al inicio" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', alignSelf: 'flex-start' }}>
           <IconoMuro style={{ width: '36px', height: '36px', color: '#D4AF37' }} />
           <div>
             <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.3rem', color: '#F0EDE8', letterSpacing: '0.06em' }}>ESCALADA BOGOTÁ</div>
             <div style={{ fontSize: '0.65rem', color: '#D4AF37', letterSpacing: '0.18em', textTransform: 'uppercase' }}>Entrenamiento por Ciclos</div>
           </div>
-        </div>
+        </Link>
         <div style={{ position: 'relative' }}>
           <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '3.2rem', color: '#F0EDE8', lineHeight: 1.05, marginBottom: '16px' }}>
             Cada sesión<br /><span style={{ color: '#D4AF37' }}>te lleva más alto.</span>
@@ -49,7 +49,7 @@ export default function LoginPage() {
             Entrenamiento periodizado por niveles, tests objetivos y comunidad que te impulsa a crecer.
           </p>
           <div style={{ display: 'flex', gap: '32px', marginTop: '36px' }}>
-            {[['4', 'Ciclos al año'], ['13', 'Semanas por ciclo'], ['9', 'Programas']].map(([n, l]) => (
+            {[['4', 'Ciclos al año'], ['13', 'Semanas por ciclo'], ['3', 'Niveles']].map(([n, l]) => (
               <div key={l}>
                 <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#D4AF37', lineHeight: 1 }}>{n}</div>
                 <div style={{ fontSize: '0.72rem', color: '#A09A8C', marginTop: '4px' }}>{l}</div>
@@ -62,18 +62,16 @@ export default function LoginPage() {
       {/* Lado derecho: formulario */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', maxWidth: '480px', margin: '0 auto' }}>
         <div style={{ width: '100%', maxWidth: '360px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
+          <Link to="/" title="Ir al inicio" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', textDecoration: 'none', width: 'fit-content' }}>
             <IconoMuro style={{ width: '28px', height: '28px', color: '#D4AF37' }} />
             <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: '#F0EDE8', letterSpacing: '0.06em' }}>ESCALADA BOGOTÁ</span>
-          </div>
+          </Link>
 
-          <div style={{ marginBottom: '20px' }}>
-            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#A09A8C', fontFamily: 'Poppins', fontSize: '0.82rem', textDecoration: 'none', padding: '6px 0' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#D4AF37'}
-              onMouseLeave={e => e.currentTarget.style.color = '#A09A8C'}>
-              ← Volver al inicio
-            </Link>
-          </div>
+          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '24px', padding: '8px 14px', border: '1px solid #2e2e2e', borderRadius: '8px', background: '#1c1c1c', color: '#F0EDE8', fontFamily: 'Poppins', fontSize: '0.85rem', textDecoration: 'none', transition: 'border-color 0.15s, color 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#D4AF37'; e.currentTarget.style.borderColor = '#D4AF37'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#F0EDE8'; e.currentTarget.style.borderColor = '#2e2e2e'; }}>
+            <ArrowLeft size={16} /> Volver al inicio
+          </Link>
           <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8', marginBottom: '4px' }}>Bienvenido</h2>
           <p style={{ color: '#A09A8C', fontSize: '0.875rem', marginBottom: '28px' }}>Accede a tu plan de entrenamiento</p>
 
