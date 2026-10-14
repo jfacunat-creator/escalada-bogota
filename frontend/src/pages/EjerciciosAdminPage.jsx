@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 import { C, Aviso, Badge, Btn } from '../components/ui';
-import { BotonVideoGuia, ModalVideo } from '../components/VideoGuia';
+import { BotonVideoGuia, ModalVideos } from '../components/VideoGuia';
 
 function FilaEjercicio({ e, onCambio }) {
   const [url, setUrl] = useState(e.video?.url || '');
@@ -27,16 +27,19 @@ function FilaEjercicio({ e, onCambio }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
         <span style={{ fontFamily: 'Poppins', fontSize: '0.9rem', fontWeight: 600, color: C.text }}>{e.nombre}</span>
         <code style={{ fontSize: '0.7rem', color: C.text3 }}>{e.clave}</code>
-        {e.usos != null && <span style={{ fontFamily: 'Poppins', fontSize: '0.72rem', color: C.text2 }} title={e.bloques.join('\n')}>en {e.usos} bloque{e.usos !== 1 ? 's' : ''} del plan</span>}
+        {e.rutina
+          ? <span style={{ fontFamily: 'Poppins', fontSize: '0.72rem', color: C.text2 }}>{e.rutina}</span>
+          : e.usos != null && <span style={{ fontFamily: 'Poppins', fontSize: '0.72rem', color: e.usos ? C.text2 : C.text3 }} title={e.bloques.join('\n')}>{e.usos ? `en ${e.usos} bloque${e.usos !== 1 ? 's' : ''} del plan` : 'no aparece en bloques del plan'}</span>}
         <span style={{ marginLeft: 'auto' }}>{e.video ? <Badge color={C.ok}>Con video</Badge> : <Badge color={C.text3}>Sin video</Badge>}</span>
         {e.video && <BotonVideoGuia onClick={() => setVer(true)} />}
       </div>
+      {e.dosis && <div style={{ fontFamily: 'Poppins', fontSize: '0.74rem', color: C.text3, lineHeight: 1.45, marginBottom: '8px' }}>{e.donde ? `${e.donde} · ` : ''}{e.dosis}</div>}
       <div style={{ display: 'flex', gap: '8px' }}>
         <input className="input-dark" value={url} onChange={ev => setUrl(ev.target.value)} placeholder="https://youtu.be/…  (YouTube no listado recomendado)" style={{ flex: 1 }} />
         <Btn small onClick={guardar} disabled={guardando || !cambiado}>{guardando ? 'Guardando…' : url.trim() || !e.video ? 'Guardar' : 'Quitar'}</Btn>
       </div>
       <Aviso onClose={error ? () => setError(null) : null}>{error}</Aviso>
-      {ver && <ModalVideo video={e.video} titulo={e.nombre} onClose={() => setVer(false)} />}
+      {ver && <ModalVideos titulo={e.nombre} items={[{ clave: e.clave, nombre: e.nombre, dosis: e.dosis, video: e.video }]} onClose={() => setVer(false)} />}
     </div>
   );
 }
@@ -70,7 +73,7 @@ export default function EjerciciosAdminPage() {
     <div style={{ maxWidth: '900px' }}>
       <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: C.text }}>Videos guía de ejercicios</h1>
       <p style={{ fontFamily: 'Poppins', fontSize: '0.88rem', color: C.text2, lineHeight: 1.6, margin: '4px 0 16px' }}>
-        Pega el enlace del video de cada ejercicio. El escalador lo ve con el botón «▶ Video guía» en cada bloque de Mi Plan que lo usa.
+        Pega el enlace del video de cada ejercicio (el código es el del plan de grabación: T1-CAL-03 ↔ T1-CAL-03-*.mp4). El escalador lo ve con el botón «▶ Video guía» en cada bloque de Mi Plan que lo usa, y el calentamiento, la vuelta a la calma y los conceptos en los botones de cada sesión.
         Recomendado: súbelos a YouTube como <strong style={{ color: C.text }}>No listado</strong>; también sirven Vimeo, Google Drive o un .mp4.
       </p>
 

@@ -14,7 +14,7 @@ import {
 } from "../plan/perfil";
 import { personalizarBloques } from "../plan/personalizar";
 import { fmtRango } from "../components/ui";
-import { BotonVideoGuia, ModalVideo } from "../components/VideoGuia";
+import { BotonVideoGuia, ModalVideos } from "../components/VideoGuia";
 import { evaluarSobrecarga, esSobrecarga, dolorVigente, regletaPrevia, aplicarAdaptaciones } from "../plan/adaptacion";
 import {
   seriePse, mapaDolor, serieHangboard, esSesionTest, objetivoSalida, evaluarSalida,
@@ -191,7 +191,10 @@ function Block({ b }) {
   const [open, setOpen] = useState(false);
   const [como, setComo] = useState(false);
   const [verVideo, setVerVideo] = useState(false);
-  const video = b.ejercicio?.video;
+  // Videos guía del bloque (uno o varios ejercicios); el botón aparece si al menos uno tiene video
+  // Sin la dosis del plan de grabación (es la de T1 Avanzado): la de cada plan ya está en los parámetros del bloque.
+  const ejercicios = (b.ejercicios || []).map(e => ({ ...e, dosis: undefined }));
+  const nVideos = ejercicios.filter(e => e.video).length;
   const hasParams = b.params && b.params.length > 0;
   const expandible = hasParams || b.ficha || b.avisos?.length > 0;
 
@@ -229,7 +232,7 @@ function Block({ b }) {
           padding: "10px 13px", cursor: expandible ? "pointer" : "default" }}>
         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.text,
           lineHeight: 1.3, fontFamily: "Poppins" }}>{b.n}</span>
-        {video && <BotonVideoGuia onClick={() => setVerVideo(true)} />}
+        {nVideos > 0 && <BotonVideoGuia n={nVideos} onClick={() => setVerVideo(true)} />}
         {b.avisos?.length > 0 && <span style={{ fontSize: 12 }}>⚠️</span>}
         {expandible && (
           <span style={{ color: C.muted, fontSize: 13, display: "inline-block",
@@ -271,7 +274,7 @@ function Block({ b }) {
           ))}
         </div>
       )}
-      {verVideo && <ModalVideo video={video} titulo={b.ejercicio.nombre} onClose={() => setVerVideo(false)} />}
+      {verVideo && <ModalVideos titulo={b.n} items={ejercicios} onClose={() => setVerVideo(false)} />}
     </div>
   );
 }
@@ -290,7 +293,7 @@ function MovBlock({ ex, level, lv, video }) {
             {ex.name}
           </span>
           {video && <BotonVideoGuia compacto onClick={() => setVerVideo(true)} />}
-          {verVideo && <ModalVideo video={video} titulo={ex.name} onClose={() => setVerVideo(false)} />}
+          {verVideo && <ModalVideos titulo={ex.name} items={[{ clave: ex.id, nombre: ex.name, video }]} onClose={() => setVerVideo(false)} />}
           <button onClick={() => setOpen(o => !o)}
             style={{ background: open ? `${C.red}22` : "none",
               border: `1px solid ${open ? C.red + "66" : C.border}`,
@@ -476,6 +479,8 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
   const sd = wd?.sesiones.find(s => s.num === session);
   const lg = logs[`${week}_${session}`];
   const override = !!lg?.override_dolor;
+  // Calentamiento / vuelta a la calma / conceptos desglosados por ejercicio (plan.rutinas, con video si hay)
+  const [rutina, setRutina] = useState(null);
   const { bloques, alertas } = useMemo(() => {
     if (!sd) return { bloques: [], alertas: { amarillo: [], rojo: [] } };
     const { reducciones } = evaluarSobrecarga(semanas, logs);
@@ -593,11 +598,23 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
         </div>
         <PseBar target={sd.pse} />
         <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-          {sd.cal > 0 && (
+          {[
+            ["calentamiento", "Calentamiento", sd.cal > 0 && `🔥 Calentamiento ${sd.cal} min`],
+            ["vueltaCalma", "Vuelta a la calma", sd.vac > 0 && `🧊 Vuelta a la calma ${sd.vac} min`],
+            ["conceptos", "Conceptos clave", "📘 Conceptos"],
+          ].filter(([k, , label]) => label && plan.rutinas?.[k]?.length).map(([k, titulo, label]) => (
+            <button key={k} onClick={() => setRutina({ k, titulo, min: k === "calentamiento" ? sd.cal : k === "vueltaCalma" ? sd.vac : null })}
+              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 7, padding: "3px 9px", cursor: "pointer",
+                color: C.text, fontSize: 11, fontFamily: "Poppins", display: "inline-flex", alignItems: "center", gap: 5 }}>
+              {label}
+              {plan.rutinas[k].some(e => e.video) && <span style={{ color: C.accent, fontWeight: 700 }}>▶</span>}
+            </button>
+          ))}
+          {!plan.rutinas && sd.cal > 0 && (
             <span style={{ background: C.card, borderRadius: 7, padding: "3px 9px",
               color: C.sub, fontSize: 11, fontFamily: "Poppins" }}>🔥 Cal. {sd.cal} min</span>
           )}
-          {sd.vac > 0 && (
+          {!plan.rutinas && sd.vac > 0 && (
             <span style={{ background: C.card, borderRadius: 7, padding: "3px 9px",
               color: C.sub, fontSize: 11, fontFamily: "Poppins" }}>🧊 VaC {sd.vac} min</span>
           )}
@@ -608,6 +625,11 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
             </span>
           )}
         </div>
+        {rutina && (
+          <ModalVideos titulo={rutina.titulo} items={plan.rutinas[rutina.k]}
+            subtitulo={`${rutina.min ? `${rutina.min} min · ` : ""}${rutina.k === "conceptos" ? "Aplican a todas las sesiones" : "Haz los ejercicios en este orden"}`}
+            onClose={() => setRutina(null)} />
+        )}
       </div>
 
       {/* Adaptaciones (Fase 2) */}

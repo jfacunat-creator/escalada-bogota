@@ -103,7 +103,7 @@ export function personalizarBloques(plan, semana, sd, calc) {
         return { ...b, oculto: true, motivoOculto: 'No cumples los criterios de campus de tu perfil (≥3 años de campus y dolor ≤2 en dedos y codos). Haz la Opción B.' };
       }
       if (ficha?.noApto) {
-        b = { ...b, n: ficha.noApto.n, params: ficha.noApto.params, ejercicio: b.ejercicioNoApto, avisos: ['Sustituye al campus porque tu perfil no cumple los criterios (≥3 años de campus y dolor ≤2 en dedos y codos).'] };
+        b = { ...b, n: ficha.noApto.n, params: ficha.noApto.params, ejercicios: b.ejerciciosNoApto, avisos: ['Sustituye al campus porque tu perfil no cumple los criterios (≥3 años de campus y dolor ≤2 en dedos y codos).'] };
         ficha = ficha.noApto.ficha;
       } else {
         b.avisos.push('Tu perfil no cumple los criterios de campus (≥3 años y dolor ≤2 en dedos y codos). Consulta a tu entrenador o sustituye por fuerza de contacto en muro.');
