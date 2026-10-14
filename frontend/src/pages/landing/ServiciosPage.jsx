@@ -31,13 +31,13 @@ const planes = [
   {
     nombre: 'Plan Autónomo', modalidad: 'autonomo', periodo: 'por mes · cualquier nivel',
     desc: 'Para el escalador disciplinado que prefiere entrenar en sus horarios. Acceso completo al plan digital del ciclo vigente, videoteca técnica y tests presenciales en cada empalme.',
-    incluye: ['Plan digital del ciclo vigente', 'Videoteca técnica completa', 'Revisión asincrónica de 2 videos/mes', 'Tests presenciales en cada empalme', 'Acceso activo mientras dure la suscripción'],
+    incluye: ['Plan digital del ciclo vigente', 'Videoteca técnica completa', 'Revisión asincrónica de 4 videos/mes', 'Tests presenciales en cada empalme', 'Acceso activo mientras dure la suscripción'],
     color: '#9E721D', destacado: false,
   },
   {
     nombre: 'Plan Acompañado', modalidad: 'acompanado', periodo: 'por mes · cualquier nivel',
     desc: '2 a 3 sesiones presenciales por semana en muro aliado, con entrenador asignado, evaluación trimestral, Liga interna, Check-Point Fest y salidas a roca.',
-    incluye: ['2–3 sesiones presenciales/semana', 'Plan periodizado con entrenador asignado', 'Evaluación trimestral con informe', 'Tarifas preferenciales con fisio y nutrición', 'Liga interna, Fest y salida trimestral a Suesca'],
+    incluye: ['2–3 sesiones presenciales/semana', 'Plan periodizado con entrenador asignado', 'Evaluación trimestral con informe', 'Revisión asincrónica de 4 videos/mes', 'Tarifas preferenciales con fisio y nutrición', 'Liga interna, Fest y salida trimestral a Suesca'],
     color: '#D4AF37', destacado: true,
   },
 ];
