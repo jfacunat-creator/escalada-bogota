@@ -1,7 +1,7 @@
 /**
  * Videos guía por ejercicio. El catálogo vive en utils/ejercicios.js; los videos en la tabla ejercicio_video.
  *
- *   GET    /ejercicios                → admin: catálogo + video + cuántos bloques del plan usa cada ejercicio
+ *   GET    /ejercicios                → admin: catálogo + video + dónde se usa cada ejercicio
  *   GET    /ejercicios/videos         → cualquier usuario: { clave: { plataforma, videoId, nombre } } con video
  *   PUT    /ejercicios/:clave/video   → admin: guarda el enlace { url }
  *   DELETE /ejercicios/:clave/video   → admin: quita el video
@@ -9,12 +9,15 @@
 const express = require("express");
 const prisma = require("../config/prisma");
 const { authenticate, authorize } = require("../middleware/auth");
-const { CATALOGO, POR_CLAVE, ejercicioDeBloque, parsearVideo, videosPorClave } = require("../utils/ejercicios");
+const { CATALOGO, POR_CLAVE, ejerciciosDeBloque, parsearVideo, videosPorClave } = require("../utils/ejercicios");
 
 const router = express.Router();
 router.use(authenticate);
 
 const manejarError = (res, e, ruta) => { console.error(`Error ${ruta}:`, e); res.status(500).json({ error: "Error interno" }); };
+// Calentamiento, vuelta a la calma y conceptos se muestran en todas las sesiones (no son bloques).
+const RUTINA = { "T1-CAL-": "Calentamiento de todas las sesiones", "T1-VCA-": "Vuelta a la calma de todas las sesiones", "T1-GEN-": "Conceptos de todas las sesiones" };
+const rutinaDe = clave => Object.entries(RUTINA).find(([p]) => clave.startsWith(p))?.[1] || null;
 
 // ─── GET /ejercicios ──────────────────────────────────────
 router.get("/", authorize("admin"), async (req, res) => {
@@ -31,16 +34,19 @@ router.get("/", authorize("admin"), async (req, res) => {
     const porClave = new Map(videos.map(v => [v.clave, v]));
     const usos = {}, ejemplos = {}, sinEjercicio = [];
     for (const b of bloques) {
-      const e = ejercicioDeBloque(b.n);
-      if (!e) { sinEjercicio.push({ nombre: b.n, veces: b.c }); continue; }
-      usos[e.clave] = (usos[e.clave] || 0) + b.c;
-      (ejemplos[e.clave] ||= []).push(b.n);
+      const claves = ejerciciosDeBloque(b.n);
+      if (!claves.length) { sinEjercicio.push({ nombre: b.n, veces: b.c }); continue; }
+      for (const c of claves) {
+        usos[c] = (usos[c] || 0) + b.c;
+        (ejemplos[c] ||= []).push(b.n);
+      }
     }
     res.json({
       ejercicios: CATALOGO.map(e => {
         const v = porClave.get(e.clave);
         return {
-          clave: e.clave, nombre: e.nombre, categoria: e.categoria,
+          clave: e.clave, nombre: e.nombre, categoria: e.categoria, dosis: e.dosis || null, donde: e.donde || null,
+          rutina: rutinaDe(e.clave),
           usos: e.clave.startsWith("mov_") ? null : usos[e.clave] || 0,
           bloques: (ejemplos[e.clave] || []).slice(0, 8),
           video: v ? { url: v.url, plataforma: v.plataforma, videoId: v.video_id, actualizado: v.updated_at } : null,

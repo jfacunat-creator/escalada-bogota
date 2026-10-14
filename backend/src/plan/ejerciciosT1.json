@@ -1,0 +1,432 @@
+{
+ "fuente": "T1_Avanzado_Plan_de_Grabacion_v2.xlsx (pestaña Ejercicios)",
+ "ejercicios": [
+  {
+   "clave": "T1-GEN-01",
+   "nombre": "Semáforo de dolor y PSE",
+   "donde": "Todas las sesiones",
+   "dosis": "Verde 0–2 continúa · Amarillo 3 reduce carga o sustituye · Rojo ≥4 para la sesión y fisioterapia · PSE (0–10) al final; si el PSE real supera el objetivo en ≥2 puntos dos sesiones seguidas → −20% de volumen la semana siguiente",
+   "equipo": "Cuaderno de registro"
+  },
+  {
+   "clave": "T1-GEN-02",
+   "nombre": "Agarre arqueado (half crimp)",
+   "donde": "Estándar de todo el programa",
+   "dosis": "4 dedos · 1ª articulación ~45° · 2ª ~90° · pulgar fuera · muñeca neutral · codos extendidos · hombros activos hacia abajo",
+   "equipo": "Hangboard (regleta 20 mm)"
+  },
+  {
+   "clave": "T1-GEN-03",
+   "nombre": "Agarre extendido (open hand)",
+   "donde": "S5, S10 y calentamiento",
+   "dosis": "Curva suave · solo yemas · 1ª articulación ~20° · 2ª ~10° · pulgar relajado · apretar con intención",
+   "equipo": "Hangboard (regleta 25 mm)"
+  },
+  {
+   "clave": "T1-GEN-04",
+   "nombre": "Cómo elegir el tamaño de regleta (6–8 s)",
+   "donde": "S1–S4, S6–S9",
+   "dosis": "Correcto: aguantas entre 6 y 8 s con esfuerzo real · >8 s con facilidad → regleta más pequeña o lastre · <6 s → regleta más grande o quitar lastre",
+   "equipo": "Hangboard (regletas 25/20/18/15 mm), cronómetro"
+  },
+  {
+   "clave": "T1-CAL-01",
+   "nombre": "Trote suave / bici estática",
+   "donde": "Calentamiento Fase 1 (todas las sesiones)",
+   "dosis": "8–10 min · ritmo en que puedes hablar con fluidez · primeros 2 min muy suaves (Bogotá, altura)",
+   "equipo": "Banda de trote o bici estática"
+  },
+  {
+   "clave": "T1-CAL-02",
+   "nombre": "Apertura y cierre de manos",
+   "donde": "Calentamiento Fase 1",
+   "dosis": "3 series × 50 rep · enérgico, con fuerza, sin dolor",
+   "equipo": "Ninguno"
+  },
+  {
+   "clave": "T1-CAL-03",
+   "nombre": "Rotaciones de muñeca",
+   "donde": "Calentamiento Fase 1",
+   "dosis": "30 s hacia cada lado · círculos lentos · las 2 muñecas",
+   "equipo": "Ninguno"
+  },
+  {
+   "clave": "T1-CAL-04",
+   "nombre": "Flexión–extensión de codo",
+   "donde": "Calentamiento Fase 1",
+   "dosis": "20 rep · lento y completo",
+   "equipo": "Ninguno"
+  },
+  {
+   "clave": "T1-CAL-05",
+   "nombre": "Rotaciones de hombro",
+   "donde": "Calentamiento Fase 1",
+   "dosis": "20 rep hacia cada lado · círculos grandes con el brazo extendido · 2 direcciones",
+   "equipo": "Ninguno"
+  },
+  {
+   "clave": "T1-CAL-06",
+   "nombre": "Movilidad de cadera",
+   "donde": "Calentamiento Fase 1",
+   "dosis": "20 rep por pierna · círculos amplios",
+   "equipo": "Pared de apoyo"
+  },
+  {
+   "clave": "T1-CAL-07",
+   "nombre": "Travesía 3+3",
+   "donde": "Calentamiento Fase 2",
+   "dosis": "3–5 series · 30–50 movimientos totales · 3 mov a la derecha y 3 a la izquierda alternando · presas grandes · sin fuerza · lento · descanso 1 min",
+   "equipo": "Muro de travesía bajo, colchoneta"
+  },
+  {
+   "clave": "T1-CAL-08",
+   "nombre": "Suspensión suave en barra",
+   "donde": "Calentamiento Fase 2",
+   "dosis": "3 × 10–15 s · brazos extendidos · activar hombros y agarre · descanso 1 min",
+   "equipo": "Barra de dominadas"
+  },
+  {
+   "clave": "T1-CAL-09",
+   "nombre": "Suspensión suave en hangboard",
+   "donde": "Calentamiento Fase 2",
+   "dosis": "2 × 8–10 s · regleta 25 mm · agarre abierto · brazos extendidos · sin lastre · descanso 1 min",
+   "equipo": "Hangboard (regleta 25 mm)"
+  },
+  {
+   "clave": "T1-CAL-10",
+   "nombre": "Fase 3: visualización mental",
+   "donde": "Calentamiento Fase 3",
+   "dosis": "5 min sentado · ojos cerrados · visualiza agarre, tiempo de aguante y ritmo de los ejercicios principales",
+   "equipo": "Ninguno"
+  },
+  {
+   "clave": "T1-VCA-01",
+   "nombre": "Estiramiento de flexores de dedos",
+   "donde": "Vuelta a la calma (todas)",
+   "dosis": "2 min total · 4 dedos hacia atrás con la otra mano · 30 s mantener, 10 s descanso, 3–4 veces · ambas manos",
+   "equipo": "Ninguno"
+  },
+  {
+   "clave": "T1-VCA-02",
+   "nombre": "Estiramiento de extensores de dedos y muñeca",
+   "donde": "Vuelta a la calma (todas)",
+   "dosis": "1 min por mano · entrelazar dedos con el compañero de la otra mano · doblar la muñeca hacia ti con suavidad · 30 s",
+   "equipo": "Ninguno"
+  },
+  {
+   "clave": "T1-VCA-03",
+   "nombre": "Estiramiento de flexores del codo (bíceps)",
+   "donde": "Vuelta a la calma (todas)",
+   "dosis": "1 min por brazo · mano en la pared con pulgar hacia abajo · girar el cuerpo hacia afuera lentamente",
+   "equipo": "Pared"
+  },
+  {
+   "clave": "T1-VCA-04",
+   "nombre": "Estiramiento dorsal",
+   "donde": "Vuelta a la calma (todas) · S5",
+   "dosis": "1,5 min por lado · agarrado a barra o presa fija · pierna del mismo lado por detrás · bajar y desplazarse hacia el lado del agarre",
+   "equipo": "Barra o presa fija"
+  },
+  {
+   "clave": "T1-VCA-05",
+   "nombre": "Estiramiento de pectoral",
+   "donde": "Vuelta a la calma (todas) · S5",
+   "dosis": "1 min por lado · codo a 90° apoyado en la pared · girar el cuerpo al lado contrario",
+   "equipo": "Pared"
+  },
+  {
+   "clave": "T1-VCA-06",
+   "nombre": "Estiramiento de trapecio",
+   "donde": "Vuelta a la calma (todas) · S5",
+   "dosis": "1 min por lado · inclinar la cabeza al lado contrario · bajar suavemente el hombro del mismo lado",
+   "equipo": "Ninguno"
+  },
+  {
+   "clave": "T1-VCA-07",
+   "nombre": "Estiramiento de aductores y caderas (mariposa)",
+   "donde": "Vuelta a la calma (todas) · S5",
+   "dosis": "1,5 min · sentado con las plantas de los pies juntas · rodillas hacia el suelo con suavidad (S5: espalda recta, 3 min)",
+   "equipo": "Colchoneta"
+  },
+  {
+   "clave": "T1-VCA-08",
+   "nombre": "Estiramiento de isquiotibiales",
+   "donde": "S5 (movilidad larga)",
+   "dosis": "2 min por pierna · sentado, pierna extendida · doblar el tronco hacia ella suavemente",
+   "equipo": "Colchoneta"
+  },
+  {
+   "clave": "T1-FUE-01",
+   "nombre": "Suspensión máxima de dedos (arqueado, 6–8 s)",
+   "donde": "S1–S4, S6–S9, S11",
+   "dosis": "1 suspensión por serie · 6–8 s · descanso 3–6 min · regleta 20/18 mm (15 mm solo si PSE ≤7) · agarre arqueado · brazos rectos · hombros activos · la calidad manda: si el agarre se abre, parar",
+   "equipo": "Hangboard, cronómetro"
+  },
+  {
+   "clave": "T1-FUE-02",
+   "nombre": "Suspensión de mantenimiento (open hand 22–25 mm)",
+   "donde": "S5, S10",
+   "dosis": "4 series × 1 suspensión · 5–6 s · descanso 4 min · regleta 22–25 mm · agarre abierto · intensidad baja, solo mantener el patrón motor",
+   "equipo": "Hangboard (regleta 22–25 mm)"
+  },
+  {
+   "clave": "T1-FUE-03",
+   "nombre": "Dominada estándar (técnica base)",
+   "donde": "Glosario C · base de tracción y tests",
+   "dosis": "Pronación · ancho de hombros · inicia inmóvil con brazos extendidos y pausa 1 s abajo · barbilla sobre la barra · bajada controlada de 3 s · sin balanceo",
+   "equipo": "Barra de dominadas, cronómetro"
+  },
+  {
+   "clave": "T1-FUE-04",
+   "nombre": "Tracción con lastre, intención veloz",
+   "donde": "S2, S9",
+   "dosis": "4 series × 2–3 rep (S9: 2) · descanso 3 min · lastre 80–85% de T2 · subida con intención máxima · bajada 3 s · parar ANTES del fallo",
+   "equipo": "Barra, arnés, discos"
+  },
+  {
+   "clave": "T1-FUE-05",
+   "nombre": "Bloqueo de 1 brazo asistido con banda",
+   "donde": "S1",
+   "dosis": "2 series por brazo · 3 bloqueos de 5 s · descanso 2 min · dominada hasta posición alta (~90°) · la banda solo da estabilidad, no carga peso · bajar con 2 brazos",
+   "equipo": "Barra, banda elástica media"
+  },
+  {
+   "clave": "T1-FUE-06",
+   "nombre": "Bloqueo dinámico de 1 brazo (sin banda)",
+   "donde": "S3 en adelante",
+   "dosis": "3 series por brazo · 3 bloqueos de 5 s · descanso 2 min · sube con 2 brazos, suelta 1 mano 5 s, la vuelve a poner, repite 3 veces, baja",
+   "equipo": "Barra"
+  },
+  {
+   "clave": "T1-FUE-07",
+   "nombre": "Excéntrico de tracción",
+   "donde": "S6, S7, S8 (solo ese ciclo del año)",
+   "dosis": "Subir con ayuda · bajar en 5 s (S7–S8: 6 s) contando en voz alta · lastre 50–60% de T2 (≥40 años: la mitad) · si llega abajo antes del 5 reducir 2,5 kg · semáforo ≥3 en dedo, codo u hombro: parar",
+   "equipo": "Barra, arnés, discos, cajón o compañero"
+  },
+  {
+   "clave": "T1-CAM-01",
+   "nombre": "Campus: alcances",
+   "donde": "S2",
+   "dosis": "4 series × 2–3 mov · descanso 3–5 min · listones grandes 35 mm · desde el 1: derecha al 3, izquierda al 3, derecha al 5 · sin pies · agarre explosivo y limpio; si es lento, parar",
+   "equipo": "Campus board, colchoneta"
+  },
+  {
+   "clave": "T1-CAM-02",
+   "nombre": "Campus: alcances y empujes",
+   "donde": "S3, S4 y siguientes",
+   "dosis": "5–6 series × 3–4 mov · descanso 4 min · listones grandes 35 mm · sube 1→3→5 e inmediatamente baja 5→3→1 · al primer movimiento lento, terminar la serie",
+   "equipo": "Campus board, colchoneta"
+  },
+  {
+   "clave": "T1-CAM-03",
+   "nombre": "Campus: rebotes",
+   "donde": "S6, S7, S8",
+   "dosis": "5 series × 2–3 rebotes · descanso 4 min · listones grandes 35 mm · sube 1 listón y baja de inmediato, sin pausa · máxima velocidad",
+   "equipo": "Campus board, colchoneta"
+  },
+  {
+   "clave": "T1-CAM-04",
+   "nombre": "Fuerza de contacto en muro (alternativa a campus)",
+   "donde": "S6, S7, S8",
+   "dosis": "5 series × 3–4 lanzamientos · descanso 4 min · una mano base en presa, lanza la otra a una presa lejana · cierra el agarre al instante · alterna manos",
+   "equipo": "Muro, colchoneta"
+  },
+  {
+   "clave": "T1-ANT-01",
+   "nombre": "Extensión de dedos con banda",
+   "donde": "Antagonistas (S1–S9) · S6 reforzado",
+   "dosis": "3 × 15 (S6: 4 × 20) · banda pequeña en los 4 dedos · abrir contra la resistencia · volver lento · descanso 1 min",
+   "equipo": "Banda pequeña"
+  },
+  {
+   "clave": "T1-ANT-02",
+   "nombre": "Face pull con banda",
+   "donde": "Antagonistas (S1–S9)",
+   "dosis": "3 × 15 (S6: 4 × 15) · banda anclada a la altura de los ojos · jalar a la cara separando codos arriba y afuera · apretar entre omóplatos · volver lento",
+   "equipo": "Banda de resistencia, anclaje"
+  },
+  {
+   "clave": "T1-ANT-03",
+   "nombre": "Rotación externa de hombro con banda",
+   "donde": "Antagonistas (S1–S9)",
+   "dosis": "3 × 15 (S6: 4 × 15) · codo pegado al cuerpo a 90° · banda anclada al frente · girar el antebrazo hacia afuera · volver lento",
+   "equipo": "Banda de resistencia, anclaje"
+  },
+  {
+   "clave": "T1-ANT-04",
+   "nombre": "Press neutro con mancuernas",
+   "donde": "S1 Sesión 4",
+   "dosis": "3 × 12 · acostado boca arriba · mancuernas 5–8 kg · palmas enfrentadas · sube 2 s, baja 3 s · descanso 1 min",
+   "equipo": "Mancuernas 5–8 kg, banco o colchoneta"
+  },
+  {
+   "clave": "T1-COR-01",
+   "nombre": "Plancha frontal",
+   "donde": "S1, S3, S9 (Sesión 4)",
+   "dosis": "3 series · 30–45 s (S3, S9: 40 s) · antebrazos y puntas de los pies · cuerpo como una tabla · cabeza alineada · cadera ni arriba ni abajo · abdomen apretado · descanso 1 min",
+   "equipo": "Colchoneta"
+  },
+  {
+   "clave": "T1-COR-02",
+   "nombre": "Plancha lateral",
+   "donde": "S6 Sesión 4",
+   "dosis": "3 series × 30 s por lado · descanso 1 min",
+   "equipo": "Colchoneta"
+  },
+  {
+   "clave": "T1-COR-03",
+   "nombre": "Abdominales en suspensión (piernas a 90°)",
+   "donde": "S1, S3, S6, S9 (Sesión 4)",
+   "dosis": "3 series × 10–12 reps · colgado de la barra, brazos extendidos · piernas rectas hasta 90° · baja en 3 s · sin balanceo · descanso 1,5 min",
+   "equipo": "Barra de dominadas, cronómetro"
+  },
+  {
+   "clave": "T1-ESC-01",
+   "nombre": "Continuidad (travesías y vías largas)",
+   "donde": "S1–S4, S5, S6, S9",
+   "dosis": "Nivel 2 grados bajo tu máximo a vista · ritmo alegre (frases cortas) · 1 mano a otra presa = 1 movimiento · 60–100+ mov por serie · descanso 2:30–4 min con reposo activo (sacudir antebrazos)",
+   "equipo": "Muro de travesía o vía larga"
+  },
+  {
+   "clave": "T1-ESC-02",
+   "nombre": "Capilarización",
+   "donde": "S1 Sesión 4",
+   "dosis": "3 series × 3–4 min continuos · descanso 2 min · 4–5 grados bajo tu máximo · travesía muy fácil sin soltar · ritmo muy lento · señal: antebrazos hinchados y calientes",
+   "equipo": "Muro de travesía"
+  },
+  {
+   "clave": "T1-ESC-03",
+   "nombre": "Bloque: intensidades 85% / 90% / límite y ejecución limpia",
+   "donde": "S1, S3, S4, S7, S8, S9",
+   "dosis": "85% = completable con esfuerzo sin caer · 90% = puedes caer 1 de cada 3 · límite = el más difícil del día · ejecución limpia = sin caídas, sin movimientos torpes, sin tirones de emergencia · si caes >2 intentos seguidos, elegir uno más fácil",
+   "equipo": "Muro de boulder, colchoneta"
+  },
+  {
+   "clave": "T1-ESC-04",
+   "nombre": "Boulder de coordinación",
+   "donde": "S2 Sesión 4",
+   "dosis": "60 min · 1 grado bajo tu máximo de bloque · giros de cuerpo, pasos largos, cambios de presa en movimiento, equilibrio · sin problemas de pura fuerza · objetivo: explorar movimientos",
+   "equipo": "Muro de boulder, colchoneta"
+  },
+  {
+   "clave": "T1-ESC-05",
+   "nombre": "Boulder físico",
+   "donde": "S3 Sesión 3",
+   "dosis": "6 series · 1 problema por serie · máximo 3 min por intento · descanso 3 min · 85–90% · cantos pequeños, compresiones, pasos largos, techos · completarlo antes de cambiar",
+   "equipo": "Muro de boulder, colchoneta"
+  },
+  {
+   "clave": "T1-ESC-06",
+   "nombre": "Técnica de punto débil / técnica fina",
+   "donde": "S1 Sesión 2, S10 Sesión 2",
+   "dosis": "20 min · 3 grados bajo tu máximo · repetir el mismo movimiento 10–15 veces con conciencia plena · sin fatiga",
+   "equipo": "Muro"
+  },
+  {
+   "clave": "T1-ESC-07",
+   "nombre": "Técnica filmada",
+   "donde": "S3 Sesión 4",
+   "dosis": "30 min · 3 grados bajo tu máximo · 1 problema escalado 5–6 veces · grabar cada repetición · comparar con un video de referencia · anotar 1 corrección",
+   "equipo": "Celular, trípode, muro"
+  },
+  {
+   "clave": "T1-ESC-08",
+   "nombre": "Circuito (intro y registro)",
+   "donde": "S7 Sesión 2, S8 Sesión 2, S9 Sesión 2",
+   "dosis": "25–40 movimientos · 1 intento continuo sin soltar · 85–90% · descanso mínimo 5 min · registrar movimientos antes de caer",
+   "equipo": "Circuito marcado en el muro, cronómetro"
+  },
+  {
+   "clave": "T1-ESC-09",
+   "nombre": "Lectura de problema (formato competencia)",
+   "donde": "S9 Sesión 3",
+   "dosis": "8 series · 2 min de lectura desde el suelo sin tocar + 3 min de intento · descanso 4 min · al límite",
+   "equipo": "Muro de boulder, cronómetro"
+  },
+  {
+   "clave": "T1-ESC-10",
+   "nombre": "Trabajo táctico: 3 secciones × 3 métodos",
+   "donde": "S7 Sesión 4",
+   "dosis": "60 min · 3 secciones del proyecto · 3 formas distintas de resolver cada una · anotar la más eficiente · PSE ≤6",
+   "equipo": "Muro o proyecto, cuaderno"
+  },
+  {
+   "clave": "T1-ESC-11",
+   "nombre": "Simulación de rendimiento",
+   "donde": "S11 Sesiones 1 y 3, S12 Sesión 1",
+   "dosis": "Lectura de 6 min exactos sin tocar · intento único · descanso mínimo 25 min · segundo y último intento · anotar el movimiento exacto del fallo · opción: trabajo por secciones 6–8 rep con ≥20 min de descanso",
+   "equipo": "Proyecto en muro, cronómetro"
+  },
+  {
+   "clave": "T1-ESC-12",
+   "nombre": "Táctica Watts: descanso ≥20 min entre intentos",
+   "donde": "S9 Sesión 2",
+   "dosis": "2 intentos del circuito estándar · descanso mínimo 20 min (los antebrazos necesitan ≥20 min para recuperar fuerza y resistencia) · comparar con S0",
+   "equipo": "Circuito estándar, cronómetro"
+  },
+  {
+   "clave": "T1-REC-01",
+   "nombre": "Foam rolling de antebrazos",
+   "donde": "S0 Sesión 3",
+   "dosis": "10 min · rodar lentamente · en un punto doloroso, detenerse 20–30 s · ambos brazos",
+   "equipo": "Rodillo de espuma"
+  },
+  {
+   "clave": "T1-TST-01",
+   "nombre": "Test T2: tracción máxima con lastre",
+   "donde": "S0 Sesión 1, S12 Sesión 2",
+   "dosis": "1 dominada por intento · +5 kg en cada intento · descanso 3 min exactos · registrar el último peso completado · requiere 2 personas",
+   "equipo": "Barra, arnés, discos, cronómetro"
+  },
+  {
+   "clave": "T1-TST-02",
+   "nombre": "Test T4: suspensión de 5 s con lastre máximo",
+   "donde": "S0 Sesión 1, S12 Sesión 2",
+   "dosis": "Regleta 20 mm arqueado · 5 s exactos · +5 kg por intento · descanso 3 min · registrar el último peso con 5 s completos",
+   "equipo": "Hangboard, arnés, discos, cronómetro"
+  },
+  {
+   "clave": "T1-TST-03",
+   "nombre": "Test T5: máximo de dominadas seguidas",
+   "donde": "S0 Sesión 1",
+   "dosis": "Sin lastre · pronación ancho de hombros · inicio con brazos extendidos · sin balanceo ni rebote · parar al no poder hacer 1 rep más con buena forma",
+   "equipo": "Barra de dominadas"
+  },
+  {
+   "clave": "T1-TST-04",
+   "nombre": "Test T6: suspensión máxima sin lastre",
+   "donde": "S0 Sesión 1",
+   "dosis": "Regleta 20 mm arqueado · sin lastre · brazos extendidos · hombros activos · hasta que los dedos se abran o no pueda mantener",
+   "equipo": "Hangboard, cronómetro"
+  },
+  {
+   "clave": "T1-TST-05",
+   "nombre": "Test T7: campus, máximo de movimientos",
+   "donde": "S0 Sesión 1, S12 Sesión 2",
+   "dosis": "Listones medianos ~25 mm · sube alternando manos y baja alternando · cada contacto de mano = 1 movimiento · parar al no alcanzar el siguiente listón",
+   "equipo": "Campus board, colchoneta"
+  },
+  {
+   "clave": "T1-TST-06",
+   "nombre": "Test T9: abdominales en suspensión (pies a las manos)",
+   "donde": "S0 Sesión 1",
+   "dosis": "Colgado de la barra, brazos extendidos · piernas rectas hasta tocar las manos con los pies · bajada lenta y controlada · sin balanceo · parar al no poder 1 rep más con control",
+   "equipo": "Barra de dominadas"
+  },
+  {
+   "clave": "T1-TST-07",
+   "nombre": "Test Powerslab: lanzamiento en campus",
+   "donde": "S0 Sesión 1, S12 Sesión 2",
+   "dosis": "Listones medianos ~25 mm · agarrar el listón de partida con ambas manos · lanzar 1 mano lo más lejos posible · medir en cm desde el listón de partida · 3 intentos por mano, descanso 3 min · anotar la mejor marca",
+   "equipo": "Campus board, cinta métrica, colchoneta"
+  },
+  {
+   "clave": "T1-TST-08",
+   "nombre": "Test circuito estándar",
+   "donde": "S0 Sesión 1, S12 Sesión 2, S9 Sesión 2",
+   "dosis": "Siempre el mismo circuito en S0 y S12 · 1 solo intento · registrar si lo completa y en qué movimiento cae",
+   "equipo": "Circuito estándar del gimnasio"
+  }
+ ]
+}

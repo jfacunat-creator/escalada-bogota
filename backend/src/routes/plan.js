@@ -6,7 +6,7 @@ const { puedeVerEscalador } = require("../utils/acceso");
 const { aplicarAjustes, leerAprobados } = require("../utils/ajustesAI");
 const { accesoEscalador, mesDeSemana, SEMANAS_MES } = require("../utils/meses");
 const { fichaT1Avanzado } = require("../plan/fichasT1Avanzado");
-const { conEjercicios, videosPorClave } = require("../utils/ejercicios");
+const { conEjercicios, videosPorClave, rutinas } = require("../utils/ejercicios");
 
 // Ajustes AI aprobados por un entrenador o admin (los pendientes nunca llegan al escalador).
 async function ajustesAprobados(escaladorId, trimestre) {
@@ -103,6 +103,8 @@ router.get("/my", authenticate, async (req, res) => {
       aiSesiones: new Set(ajustes.map(a => `${a.semana}_${a.sesion_num}`)).size,
       aiGeneradoAt: ajustes.reduce((max, a) => (!max || a.revisado_at > max ? a.revisado_at : max), null),
       testSesiones,
+      // Calentamiento, vuelta a la calma y conceptos, desglosados por ejercicio con su video (si hay)
+      rutinas: visibles.size ? rutinas(videos, nivel) : null,
     });
   } catch (err) {
     console.error("[GET /api/plan/my]", err.message);
