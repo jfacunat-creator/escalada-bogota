@@ -6,6 +6,7 @@ const { puedeVerEscalador } = require("../utils/acceso");
 const { aplicarAjustes, leerAprobados } = require("../utils/ajustesAI");
 const { accesoEscalador, mesDeSemana, SEMANAS_MES } = require("../utils/meses");
 const { fichaT1Avanzado } = require("../plan/fichasT1Avanzado");
+const { conEjercicios, videosPorClave } = require("../utils/ejercicios");
 
 // Ajustes AI aprobados por un entrenador o admin (los pendientes nunca llegan al escalador).
 async function ajustesAprobados(escaladorId, trimestre) {
@@ -68,10 +69,11 @@ router.get("/my", authenticate, async (req, res) => {
     const ajustes = visibles.size
       ? (await ajustesAprobados(req.user.escalador.id, trimestre)).filter(a => visibles.has(a.semana))
       : [];
+    const videos = visibles.size ? await videosPorClave(prisma) : new Map();
     const semanas = aplicarAjustes(planRes[0].semanas, ajustes)
       .map(w => {
         const mes = mesDeSemana(w.id);
-        if (visibles.has(w.id)) return { ...conFichas(w, trimestre, nivel), mes };
+        if (visibles.has(w.id)) return { ...conEjercicios(conFichas(w, trimestre, nivel), videos), mes };
         return acc.conHistorial.has(mes) ? { ...esqueletoSemana(w), mes } : null;
       })
       .filter(Boolean);

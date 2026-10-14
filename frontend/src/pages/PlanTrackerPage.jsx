@@ -14,6 +14,7 @@ import {
 } from "../plan/perfil";
 import { personalizarBloques } from "../plan/personalizar";
 import { fmtRango } from "../components/ui";
+import { BotonVideoGuia, ModalVideo } from "../components/VideoGuia";
 import { evaluarSobrecarga, esSobrecarga, dolorVigente, regletaPrevia, aplicarAdaptaciones } from "../plan/adaptacion";
 import {
   seriePse, mapaDolor, serieHangboard, esSesionTest, objetivoSalida, evaluarSalida,
@@ -189,6 +190,8 @@ function Ficha({ f }) {
 function Block({ b }) {
   const [open, setOpen] = useState(false);
   const [como, setComo] = useState(false);
+  const [verVideo, setVerVideo] = useState(false);
+  const video = b.ejercicio?.video;
   const hasParams = b.params && b.params.length > 0;
   const expandible = hasParams || b.ficha || b.avisos?.length > 0;
 
@@ -226,6 +229,7 @@ function Block({ b }) {
           padding: "10px 13px", cursor: expandible ? "pointer" : "default" }}>
         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.text,
           lineHeight: 1.3, fontFamily: "Poppins" }}>{b.n}</span>
+        {video && <BotonVideoGuia onClick={() => setVerVideo(true)} />}
         {b.avisos?.length > 0 && <span style={{ fontSize: 12 }}>⚠️</span>}
         {expandible && (
           <span style={{ color: C.muted, fontSize: 13, display: "inline-block",
@@ -267,13 +271,15 @@ function Block({ b }) {
           ))}
         </div>
       )}
+      {verVideo && <ModalVideo video={video} titulo={b.ejercicio.nombre} onClose={() => setVerVideo(false)} />}
     </div>
   );
 }
 
 // ─── MOVILIDAD COMPONENTS ────────────────────────────────
-function MovBlock({ ex, level, lv }) {
+function MovBlock({ ex, level, lv, video }) {
   const [open, setOpen] = useState(false);
+  const [verVideo, setVerVideo] = useState(false);
   const d = ex.levels[level];
   return (
     <div style={{ background: C.cardAlt, border: `1px solid ${C.border}`,
@@ -283,6 +289,8 @@ function MovBlock({ ex, level, lv }) {
           <span style={{ flex: 1, color: C.text, fontSize: 13, fontWeight: 700, fontFamily: "Poppins" }}>
             {ex.name}
           </span>
+          {video && <BotonVideoGuia compacto onClick={() => setVerVideo(true)} />}
+          {verVideo && <ModalVideo video={video} titulo={ex.name} onClose={() => setVerVideo(false)} />}
           <button onClick={() => setOpen(o => !o)}
             style={{ background: open ? `${C.red}22` : "none",
               border: `1px solid ${open ? C.red + "66" : C.border}`,
@@ -328,6 +336,9 @@ function MovilidadTab({ nivel }) {
   const levelNum = MOV_NIVEL[nivel] || 2;
   const lv = MOV_META[levelNum];
   const sess = MOV_SESSIONS[movSess];
+  // Videos guía de la rutina de movilidad (clave mov_<id> en el catálogo de ejercicios)
+  const [videos, setVideos] = useState({});
+  useEffect(() => { api.getVideosEjercicios().then(setVideos).catch(() => {}); }, []);
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -360,7 +371,7 @@ function MovilidadTab({ nivel }) {
         {sess.tip}
       </div>
       {sess.exercises.map(ex => (
-        <MovBlock key={ex.id} ex={ex} level={levelNum} lv={lv} />
+        <MovBlock key={ex.id} ex={ex} level={levelNum} lv={lv} video={videos[`mov_${ex.id}`]} />
       ))}
       <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 9,
         border: `1px solid ${C.border}`, background: C.card,

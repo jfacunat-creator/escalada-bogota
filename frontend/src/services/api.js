@@ -106,6 +106,12 @@ class ApiService {
   cambiarEstadoEscalador(id, estado) { return this.request(`/escaladores/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }); }
   firmarConsentimiento(id, data) { return this.request(`/escaladores/${id}/consentimiento`, { method: 'POST', body: JSON.stringify(data) }); }
 
+  // Videos guía por ejercicio
+  getEjercicios()          { return this.request('/ejercicios'); }
+  getVideosEjercicios()    { return this.request('/ejercicios/videos'); }
+  guardarVideoEjercicio(clave, url) { return this.request(`/ejercicios/${clave}/video`, { method: 'PUT', body: JSON.stringify({ url }) }); }
+  quitarVideoEjercicio(clave)       { return this.request(`/ejercicios/${clave}/video`, { method: 'DELETE' }); }
+
   // Videos para revisión
   getVideos(params)       { const q = params ? '?' + new URLSearchParams(params) : ''; return this.request(`/videos${q}`); }
   crearVideo(data)        { return this.request('/videos', { method: 'POST', body: JSON.stringify(data) }); }
