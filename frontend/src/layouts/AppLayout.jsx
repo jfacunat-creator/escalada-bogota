@@ -28,6 +28,7 @@ const nav = {
     { to: '/app/entrenadores', icon: IconoCuerda,     label: 'Entrenadores' },
     { to: '/app/programas',    icon: IconoPlanEntreno, label: 'Programas'    },
     { to: '/app/videos',       icon: IconoVideo,      label: 'Videos'       },
+    { to: '/app/ejercicios',   icon: IconoVideo,      label: 'Ejercicios'   },
     { to: '/app/ajustes-ai',   icon: IconoPlanEntreno, label: 'Ajustes AI'   },
     { to: '/app/pagos',        icon: IconoRoca,       label: 'Pagos'        },
     { to: '/app/rrhh',         icon: IconoCronometro, label: 'RRHH'         },

@@ -10,7 +10,8 @@
     "db:seed": "node prisma/seed.js",
     "db:reset": "npx prisma migrate reset --force",
     "db:studio": "npx prisma studio",
-    "fuentes:cargar": "node scripts/cargar-fuentes.js"
+    "fuentes:cargar": "node scripts/cargar-fuentes.js",
+    "videos:cargar": "node scripts/cargar-videos-ejercicios.js"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",

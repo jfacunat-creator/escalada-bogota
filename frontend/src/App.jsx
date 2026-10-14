@@ -31,6 +31,7 @@ import PlanTrackerPage from './pages/PlanTrackerPage';
 import AjustesAIPage from './pages/AjustesAIPage';
 import ConfiguracionPage from './pages/ConfiguracionPage';
 import VideosRevisionPage from './pages/VideosRevisionPage';
+import EjerciciosAdminPage from './pages/EjerciciosAdminPage';
 import { Loader2 } from 'lucide-react';
 
 const Spinner = () => (
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="escaladores"     element={<Solo roles={ADM}><EscaladoresAdminPage /></Solo>} />
             <Route path="entrenadores"    element={<Solo roles={ADM}><EntrenadoresAdminPage /></Solo>} />
             <Route path="programas"       element={<Solo roles={ADM}><ProgramasAdminPage /></Solo>} />
+            <Route path="ejercicios"      element={<Solo roles={ADM}><EjerciciosAdminPage /></Solo>} />
             <Route path="videos"          element={<Solo roles={[...ENT, ...ADM]}><VideosRevisionPage /></Solo>} />
             <Route path="pagos"           element={<Solo roles={ADM}><PagosPage /></Solo>} />
             <Route path="rrhh"            element={<Solo roles={ADM}><RRHHPage /></Solo>} />

@@ -718,3 +718,15 @@ model VideoObservacion {
   @@index([videoId, createdAt], map: "idx_video_observacion_video")
   @@map("video_observacion")
 }
+
+/// Video guía de un ejercicio del catálogo (backend/src/utils/ejercicios.js). Ver prisma/sql/2026-10-14_videos_ejercicios.sql
+model EjercicioVideo {
+  clave      String   @id @db.VarChar(40)
+  url        String
+  plataforma String   @db.VarChar(10)
+  videoId    String   @map("video_id")
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updatedBy  String?  @map("updated_by") @db.Uuid
+
+  @@map("ejercicio_video")
+}
