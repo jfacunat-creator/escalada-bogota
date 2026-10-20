@@ -2,17 +2,23 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { IconoMuro } from '../components/Icons';
+import { C, F } from '../pages/landing/shared';
+import { S } from '../contenido';
 
-const C = { bg: '#121212', surface: '#1c1c1c', border: '#2e2e2e', accent: '#D4AF37', text: '#F0EDE8', text2: '#A09A8C' };
-
+const M = S.menu;
 const navLinks = [
-  { to: '/', label: 'Inicio' },
-  { to: '/servicios', label: 'Servicios' },
-  { to: '/equipo', label: 'Equipo' },
-  { to: '/alianzas', label: 'Alianzas' },
-  { to: '/normatividad', label: 'Legal' },
-  { to: '/contacto', label: 'Contacto' },
+  { to: '/', label: M.inicio },
+  { to: '/servicios', label: M.servicios },
+  { to: '/equipo', label: M.equipo },
+  { to: '/alianzas', label: M.alianzas },
+  { to: '/normatividad', label: M.legal },
+  { to: '/contacto', label: M.contacto },
 ];
+
+// Logo: la imagen de marca si el contenido trae una; si no, el ícono del muro.
+const Logo = ({ size }) => S.marca.logoImagen
+  ? <img src={S.marca.logoImagen} alt={S.marca.nombre} style={{ height: `${size}px`, width: 'auto', display: 'block' }} />
+  : <IconoMuro style={{ width: `${size}px`, height: `${size}px`, color: C.accent }} />;
 
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -33,17 +39,17 @@ function Navbar() {
   return (
     <nav style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-      background: transparent ? 'transparent' : 'rgba(18,18,18,0.97)',
+      background: transparent ? 'transparent' : `${C.bg}F7`,
       backdropFilter: transparent ? 'none' : 'blur(12px)',
       borderBottom: transparent ? 'none' : `1px solid ${C.border}`,
       transition: 'all 0.3s',
     }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 clamp(20px, 5vw, 60px)', height: '68px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-          <IconoMuro style={{ width: '24px', height: '24px', color: C.accent }} />
+          <Logo size={24} />
           <div>
-            <div style={{ fontFamily: 'Antonio', fontSize: '0.9rem', color: C.text, letterSpacing: '0.07em', lineHeight: 1.1 }}>ESCALADA</div>
-            <div style={{ fontFamily: 'Antonio', fontSize: '0.9rem', color: C.accent, letterSpacing: '0.07em', lineHeight: 1.1 }}>BOGOTÁ</div>
+            <div style={{ fontFamily: F.titulos, fontSize: '0.9rem', color: C.text, letterSpacing: '0.07em', lineHeight: 1.1 }}>{S.marca.logoLinea1}</div>
+            <div style={{ fontFamily: F.titulos, fontSize: '0.9rem', color: C.accent, letterSpacing: '0.07em', lineHeight: 1.1 }}>{S.marca.logoLinea2}</div>
           </div>
         </Link>
 
@@ -55,7 +61,7 @@ function Navbar() {
             return (
               <Link key={to} to={to} style={{
                 padding: '8px 14px', color: active ? C.accent : C.text2,
-                fontSize: '0.85rem', fontFamily: 'Poppins', fontWeight: active ? 600 : 400,
+                fontSize: '0.85rem', fontFamily: F.texto, fontWeight: active ? 600 : 400,
                 textDecoration: 'none', borderRadius: '6px', transition: 'color 0.15s',
                 borderBottom: active ? `2px solid ${C.accent}` : '2px solid transparent',
               }}
@@ -66,13 +72,13 @@ function Navbar() {
             );
           })}
           <Link to="/login" style={{
-            marginLeft: '16px', padding: '9px 22px', background: C.accent, color: '#121212',
-            borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontFamily: 'Poppins',
+            marginLeft: '16px', padding: '9px 22px', background: C.accent, color: C.onAccent,
+            borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontFamily: F.texto,
             fontWeight: 700, transition: 'background 0.15s',
           }}
-            onMouseEnter={e => e.currentTarget.style.background = '#E5C108'}
+            onMouseEnter={e => e.currentTarget.style.background = C.accentHover}
             onMouseLeave={e => e.currentTarget.style.background = C.accent}>
-            Ingresar
+            {M.ingresar}
           </Link>
         </div>
 
@@ -85,14 +91,14 @@ function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div style={{ background: 'rgba(18,18,18,0.98)', padding: '16px 24px 24px', borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ background: `${C.bg}FA`, padding: '16px 24px 24px', borderBottom: `1px solid ${C.border}` }}>
           {navLinks.map(({ to, label }) => (
-            <Link key={to} to={to} style={{ display: 'block', padding: '12px 0', color: location.pathname === to ? C.accent : C.text2, fontSize: '1rem', fontFamily: 'Poppins', textDecoration: 'none', borderBottom: `1px solid ${C.border}` }}>
+            <Link key={to} to={to} style={{ display: 'block', padding: '12px 0', color: location.pathname === to ? C.accent : C.text2, fontSize: '1rem', fontFamily: F.texto, textDecoration: 'none', borderBottom: `1px solid ${C.border}` }}>
               {label}
             </Link>
           ))}
-          <Link to="/login" style={{ display: 'block', marginTop: '16px', padding: '12px', background: C.accent, color: '#121212', borderRadius: '8px', textAlign: 'center', textDecoration: 'none', fontFamily: 'Poppins', fontWeight: 700 }}>
-            Ingresar a la plataforma
+          <Link to="/login" style={{ display: 'block', marginTop: '16px', padding: '12px', background: C.accent, color: C.onAccent, borderRadius: '8px', textAlign: 'center', textDecoration: 'none', fontFamily: F.texto, fontWeight: 700 }}>
+            {M.ingresarMovil}
           </Link>
         </div>
       )}
@@ -102,18 +108,18 @@ function Navbar() {
 
 function Footer() {
   return (
-    <footer style={{ background: '#0a0a0a', borderTop: `1px solid ${C.border}`, padding: '24px clamp(20px, 5vw, 60px)' }}>
+    <footer style={{ background: C.bgDeep, borderTop: `1px solid ${C.border}`, padding: '24px clamp(20px, 5vw, 60px)' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <IconoMuro style={{ width: '18px', height: '18px', color: C.accent }} />
-          <span style={{ fontFamily: 'Antonio', fontSize: '0.85rem', color: C.text2, letterSpacing: '0.06em' }}>ESCALADA BOGOTÁ</span>
+          <Logo size={18} />
+          <span style={{ fontFamily: F.titulos, fontSize: '0.85rem', color: C.text2, letterSpacing: '0.06em' }}>{S.pie.nombre}</span>
         </div>
-        <p style={{ fontFamily: 'Poppins', fontSize: '0.78rem', color: C.text3, textAlign: 'center' }}>
-          © 2025 Escalada Bogotá · PI registrada (DNDA)
+        <p style={{ fontFamily: F.texto, fontSize: '0.78rem', color: C.text3, textAlign: 'center' }}>
+          {S.pie.copyright}
         </p>
         <div style={{ display: 'flex', gap: '16px' }}>
-          {[['Términos', '#'], ['Privacidad', '#']].map(([l]) => (
-            <span key={l} style={{ fontFamily: 'Poppins', fontSize: '0.78rem', color: C.text3, cursor: 'pointer' }}>{l}</span>
+          {[S.pie.terminos, S.pie.privacidad].map(l => (
+            <span key={l} style={{ fontFamily: F.texto, fontSize: '0.78rem', color: C.text3, cursor: 'pointer' }}>{l}</span>
           ))}
         </div>
       </div>
@@ -123,7 +129,7 @@ function Footer() {
 
 export default function LandingLayout() {
   return (
-    <div style={{ background: '#121212', minHeight: '100vh' }}>
+    <div style={{ background: C.bg, minHeight: '100vh' }}>
       <Navbar />
       <Outlet />
       <Footer />
