@@ -1,5 +1,6 @@
 import { MessageCircle, Mail } from 'lucide-react';
-import { C, T, Section, SectionLabel, Divider, PageHeader, BtnPrimary } from './shared';
+import { C, F, T, Section, Divider, PageHeader, BtnPrimary, TituloDoble } from './shared';
+import { S, whatsappLink } from '../../contenido';
 
 const InstagramIcon = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -7,41 +8,43 @@ const InstagramIcon = ({ size = 20 }) => (
   </svg>
 );
 
+const { contacto: dato } = S;
+const { canales } = S.contactoPagina;
 const contactos = [
-  { Icon: MessageCircle, label: 'WhatsApp', value: '+57 300 212 3034', href: 'https://wa.me/573002123034', color: '#22c55e' },
-  { Icon: Mail, label: 'Email', value: 'hola@escaladabogota.com', href: 'mailto:hola@escaladabogota.com', color: '#D4AF37' },
-  { Icon: InstagramIcon, label: 'Instagram', value: '@escaladabogota', href: 'https://instagram.com/escaladabogota', color: '#c084fc' },
-
+  { Icon: MessageCircle, label: canales.whatsapp, value: dato.whatsappVisible, href: whatsappLink, color: canales.colorWhatsapp },
+  { Icon: Mail, label: canales.email, value: dato.email, href: `mailto:${dato.email}`, color: canales.colorEmail },
+  { Icon: InstagramIcon, label: canales.instagram, value: `@${dato.instagram}`, href: `https://instagram.com/${dato.instagram}`, color: canales.colorInstagram },
 ];
 
 export default function ContactoPage() {
+  const { encabezado: h, cuerpo } = S.contactoPagina;
   return (
     <>
-      <PageHeader label="Contacto" title="Hablemos" subtitle="¿Listo para entrenar con estructura y datos? Contáctanos por los canales disponibles o inscríbete directamente." />
+      <PageHeader label={h.etiqueta} title={h.titulo} subtitle={h.subtitulo} />
       <Section>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }} className="ct-grid">
           <style>{`@media(max-width:768px){.ct-grid{grid-template-columns:1fr!important}}`}</style>
           <div>
-            <h2 style={{ ...T.h2, marginBottom: '12px' }}>¿Listo para<br /><span style={{ color: C.accent }}>empezar?</span></h2>
+            <h2 style={{ ...T.h2, marginBottom: '12px' }}><TituloDoble titulo={cuerpo.titulo} destacado={cuerpo.tituloDestacado} /></h2>
             <Divider />
-            <p style={T.body}>Contáctanos por WhatsApp o inscríbete directamente en la plataforma. Te asignamos grupo según tu nivel y disponibilidad.</p>
-            <p style={{ ...T.body, marginTop: '12px', marginBottom: '28px' }}>Cada ciclo abre y cierra con test de evaluación — la curva de progreso es parte del servicio.</p>
+            <p style={T.body}>{cuerpo.parrafo1}</p>
+            <p style={{ ...T.body, marginTop: '12px', marginBottom: '28px' }}>{cuerpo.parrafo2}</p>
             <BtnPrimary to="/registro">
-              Inscribirme
+              {cuerpo.boton}
             </BtnPrimary>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {contactos.map(c => (
-              <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px', background: '#1c1c1c', borderRadius: '12px', border: '1px solid #2e2e2e' }}>
+              <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px', background: C.surface, borderRadius: '12px', border: `1px solid ${C.border}` }}>
                 <div style={{ padding: '10px', background: `${c.color}12`, borderRadius: '10px', flexShrink: 0 }}>
                   <c.Icon size={18} style={{ color: c.color }} />
                 </div>
                 <div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: '0.72rem', color: '#666', marginBottom: '2px' }}>{c.label}</div>
+                  <div style={{ fontFamily: F.texto, fontSize: '0.72rem', color: C.text3, marginBottom: '2px' }}>{c.label}</div>
                   {c.href
-                    ? <a href={c.href} target="_blank" rel="noopener noreferrer" style={{ color: '#F0EDE8', fontFamily: 'Poppins', fontSize: '0.9rem', fontWeight: 500, textDecoration: 'none' }}
-                        onMouseEnter={e => e.currentTarget.style.color = c.color} onMouseLeave={e => e.currentTarget.style.color = '#F0EDE8'}>{c.value}</a>
-                    : <div style={{ color: '#F0EDE8', fontFamily: 'Poppins', fontSize: '0.9rem' }}>{c.value}</div>}
+                    ? <a href={c.href} target="_blank" rel="noopener noreferrer" style={{ color: C.text, fontFamily: F.texto, fontSize: '0.9rem', fontWeight: 500, textDecoration: 'none' }}
+                        onMouseEnter={e => e.currentTarget.style.color = c.color} onMouseLeave={e => e.currentTarget.style.color = C.text}>{c.value}</a>
+                    : <div style={{ color: C.text, fontFamily: F.texto, fontSize: '0.9rem' }}>{c.value}</div>}
                 </div>
               </div>
             ))}

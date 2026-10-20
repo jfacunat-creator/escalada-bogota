@@ -1,0 +1,264 @@
+{
+  "marca": {
+    "nombre": "Escalada Bogotá",
+    "logoLinea1": "ESCALADA",
+    "logoLinea2": "BOGOTÁ",
+    "logoImagen": "",
+    "colores": {
+      "acento": "#D4AF37",
+      "acentoHover": "#E5C108",
+      "acentoOscuro": "#9E721D",
+      "cafe": "#4A2F0F",
+      "fondo": "#121212",
+      "fondoProfundo": "#0A0A0A",
+      "superficie": "#1C1C1C",
+      "superficieAlt": "#242424",
+      "borde": "#2E2E2E",
+      "texto": "#F0EDE8",
+      "textoSecundario": "#A09A8C",
+      "textoTenue": "#666666",
+      "textoSobreAcento": "#121212"
+    },
+    "fuentes": {
+      "titulos": "Antonio",
+      "texto": "Poppins"
+    }
+  },
+  "contacto": {
+    "whatsappNumero": "573002123034",
+    "whatsappVisible": "+57 300 212 3034",
+    "email": "hola@escaladabogota.com",
+    "instagram": "escaladabogota"
+  },
+  "menu": {
+    "inicio": "Inicio",
+    "servicios": "Servicios",
+    "equipo": "Equipo",
+    "alianzas": "Alianzas",
+    "legal": "Legal",
+    "contacto": "Contacto",
+    "ingresar": "Ingresar",
+    "ingresarMovil": "Ingresar a la plataforma"
+  },
+  "pie": {
+    "nombre": "ESCALADA BOGOTÁ",
+    "copyright": "© 2025 Escalada Bogotá · PI registrada (DNDA)",
+    "terminos": "Términos",
+    "privacidad": "Privacidad"
+  },
+  "inicio": {
+    "portada": {
+      "imagen": "/climbing-bg.jpg",
+      "etiqueta": "Bogotá · Entrenamiento de Escalada",
+      "titulo": "Cada sesión",
+      "tituloDestacado": "te lleva más alto.",
+      "parrafo": "No vendemos acceso al muro. Vendemos el proceso: entrenamiento periodizado por niveles, con tests objetivos y respaldo interdisciplinario.",
+      "boton": "Inscribirme",
+      "cifras": [
+        { "numero": "4", "texto": "Ciclos al año" },
+        { "numero": "3", "texto": "Niveles" },
+        { "numero": "2", "texto": "Entrenadores" },
+        { "numero": "2", "texto": "Modalidades" }
+      ],
+      "descubrir": "Descubrir"
+    },
+    "problema": {
+      "imagen": "/foto-entrenamiento.png",
+      "imagenTitulo": "Proceso periodizado",
+      "imagenSubtitulo": "No improvisación — metodología",
+      "etiqueta": "El problema",
+      "titulo": "El muro vende acceso.",
+      "tituloDestacado": "Nosotros vendemos proceso.",
+      "parrafo1": "El escalador en Bogotá entrena sin estructura: se estanca entre V2 y V4, se lesiona los dedos imitando métodos de avanzados y no tiene cómo medir si mejora.",
+      "parrafo2": "Ningún actor local ofrece periodización real con evaluación objetiva y respaldo interdisciplinario. Hasta ahora.",
+      "pilares": [
+        { "titulo": "Grupos por nivel", "texto": "4 ciclos al año de 13 semanas. Nadie entra a mitad de ciclo. La personalización vive en la carga individual." },
+        { "titulo": "El dato es el producto", "texto": "Todo ciclo abre y cierra con test. Ves tu curva de progreso trimestre a trimestre." },
+        { "titulo": "Metodología documentada", "texto": "16 documentos técnicos con sustento bibliográfico internacional (FEDME, Hörst, Cometti, Watts)." },
+        { "titulo": "Red aliada", "texto": "Fisioterapeuta y nutricionista integrados con hitos fijos en el calendario." }
+      ]
+    },
+    "llamado": {
+      "etiqueta": "¿Listo para empezar?",
+      "titulo": "Conoce nuestros programas y planes",
+      "parrafo": "Iniciación, Intermedio y Avanzado para adultos. Plan Autónomo o Plan Acompañado. Encuentra el que es para ti.",
+      "boton": "Inscribirme",
+      "botonSecundario": "Contactar"
+    }
+  },
+  "servicios": {
+    "encabezado": {
+      "etiqueta": "Servicios",
+      "titulo": "Programas y planes",
+      "subtitulo": "Primero entiende qué nivel eres. Luego elige cómo quieres entrenar."
+    },
+    "niveles": {
+      "etiqueta": "Adultos",
+      "titulo": "¿En qué nivel estás?",
+      "parrafo": "El discurso cambia porque el dolor del escalador cambia por nivel. Todos los grupos tienen test de entrada y test de cierre — la curva de progreso es el producto.",
+      "lista": [
+        {
+          "nombre": "Iniciación", "rango": "0–6 meses", "color": "#22C55E",
+          "dolor": "\"No sé por dónde empezar y me da miedo lesionarme.\"",
+          "pitch": "El 80% del plan es escalar mejor, no sufrir en una tabla. Cero trabajo de dedos el primer año. En 12 semanas caes sin miedo y lees tus propias vías.",
+          "incluye": ["Técnica de caída y lectura de vías", "Repertorio motor básico", "Juego de cierre en cada sesión", "Cero campus ni lastre"]
+        },
+        {
+          "nombre": "Intermedio", "rango": "Estancado V2–V4", "color": "#D4AF37",
+          "dolor": "\"Llevo meses sin subir de grado. Entreno fuerte pero no avanzo.\"",
+          "pitch": "Tu problema no es fuerza, es estructura. Progresión por tamaño de presa, sin hipotecar los dedos. En 2 ciclos pasás de V3 a V5.",
+          "incluye": ["Test Hörst + circuito estándar de entrada", "Progresión por tamaño de presa", "Liga interna de puntos por grupo", "Check-Point Fest al cierre"]
+        },
+        {
+          "nombre": "Avanzado", "rango": "V5+ / Competidor", "color": "#EF4444",
+          "dolor": "\"Llegué a un techo de rendimiento. No sé cómo periodizar mis picos.\"",
+          "pitch": "Doble pico anual planificado con efectos retardados. Fisio mensual y nutrición por fase incluidas. Tests Lehner–Heyters para discriminar el alto nivel.",
+          "incluye": ["Doble pico anual periodizado", "Fisioterapeuta mensual incluido", "Nutricionista por fases", "Batería Lehner–Heyters"]
+        }
+      ]
+    },
+    "planes": {
+      "etiqueta": "Modalidades",
+      "titulo": "Elige cómo entrenar",
+      "parrafo": "Pagás una mensualidad fija según la modalidad, sin importar tu nivel. El entrenamiento se organiza en ciclos de 13 semanas con informe de resultados en cada empalme.",
+      "insigniaDestacado": "Más popular",
+      "lista": [
+        {
+          "nombre": "Plan Autónomo", "modalidad": "autonomo", "destacado": false, "color": "#9E721D",
+          "categoria": "Digital",
+          "periodo": "por mes · cualquier nivel",
+          "descripcion": "Para el escalador disciplinado que prefiere entrenar en sus horarios. Acceso completo al plan digital del ciclo vigente, videoteca técnica y tests presenciales en cada empalme.",
+          "incluye": ["Plan digital del ciclo vigente", "Videoteca técnica completa", "Revisión asincrónica de 2 videos/mes", "Tests presenciales en cada empalme", "Acceso activo mientras dure la suscripción"],
+          "pie": "Digital · Flexible"
+        },
+        {
+          "nombre": "Plan Acompañado", "modalidad": "acompanado", "destacado": true, "color": "#D4AF37",
+          "categoria": "Presencial · Recomendado",
+          "periodo": "por mes · cualquier nivel",
+          "descripcion": "2 a 3 sesiones presenciales por semana en muro aliado, con entrenador asignado, evaluación trimestral, Liga interna, Check-Point Fest y salidas a roca.",
+          "incluye": ["2–3 sesiones presenciales/semana", "Plan periodizado con entrenador asignado", "Evaluación trimestral con informe", "Tarifas preferenciales con fisio y nutrición", "Liga interna, Fest y salida trimestral a Suesca"],
+          "pie": "Presencial · Recomendado"
+        }
+      ],
+      "notaAntes": "¿Dudas?",
+      "notaEnlace": "Escríbenos por WhatsApp",
+      "notaDespues": "— la modalidad se elige durante la inscripción."
+    }
+  },
+  "equipo": {
+    "encabezado": {
+      "etiqueta": "Quiénes somos",
+      "titulo": "El entrenador es el producto",
+      "subtitulo": "Dos escaladores bogotanos que fundaron Escalada Bogotá en 2025 para que nadie más se estanque ni se lastime entrenando sin estructura."
+    },
+    "historia": {
+      "imagen": "/foto-equipo.png",
+      "etiqueta": "Nuestra historia",
+      "titulo": "Escaladores que",
+      "tituloDestacado": "entrenan escaladores",
+      "parrafo1": "Después de años viendo a amigos lesionarse imitando métodos de escaladores de alto nivel, entendimos que el problema no es la falta de esfuerzo — es la falta de estructura.",
+      "parrafo2": "Escala Bogotá nació para ofrecer lo que ningún muro tenía: periodización real, evaluación objetiva y una comunidad que escala junta, mejora junta y se divierte junta."
+    },
+    "entrenadores": {
+      "titulo": "Nuestros entrenadores",
+      "etiquetaGrupos": "Grupos que dirige",
+      "lista": [
+        {
+          "nombre": "Juan Francisco Acuña", "iniciales": "JFA",
+          "rol": "Co-fundador · Entrenador Principal",
+          "bio": "Escalador con más de 10 años de experiencia en escalada deportiva y boulder en Bogotá. Especialista en periodización y entrenamiento funcional. Habilitado bajo Ley 181/1995. Ha formado más de 80 escaladores en programas estructurados.",
+          "grupos": ["Iniciación Adulto", "Intermedio Adulto", "Menores 10–15"]
+        },
+        {
+          "nombre": "Juan Diego García", "iniciales": "JDG",
+          "rol": "Co-fundador · Entrenador Avanzado",
+          "bio": "Escalador de alto rendimiento con experiencia en competencia nacional y metodología periodizada. Especialista en nivel Avanzado y desarrollo de talento joven. Habilitado bajo Ley 181/1995 con formación en fisiología del esfuerzo.",
+          "grupos": ["Avanzado", "Intermedio Adulto", "Competencia"]
+        }
+      ]
+    }
+  },
+  "alianzas": {
+    "encabezado": {
+      "etiqueta": "Red aliada",
+      "titulo": "Una red que trabaja junta",
+      "subtitulo": "El muro recibe tráfico y retención. El fisio y nutricionista reciben remisiones calificadas. El escalador recibe un servicio integrado. Todos ganan."
+    },
+    "aliados": [
+      { "nombre": "BetaClimb", "tipo": "Muro Aliado", "color": "#60A5FA", "descripcion": "Muro de boulder e indoor en Bogotá. Zona exclusiva para grupos de Escala Bogotá en horarios pico. 2 zonas disponibles para sesiones paralelas. Convenio activo." },
+      { "nombre": "Weya Centro de Escalada", "tipo": "Muro Aliado", "color": "#60A5FA", "descripcion": "Centro de escalada completo en Bogotá. Pared de dificultad y boulder. Convenio activo para grupos de Iniciación e Intermedio los fines de semana." },
+      { "nombre": "Liyeri Fisioterapia", "tipo": "Fisioterapia Deportiva", "color": "#F43F5E", "descripcion": "Fisioterapeuta especializada en lesiones deportivas y escalada. Integrada con hitos fijos en el calendario Avanzado. Remisión preferencial para todos los niveles desde nuestra plataforma." },
+      { "nombre": "Daniela Forero", "tipo": "Nutrición Deportiva", "color": "#22C55E", "descripcion": "Nutricionista deportiva con experiencia en deportes de fuerza y resistencia. Nutrición por fases incluida en el plan Avanzado. Valoración con tarifa preferencial para todos los escaladores." }
+    ],
+    "invitacion": {
+      "etiqueta": "¿Eres un aliado potencial?",
+      "titulo": "Construyamos algo juntos",
+      "parrafo": "Si eres un muro, especialista en salud o servicio complementario para escaladores en Bogotá, conversemos.",
+      "boton": "Escribenos por WhatsApp"
+    }
+  },
+  "legal": {
+    "encabezado": {
+      "etiqueta": "Marco Legal",
+      "titulo": "Tus derechos, nuestras obligaciones",
+      "subtitulo": "Operamos bajo la normatividad colombiana vigente. La transparencia es parte del producto."
+    },
+    "normas": [
+      { "titulo": "Tratamiento de Datos Personales", "ley": "Ley 1581/2012 · Decreto 1377/2013", "color": "#38BDF8", "descripcion": "Tus datos se recopilan con consentimiento expreso, se almacenan de forma segura y no se comparten con terceros sin autorización. Tienes derecho a conocer, actualizar, rectificar y suprimir tu información en cualquier momento." },
+      { "titulo": "Protección al Consumidor", "ley": "Ley 1480/2011 (Estatuto del Consumidor)", "color": "#D4AF37", "descripcion": "Tienes derecho a recibir el servicio en las condiciones ofrecidas, a información clara sobre precios y condiciones, y a radicar reclamaciones. Toda la información de planes y precios es pública y verificable." },
+      { "titulo": "Protocolo de Menores", "ley": "Ley 1098/2006 (Código de Infancia)", "color": "#C084FC", "descripcion": "Para escaladores menores de edad se requiere consentimiento informado firmado por el representante legal, y se aplica un protocolo estricto de protección. Ratios diferenciados y supervisión reforzada." }
+    ]
+  },
+  "contactoPagina": {
+    "encabezado": {
+      "etiqueta": "Contacto",
+      "titulo": "Hablemos",
+      "subtitulo": "¿Listo para entrenar con estructura y datos? Contáctanos por los canales disponibles o inscríbete directamente."
+    },
+    "cuerpo": {
+      "titulo": "¿Listo para",
+      "tituloDestacado": "empezar?",
+      "parrafo1": "Contáctanos por WhatsApp o inscríbete directamente en la plataforma. Te asignamos grupo según tu nivel y disponibilidad.",
+      "parrafo2": "Cada ciclo abre y cierra con test de evaluación — la curva de progreso es parte del servicio.",
+      "boton": "Inscribirme"
+    },
+    "canales": {
+      "whatsapp": "WhatsApp",
+      "email": "Email",
+      "instagram": "Instagram",
+      "colorWhatsapp": "#22C55E",
+      "colorEmail": "#D4AF37",
+      "colorInstagram": "#C084FC"
+    }
+  },
+  "mayusculas": {
+    "inicio.portada.etiqueta": "mayusculas",
+    "inicio.portada.descubrir": "mayusculas",
+    "inicio.problema.etiqueta": "mayusculas",
+    "inicio.llamado.etiqueta": "mayusculas",
+    "servicios.encabezado.etiqueta": "mayusculas",
+    "servicios.niveles.etiqueta": "mayusculas",
+    "servicios.niveles.lista.0.rango": "mayusculas",
+    "servicios.niveles.lista.1.rango": "mayusculas",
+    "servicios.niveles.lista.2.rango": "mayusculas",
+    "servicios.planes.etiqueta": "mayusculas",
+    "servicios.planes.lista.0.categoria": "mayusculas",
+    "servicios.planes.lista.1.categoria": "mayusculas",
+    "equipo.encabezado.etiqueta": "mayusculas",
+    "equipo.historia.etiqueta": "mayusculas",
+    "equipo.entrenadores.etiquetaGrupos": "mayusculas",
+    "equipo.entrenadores.lista.0.rol": "mayusculas",
+    "equipo.entrenadores.lista.1.rol": "mayusculas",
+    "alianzas.encabezado.etiqueta": "mayusculas",
+    "alianzas.aliados.0.tipo": "mayusculas",
+    "alianzas.aliados.1.tipo": "mayusculas",
+    "alianzas.aliados.2.tipo": "mayusculas",
+    "alianzas.aliados.3.tipo": "mayusculas",
+    "alianzas.invitacion.etiqueta": "mayusculas",
+    "legal.encabezado.etiqueta": "mayusculas",
+    "legal.normas.0.ley": "mayusculas",
+    "legal.normas.1.ley": "mayusculas",
+    "legal.normas.2.ley": "mayusculas",
+    "contactoPagina.encabezado.etiqueta": "mayusculas"
+  }
+}
