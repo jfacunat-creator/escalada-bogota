@@ -60,18 +60,40 @@ export default function LoginPage() {
       </div>
 
       {/* Lado derecho: formulario */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', maxWidth: '480px', margin: '0 auto' }}>
-        <div style={{ width: '100%', maxWidth: '360px' }}>
-          <Link to="/" title="Ir al inicio" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', textDecoration: 'none', width: 'fit-content' }}>
-            <IconoMuro style={{ width: '28px', height: '28px', color: '#D4AF37' }} />
-            <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: '#F0EDE8', letterSpacing: '0.06em' }}>ESCALADA BOGOTÁ</span>
-          </Link>
+      <div className="login-col" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', maxWidth: '480px', margin: '0 auto' }}>
+        <style>{`@media(max-width:1023px){.login-col{justify-content:flex-start!important}}`}</style>
 
-          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '24px', padding: '8px 14px', border: '1px solid #2e2e2e', borderRadius: '8px', background: '#1c1c1c', color: '#F0EDE8', fontFamily: 'Poppins', fontSize: '0.85rem', textDecoration: 'none', transition: 'border-color 0.15s, color 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#D4AF37'; e.currentTarget.style.borderColor = '#D4AF37'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#F0EDE8'; e.currentTarget.style.borderColor = '#2e2e2e'; }}>
-            <ArrowLeft size={16} /> Volver al inicio
-          </Link>
+        {/* Teléfono: portada compacta con la foto (en escritorio va en el lado izquierdo) */}
+        <div className="solo-movil" style={{ position: 'relative', width: '100%', minHeight: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '16px 20px 22px', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: "url('/climbing-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center 30%' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(18,18,18,0.35) 0%, rgba(74,47,15,0.55) 55%, #121212 100%)' }} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Link to="/" aria-label="Volver al inicio" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(18,18,18,0.55)', color: '#F0EDE8' }}>
+              <ArrowLeft size={18} />
+            </Link>
+            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+              <IconoMuro style={{ width: '24px', height: '24px', color: '#D4AF37' }} />
+              <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1rem', color: '#F0EDE8', letterSpacing: '0.06em' }}>ESCALADA BOGOTÁ</span>
+            </Link>
+          </div>
+          <div style={{ position: 'relative', fontFamily: 'Antonio, sans-serif', fontSize: '1.9rem', color: '#F0EDE8', lineHeight: 1.05 }}>
+            Cada sesión<br /><span style={{ color: '#D4AF37' }}>te lleva más alto.</span>
+          </div>
+        </div>
+
+        <div style={{ width: '100%', maxWidth: '408px', padding: '24px' }}>
+          <div className="solo-desktop">
+            <Link to="/" title="Ir al inicio" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', textDecoration: 'none', width: 'fit-content' }}>
+              <IconoMuro style={{ width: '28px', height: '28px', color: '#D4AF37' }} />
+              <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.1rem', color: '#F0EDE8', letterSpacing: '0.06em' }}>ESCALADA BOGOTÁ</span>
+            </Link>
+
+            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '24px', padding: '8px 14px', border: '1px solid #2e2e2e', borderRadius: '8px', background: '#1c1c1c', color: '#F0EDE8', fontFamily: 'Poppins', fontSize: '0.85rem', textDecoration: 'none', transition: 'border-color 0.15s, color 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#D4AF37'; e.currentTarget.style.borderColor = '#D4AF37'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#F0EDE8'; e.currentTarget.style.borderColor = '#2e2e2e'; }}>
+              <ArrowLeft size={16} /> Volver al inicio
+            </Link>
+          </div>
           <h2 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8', marginBottom: '4px' }}>Bienvenido</h2>
           <p style={{ color: '#A09A8C', fontSize: '0.875rem', marginBottom: '28px' }}>Accede a tu plan de entrenamiento</p>
 
@@ -85,21 +107,23 @@ export default function LoginPage() {
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', color: '#A09A8C', marginBottom: '6px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Email</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                className="input-dark" placeholder="tu@email.com" />
+                autoComplete="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                className="input-dark" placeholder="tu@email.com" style={{ minHeight: '46px' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', color: '#A09A8C', marginBottom: '6px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Contraseña</label>
               <div style={{ position: 'relative' }}>
                 <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
-                  className="input-dark" placeholder="••••••••" style={{ paddingRight: '44px' }} />
-                <button type="button" onClick={() => setShowPwd(!showPwd)}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#A09A8C', display: 'flex', alignItems: 'center' }}>
+                  autoComplete="current-password"
+                  className="input-dark" placeholder="••••••••" style={{ paddingRight: '48px', minHeight: '46px' }} />
+                <button type="button" onClick={() => setShowPwd(!showPwd)} aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  style={{ position: 'absolute', right: '4px', width: '40px', height: '40px', justifyContent: 'center', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#A09A8C', display: 'flex', alignItems: 'center' }}>
                   {showPwd ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
             </div>
             <button type="submit" disabled={loading} className="btn-primary"
-              style={{ marginTop: '4px', width: '100%', fontSize: '0.95rem', letterSpacing: '0.05em', fontFamily: 'Poppins, sans-serif' }}>
+              style={{ marginTop: '4px', width: '100%', minHeight: '48px', fontSize: '0.95rem', letterSpacing: '0.05em', fontFamily: 'Poppins, sans-serif' }}>
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
           </form>

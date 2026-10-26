@@ -84,3 +84,18 @@ h1, h2, h3, h4, h5 {
 .badge-red    { background: #2e0a0a; color: #f87171; border: 1px solid #3a0e0e; }
 .badge-amber  { background: #2e1e0a; color: #fbbf24; border: 1px solid #3a280e; }
 .badge-slate  { background: #1e1e1e; color: var(--text-2); border: 1px solid var(--border); }
+
+/* ── MÓVIL ────────────────────────────────────────────── */
+/* Altura de la barra de navegación inferior (solo la tiene el escalador en teléfono) */
+:root { --nav-inf: 0px; }
+@media (max-width: 1023px) { .con-nav-inf { --nav-inf: calc(60px + env(safe-area-inset-bottom)); } }
+
+body { -webkit-tap-highlight-color: transparent; }
+
+@media (min-width: 1024px) { .solo-movil { display: none !important; } }
+@media (max-width: 1023px) { .solo-desktop { display: none !important; } }
+
+/* iOS hace zoom al enfocar campos con letra menor a 16px */
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px !important; }
+}

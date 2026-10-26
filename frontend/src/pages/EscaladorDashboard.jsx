@@ -3,17 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { whatsappUrl, EMAIL_CONTACTO as EMAIL } from '../config';
-import { fmtRango } from '../components/ui';
+import { fmtRango, HORARIO_LABEL } from '../components/ui';
 import { Loader2 } from 'lucide-react';
-import { IconoPresa, IconoRoca, IconoCronometro, IconoMuro, IconoEscalador } from '../components/Icons';
+import { IconoPresa, IconoRoca, IconoCronometro, IconoMuro, IconoEscalador, IconoPlanEntreno } from '../components/Icons';
 
 const WHATSAPP_URL = whatsappUrl('Hola, acabo de registrarme en la plataforma de Escalada Bogotá y quiero conocer los próximos pasos.');
 
 function Stat({ icon: Icon, label, value, color = '#D4AF37' }) {
   return (
-    <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-      <div style={{ padding: '10px', borderRadius: '10px', background: color + '18', color }}><Icon style={{ width: '20px', height: '20px' }} /></div>
-      <div>
+    <div className="esc-stat" style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+      <div className="esc-stat-ico" style={{ padding: '10px', borderRadius: '10px', background: color + '18', color }}><Icon style={{ width: '20px', height: '20px' }} /></div>
+      <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: '0.78rem', color: '#A09A8C' }}>{label}</div>
         <div style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1.4rem', color: '#F0EDE8', lineHeight: 1.1 }}>{value}</div>
       </div>
@@ -42,12 +42,22 @@ export default function EscaladorDashboard() {
 
   return (
     <div>
-      <div style={{ marginBottom: '28px' }}>
+      <style>{`
+        @media(max-width:640px){
+          .esc-stats{grid-template-columns:1fr 1fr!important;gap:10px!important;margin-bottom:20px!important}
+          .esc-stats>:last-child:nth-child(odd){grid-column:1/-1}
+          .esc-stat{padding:12px!important;gap:10px!important}
+          .esc-stat-ico{padding:8px!important}
+          .esc-hola{margin-bottom:18px!important}
+          .esc-hola h1{font-size:1.7rem!important}
+        }
+      `}</style>
+      <div className="esc-hola" style={{ marginBottom: '28px' }}>
         <h1 style={{ fontFamily: 'Antonio, sans-serif', fontSize: '2rem', color: '#F0EDE8' }}>Hola, {esc?.nombre || 'Escalador'}</h1>
         <p style={{ color: '#A09A8C', fontSize: '0.9rem' }}>Bienvenido a tu plataforma de entrenamiento</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '28px' }}>
+      <div className="esc-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '28px' }}>
         <Stat icon={IconoPresa} label="Estado plataforma" value={estadoLabel[esc?.estado] || 'Activo'} color={esc?.estado === 'activo' ? '#22c55e' : esc?.estado === 'pendiente' ? '#f59e0b' : '#666'} />
         <Stat icon={IconoRoca} label="Nivel" value={{ iniciacion: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' }[esc?.nivel] || (esc?.nivel ? esc.nivel : '—')} />
         <Stat icon={IconoMuro} label="Grupo activo" value={activa ? activa.cohorte?.programa?.nombre?.split(' ')[0] || 'Sí' : 'Sin grupo'} color={activa ? '#22c55e' : '#A09A8C'} />
@@ -78,7 +88,13 @@ export default function EscaladorDashboard() {
               })()}
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: '#A09A8C' }}><IconoCronometro style={{ width: '15px', height: '15px' }} /> {activa.cohorte?.horario || activa.horario || '—'}</div>
+              {activa.cohorte?.ciclo?.meses?.find(x => x.mes === activa.cohorte.ciclo.mesVigente)?.estadoPago === 'pagado' && (
+                <button onClick={() => navigate('/app/mi-plan')}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', minHeight: '46px', marginBottom: '4px', background: '#D4AF37', color: '#121212', border: 'none', borderRadius: '10px', cursor: 'pointer', fontFamily: 'Poppins', fontSize: '0.9rem', fontWeight: 700 }}>
+                  <IconoPlanEntreno style={{ width: '18px', height: '18px' }} /> Ver mi plan de hoy
+                </button>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: '#A09A8C' }}><IconoCronometro style={{ width: '15px', height: '15px' }} /> {HORARIO_LABEL[activa.cohorte?.horario] || activa.cohorte?.horario || activa.horario || '—'}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: '#A09A8C' }}><IconoMuro style={{ width: '15px', height: '15px' }} /> {activa.cohorte?.muro?.nombre || activa.muro || '—'}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: '#A09A8C' }}><IconoEscalador style={{ width: '15px', height: '15px' }} /> Entrenador: {activa.cohorte?.entrenador?.nombre || '—'}</div>
             </div>
@@ -131,11 +147,12 @@ export default function EscaladorDashboard() {
           <div style={{ background: '#1c1c1c', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '18px' }}>
             <div style={{ fontSize: '0.72rem', color: '#A09A8C', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: '12px' }}>Accesos rápidos</div>
             {[
+              { label: 'Mi plan',    path: '/app/mi-plan' },
               { label: 'Mi grupo',   path: '/app/mi-grupo' },
               { label: 'Mis pagos',  path: '/app/mis-pagos' },
               { label: 'Mi progreso',path: '/app/mi-progreso' },
             ].map(({ label, path }) => (
-              <button key={path} onClick={() => navigate(path)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 0', background: 'none', border: 'none', borderBottom: '1px solid #242424', cursor: 'pointer', fontSize: '0.85rem', color: '#D4AF37', fontFamily: 'Poppins' }}>
+              <button key={path} onClick={() => navigate(path)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 0', background: 'none', border: 'none', borderBottom: '1px solid #242424', cursor: 'pointer', fontSize: '0.85rem', color: '#D4AF37', fontFamily: 'Poppins', minHeight: '40px' }}>
                 {label} →
               </button>
             ))}

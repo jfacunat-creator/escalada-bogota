@@ -1,5 +1,5 @@
 // Piezas de interfaz compartidas por las páginas de administración (tema oscuro de la app).
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const C = {
@@ -34,6 +34,20 @@ export const HORARIOS = [
 ];
 export const HORARIO_LABEL = Object.fromEntries(HORARIOS.map(h => [h.value, h.label]));
 export const NIVEL = { iniciacion: 'Principiante', intermedio: 'Intermedio', avanzado: 'Avanzado' };
+
+// true en pantallas de teléfono (por defecto ≤ 640 px); se actualiza al rotar o cambiar el tamaño.
+export function useMovil(max = 640) {
+  const q = `(max-width: ${max}px)`;
+  const [movil, setMovil] = useState(() => window.matchMedia(q).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(q);
+    const f = e => setMovil(e.matches);
+    setMovil(mq.matches);
+    mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, [q]);
+  return movil;
+}
 
 const labelStyle = { display: 'block', fontSize: '0.72rem', color: C.text2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px', fontFamily: 'Poppins' };
 

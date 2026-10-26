@@ -1,0 +1,11 @@
+{
+  "name": "Escalada Bogotá",
+  "short_name": "Escalada BOG",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
