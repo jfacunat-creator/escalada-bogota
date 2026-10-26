@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { IconoMuro, IconoPresa, IconoEscalador, IconoCohorte, IconoPlanEntreno, IconoCronometro, IconoCuerda, IconoRoca, IconoVideo } from '../components/Icons';
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, X, MoreHorizontal } from 'lucide-react';
 
 const nav = {
   escalador: [
@@ -36,6 +36,16 @@ const nav = {
   ],
 };
 
+// Teléfono: barra inferior con las secciones de uso diario; "Más" abre el menú completo.
+const navInferior = {
+  escalador: [
+    { to: '/app',           icon: IconoPresa,       label: 'Inicio'   },
+    { to: '/app/mi-plan',   icon: IconoPlanEntreno, label: 'Mi Plan'  },
+    { to: '/app/mi-grupo',  icon: IconoMuro,        label: 'Mi Grupo' },
+    { to: '/app/mis-pagos', icon: IconoRoca,        label: 'Pagos'    },
+  ],
+};
+
 const rolLabel = { escalador: 'Escalador', entrenador: 'Entrenador', admin: 'Administrador' };
 const SB_W = 220;
 
@@ -44,6 +54,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const items = nav[user?.rol] || [];
+  const inferior = navInferior[user?.rol];
   const userName = user?.escalador?.nombre || user?.entrenador?.nombre || user?.email?.split('@')[0];
 
   const SidebarContent = () => (
@@ -93,9 +104,11 @@ export default function AppLayout() {
       <style>{`
         .sb-close { display: none !important; }
         @media (max-width: 1023px) { .sb-close { display: flex !important; } .sb-desktop { display: none !important; } .topbar { display: flex !important; } }
-        @media (min-width: 1024px) { .topbar { display: none !important; } .sb-mobile { display: none !important; } }
+        @media (min-width: 1024px) { .topbar { display: none !important; } .sb-mobile { display: none !important; } .nav-inf { display: none !important; } }
+        @media (max-width: 767px) { .app-main { padding: 18px 16px !important; } }
+        .app-main { padding-bottom: calc(28px + var(--nav-inf)) !important; }
       `}</style>
-      <div style={{ minHeight: '100vh', display: 'flex', background: '#121212' }}>
+      <div className={inferior ? 'con-nav-inf' : undefined} style={{ minHeight: '100vh', display: 'flex', background: '#121212' }}>
         <aside className="sb-desktop" style={{ width: `${SB_W}px`, flexShrink: 0, background: '#4A2F0F', display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'sticky', top: 0, height: '100vh' }}>
           <SidebarContent />
         </aside>
@@ -106,15 +119,35 @@ export default function AppLayout() {
           </aside>
         </>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: '100vh' }}>
-          <header className="topbar" style={{ display: 'none', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#1c1c1c', borderBottom: '1px solid #2e2e2e', position: 'sticky', top: 0, zIndex: 30 }}>
+          <header className="topbar" style={{ display: 'none', alignItems: 'center', gap: '12px', height: '56px', boxSizing: 'border-box', padding: '0 16px', background: '#1c1c1c', borderBottom: '1px solid #2e2e2e', position: 'sticky', top: 0, zIndex: 30 }}>
             <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#A09A8C', display: 'flex', padding: '4px' }}><Menu size={22} /></button>
             <IconoMuro style={{ width: '20px', height: '20px', color: '#D4AF37' }} />
             <span style={{ fontFamily: 'Antonio, sans-serif', fontSize: '1rem', color: '#F0EDE8', letterSpacing: '0.05em' }}>ESCALADA BOGOTÁ</span>
           </header>
-          <main style={{ flex: 1, padding: '28px 24px', maxWidth: '1180px', width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+          <main className="app-main" style={{ flex: 1, padding: '28px 24px', maxWidth: '1180px', width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
             <Outlet />
           </main>
         </div>
+        {inferior && (
+          <nav className="nav-inf" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 35, display: 'flex', background: '#1c1c1c', borderTop: '1px solid #2e2e2e', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            {inferior.map(item => (
+              <NavLink key={item.to} to={item.to} end={item.to === '/app'}
+                style={({ isActive }) => ({
+                  flex: 1, height: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px',
+                  textDecoration: 'none', fontFamily: 'Poppins, sans-serif', fontSize: '0.68rem', fontWeight: isActive ? 600 : 500,
+                  color: isActive ? '#D4AF37' : 'rgba(240,237,232,0.6)',
+                })}>
+                <item.icon style={{ width: '22px', height: '22px' }} />
+                {item.label}
+              </NavLink>
+            ))}
+            <button onClick={() => setOpen(true)}
+              style={{ flex: 1, height: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Poppins, sans-serif', fontSize: '0.68rem', fontWeight: 500, color: 'rgba(240,237,232,0.6)' }}>
+              <MoreHorizontal size={22} />
+              Más
+            </button>
+          </nav>
+        )}
       </div>
     </>
   );

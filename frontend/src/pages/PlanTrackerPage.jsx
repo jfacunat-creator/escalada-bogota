@@ -13,7 +13,7 @@ import {
   camposFaltantes, perfilCompleto, perfilDesdeTestS0, calcularParametros, fmtRangoKg,
 } from "../plan/perfil";
 import { personalizarBloques } from "../plan/personalizar";
-import { fmtRango } from "../components/ui";
+import { fmtRango, useMovil } from "../components/ui";
 import { BotonVideoGuia, ModalVideos } from "../components/VideoGuia";
 import { evaluarSobrecarga, esSobrecarga, dolorVigente, regletaPrevia, aplicarAdaptaciones } from "../plan/adaptacion";
 import {
@@ -188,6 +188,7 @@ function Ficha({ f }) {
 }
 
 function Block({ b }) {
+  const movil = useMovil();
   const [open, setOpen] = useState(false);
   const [como, setComo] = useState(false);
   const [verVideo, setVerVideo] = useState(false);
@@ -228,7 +229,7 @@ function Block({ b }) {
     <div style={{ background: C.cardAlt, border: `1px solid ${C.border}`,
       borderRadius: 10, overflow: "hidden", marginBottom: 8 }}>
       <div onClick={() => expandible && setOpen(o => !o)}
-        style={{ display: "flex", alignItems: "center", gap: 10,
+        style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 46,
           padding: "10px 13px", cursor: expandible ? "pointer" : "default" }}>
         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.text,
           lineHeight: 1.3, fontFamily: "Poppins" }}>{b.n}</span>
@@ -261,14 +262,14 @@ function Block({ b }) {
             </>
           )}
           {hasParams && b.params.map(([k, v], i) => (
-            <div key={i} style={{ display: "flex", gap: 8, padding: "5px 0",
+            <div key={i} style={{ display: movil ? "block" : "flex", gap: 8, padding: movil ? "7px 0" : "5px 0",
               borderTop: `1px solid ${C.border}` }}>
               {k && (
-                <span style={{ color: C.sub, fontSize: 10, fontWeight: 700,
-                  minWidth: 100, textTransform: "uppercase", letterSpacing: 0.4,
-                  paddingTop: 2, flexShrink: 0, fontFamily: "Poppins" }}>{k}</span>
+                <span style={{ display: "block", color: C.sub, fontSize: 10, fontWeight: 700,
+                  minWidth: movil ? 0 : 100, textTransform: "uppercase", letterSpacing: 0.4,
+                  paddingTop: movil ? 0 : 2, marginBottom: movil ? 2 : 0, flexShrink: 0, fontFamily: "Poppins" }}>{k}</span>
               )}
-              <span style={{ color: C.text, fontSize: 12, flex: 1,
+              <span style={{ display: "block", color: C.text, fontSize: movil ? 13 : 12, flex: 1,
                 lineHeight: 1.5, fontFamily: "Poppins" }}>{v}</span>
             </div>
           ))}
@@ -297,7 +298,7 @@ function MovBlock({ ex, level, lv, video }) {
           <button onClick={() => setOpen(o => !o)}
             style={{ background: open ? `${C.red}22` : "none",
               border: `1px solid ${open ? C.red + "66" : C.border}`,
-              borderRadius: 5, padding: "2px 8px", cursor: "pointer",
+              borderRadius: 6, padding: "6px 10px", cursor: "pointer",
               color: open ? C.red : C.muted, fontSize: 10, fontWeight: 700, fontFamily: "Poppins" }}>
             CI
           </button>
@@ -394,65 +395,142 @@ function MovilidadTab({ nivel }) {
 // solo sus registros: esas semanas abren el registro, no la sesión.
 function PlanTab({ semanas, logs, onSelect, onHistorial, curWeek, meses, mesVigente }) {
   const futuros = (meses || []).filter(m => m.mes > mesVigente);
-  return (
-    <div>
-      <p style={{ color: C.sub, fontSize: 12, marginBottom: 14, fontFamily: "Poppins" }}>
-        Toca una sesión para ir directamente a ella · los meses anteriores muestran solo tus registros
-      </p>
-      {semanas.map(w => {
-        const done = w.sesiones.filter(s => logs[`${w.id}_${s.num}`]?.pse).length;
-        const isCur = w.id === curWeek;
-        const hist = !!w.historica;
-        return (
-          <div key={w.id} style={{ background: isCur ? C.accentA : C.card, opacity: hist ? 0.75 : 1,
-            border: `1px solid ${isCur ? C.accent : C.border}`,
-            borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-              <div style={{ background: C.accentA, border: `1px solid ${C.accent}44`,
-                borderRadius: 8, padding: "4px 8px", textAlign: "center", minWidth: 42 }}>
-                <div style={{ color: C.accent, fontSize: 12, fontWeight: 800, fontFamily: "Antonio" }}>
-                  {w.id}
-                </div>
-              </div>
-              <div style={{ flex: 1 }}>
-                {hist && (
-                  <span style={{ background: C.cardAlt, color: C.sub, fontSize: 9, fontWeight: 700, padding: "1px 6px",
-                    borderRadius: 999, fontFamily: "Poppins", marginBottom: 4, marginRight: 6, display: "inline-block" }}>
-                    🔒 Mes {w.mes} · solo registros
-                  </span>
-                )}
-                {done > 0 && (
-                  <span style={{ background: C.greenA, color: C.green, fontSize: 9,
-                    fontWeight: 700, padding: "1px 6px", borderRadius: 999,
-                    fontFamily: "Poppins", marginBottom: 4, display: "inline-block" }}>
-                    {done}/{w.sesiones.length} ✓
-                  </span>
-                )}
-                <PseBar target={w.pse} />
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-              {w.sesiones.map(s => {
-                const lg = logs[`${w.id}_${s.num}`];
-                const tc = TIPO_COLOR[s.type?.toLowerCase()] || C.sub;
-                return (
-                  <button key={s.num} onClick={() => (hist ? onHistorial : onSelect)(w.id, s.num)}
-                    style={{ flex: 1, minWidth: 60,
-                      background: lg?.completed ? C.greenA : lg?.pse ? C.accentA : C.cardAlt,
-                      border: `1px solid ${lg?.completed ? C.green : lg?.pse ? C.accent : C.border}`,
-                      borderRadius: 8, padding: "6px 4px", cursor: "pointer", textAlign: "center" }}>
-                    <div style={{ color: lg?.completed ? C.green : lg?.pse ? C.accent : C.sub,
-                      fontSize: 11, fontWeight: 700, fontFamily: "Poppins" }}>S{s.num}</div>
-                    <div style={{ fontSize: 8, color: tc, marginTop: 2,
-                      fontWeight: 600, fontFamily: "Poppins" }}>{s.type?.toUpperCase()}</div>
-                    {lg?.pse && <div style={{ color: C.accent, fontSize: 9, marginTop: 1 }}>PSE {lg.pse}</div>}
-                  </button>
-                );
-              })}
+  const delMes = semanas.filter(w => !w.historica);
+  const historicas = semanas.filter(w => w.historica);
+  // Sin mes en curso solo quedan los registros: se muestran abiertos.
+  const [verHist, setVerHist] = useState(delMes.length === 0);
+  const hecha = (w, s) => !!logs[`${w.id}_${s.num}`]?.pse;
+  const total = delMes.reduce((n, w) => n + w.sesiones.length, 0);
+  const hechas = delMes.reduce((n, w) => n + w.sesiones.filter(s => hecha(w, s)).length, 0);
+  // Próxima sesión: la primera del mes en curso sin registrar
+  let prox = null;
+  for (const w of delMes) {
+    const s = w.sesiones.find(x => !hecha(w, x));
+    if (s) { prox = { w, s }; break; }
+  }
+  const ptc = TIPO_COLOR[prox?.s.type?.toLowerCase()] || C.accent;
+
+  const tarjeta = w => {
+    const done = w.sesiones.filter(s => hecha(w, s)).length;
+    const isCur = w.id === curWeek;
+    const hist = !!w.historica;
+    return (
+      <div key={w.id} style={{ background: isCur ? C.accentA : C.card, opacity: hist ? 0.75 : 1,
+        border: `1px solid ${isCur ? C.accent : C.border}`,
+        borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+          <div style={{ background: C.accentA, border: `1px solid ${C.accent}44`,
+            borderRadius: 8, padding: "4px 8px", textAlign: "center", minWidth: 42 }}>
+            <div style={{ color: C.accent, fontSize: 12, fontWeight: 800, fontFamily: "Antonio" }}>
+              {w.id}
             </div>
           </div>
-        );
-      })}
+          <div style={{ flex: 1 }}>
+            {hist && (
+              <span style={{ background: C.cardAlt, color: C.sub, fontSize: 9, fontWeight: 700, padding: "1px 6px",
+                borderRadius: 999, fontFamily: "Poppins", marginBottom: 4, marginRight: 6, display: "inline-block" }}>
+                🔒 Mes {w.mes} · solo registros
+              </span>
+            )}
+            {done > 0 && (
+              <span style={{ background: C.greenA, color: C.green, fontSize: 9,
+                fontWeight: 700, padding: "1px 6px", borderRadius: 999,
+                fontFamily: "Poppins", marginBottom: 4, display: "inline-block" }}>
+                {done}/{w.sesiones.length} ✓
+              </span>
+            )}
+            <PseBar target={w.pse} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {w.sesiones.map(s => {
+            const lg = logs[`${w.id}_${s.num}`];
+            const tc = TIPO_COLOR[s.type?.toLowerCase()] || C.sub;
+            return (
+              <button key={s.num} onClick={() => (hist ? onHistorial : onSelect)(w.id, s.num)}
+                style={{ flex: 1, minWidth: 60, minHeight: 48,
+                  background: lg?.completed ? C.greenA : lg?.pse ? C.accentA : C.cardAlt,
+                  border: `1px solid ${lg?.completed ? C.green : lg?.pse ? C.accent : C.border}`,
+                  borderRadius: 8, padding: "6px 4px", cursor: "pointer", textAlign: "center" }}>
+                <div style={{ color: lg?.completed ? C.green : lg?.pse ? C.accent : C.sub,
+                  fontSize: 11, fontWeight: 700, fontFamily: "Poppins" }}>S{s.num}</div>
+                <div style={{ fontSize: 8, color: tc, marginTop: 2,
+                  fontWeight: 600, fontFamily: "Poppins" }}>{s.type?.toUpperCase()}</div>
+                {lg?.pse && <div style={{ color: C.accent, fontSize: 9, marginTop: 1 }}>PSE {lg.pse}</div>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {delMes.length > 0 && (
+        <div style={{ background: `linear-gradient(135deg, ${C.accentA} 0%, ${C.card} 70%)`,
+          border: `1px solid ${C.accent}66`, borderRadius: 14, padding: "14px 15px", marginBottom: 14 }}>
+          {prox ? (
+            <>
+              <div style={{ color: C.accent, fontSize: 10, fontWeight: 800, letterSpacing: 1,
+                textTransform: "uppercase", marginBottom: 6, fontFamily: "Poppins" }}>Tu próxima sesión</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+                <span style={{ background: ptc, color: "#121212", fontSize: 10, fontWeight: 900,
+                  padding: "2px 8px", borderRadius: 999, fontFamily: "Poppins" }}>{prox.w.id}·S{prox.s.num}</span>
+                <span style={{ color: ptc, fontSize: 11, fontWeight: 700, fontFamily: "Poppins" }}>
+                  {prox.s.type?.toUpperCase()}
+                </span>
+                {prox.s.ai && <span style={{ color: C.teal, fontSize: 10, fontFamily: "Poppins" }}>✨ ajustada</span>}
+              </div>
+              <div style={{ color: C.text, fontSize: 18, fontWeight: 700, lineHeight: 1.25,
+                marginBottom: 8, fontFamily: "Antonio" }}>{prox.s.name}</div>
+              <PseBar target={prox.s.pse} />
+              <button onClick={() => onSelect(prox.w.id, prox.s.num)}
+                style={{ width: "100%", minHeight: 46, marginTop: 12, background: C.accent, border: "none",
+                  borderRadius: 10, cursor: "pointer", color: "#121212", fontSize: 14, fontWeight: 700,
+                  fontFamily: "Poppins" }}>
+                Abrir sesión →
+              </button>
+            </>
+          ) : (
+            <div style={{ color: C.green, fontSize: 14, fontWeight: 700, fontFamily: "Poppins" }}>
+              🎉 Registraste todas las sesiones del mes
+            </div>
+          )}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", color: C.sub, fontSize: 11,
+              marginBottom: 4, fontFamily: "Poppins" }}>
+              <span>Avance del mes</span>
+              <span><strong style={{ color: C.text }}>{hechas}</strong> de {total} sesiones</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: "hidden" }}>
+              <div style={{ width: `${total ? (hechas / total) * 100 : 0}%`, height: "100%",
+                background: C.green, borderRadius: 3, transition: "width 0.3s" }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {historicas.length > 0 && (
+        <>
+          <button onClick={() => setVerHist(v => !v)}
+            style={{ width: "100%", minHeight: 44, display: "flex", alignItems: "center", gap: 8,
+              background: C.card, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "10px 14px",
+              cursor: "pointer", marginBottom: 8, color: C.sub, fontSize: 12, fontFamily: "Poppins", textAlign: "left" }}>
+            <span style={{ flex: 1 }}>🔒 Meses anteriores · {historicas.length} semanas (solo registros)</span>
+            <span style={{ display: "inline-block", transform: verHist ? "rotate(180deg)" : "none",
+              transition: "transform 0.2s" }}>▾</span>
+          </button>
+          {verHist && historicas.map(tarjeta)}
+        </>
+      )}
+
+      {delMes.length > 0 && (
+        <p style={{ color: C.sub, fontSize: 12, margin: "6px 0 10px", fontFamily: "Poppins" }}>
+          Mes en curso · toca una sesión para abrirla
+        </p>
+      )}
+      {delMes.map(tarjeta)}
       {futuros.map(m => (
         <div key={m.mes} style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 12,
           padding: "12px 14px", marginBottom: 8, color: C.sub, fontSize: 12, fontFamily: "Poppins" }}>
@@ -473,6 +551,7 @@ const SUGERENCIA_AMARILLO = {
 };
 
 function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSessionChange, onLog, onPerfil, onOverride }) {
+  const movil = useMovil();
   const semanas = plan.semanas;
   const delMes = semanas.filter(w => !w.historica);
   const wd = semanas.find(w => w.id === week);
@@ -525,10 +604,10 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
           <button key={w.id} onClick={() => { onWeekChange(w.id); onSessionChange(1); }}
             style={{ background: w.id === week ? C.accentA : C.cardAlt,
               border: `1px solid ${w.id === week ? C.accent : C.border}`,
-              borderRadius: 7, padding: "4px 9px", cursor: "pointer",
+              borderRadius: 7, padding: movil ? "8px 14px" : "4px 9px", cursor: "pointer",
               whiteSpace: "nowrap", flexShrink: 0 }}>
             <span style={{ color: w.id === week ? C.accent : C.sub,
-              fontSize: 11, fontWeight: 700, fontFamily: "Poppins" }}>{w.id}</span>
+              fontSize: movil ? 12 : 11, fontWeight: 700, fontFamily: "Poppins" }}>{w.id}</span>
           </button>
         ))}
       </div>
@@ -541,7 +620,7 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
             <button key={s.num} onClick={() => onSessionChange(s.num)}
               style={{ flex: 1, background: s.num === session ? C.accentA : C.cardAlt,
                 border: `1px solid ${s.num === session ? C.accent : C.border}`,
-                borderRadius: 8, padding: "7px 4px", cursor: "pointer" }}>
+                borderRadius: 8, padding: movil ? "10px 4px" : "7px 4px", cursor: "pointer" }}>
               <div style={{ color: s.num === session ? C.accent : C.sub,
                 fontSize: 12, fontWeight: 700, fontFamily: "Poppins" }}>S{s.num}</div>
               {sl?.pse && <div style={{ color: C.green, fontSize: 9, marginTop: 1 }}>✓</div>}
@@ -604,7 +683,7 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
             ["conceptos", "Conceptos clave", "📘 Conceptos"],
           ].filter(([k, , label]) => label && plan.rutinas?.[k]?.length).map(([k, titulo, label]) => (
             <button key={k} onClick={() => setRutina({ k, titulo, min: k === "calentamiento" ? sd.cal : k === "vueltaCalma" ? sd.vac : null })}
-              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 7, padding: "3px 9px", cursor: "pointer",
+              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 7, padding: movil ? "8px 11px" : "3px 9px", cursor: "pointer",
                 color: C.text, fontSize: 11, fontFamily: "Poppins", display: "inline-flex", alignItems: "center", gap: 5 }}>
               {label}
               {plan.rutinas[k].some(e => e.video) && <span style={{ color: C.accent, fontWeight: 700 }}>▶</span>}
@@ -697,15 +776,17 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
         </div>
       )}
 
-      {/* Botón registro */}
-      <button onClick={onLog}
-        style={{ width: "100%", background: lg?.pse ? C.greenA : C.accentA,
-          border: `1px solid ${lg?.pse ? C.green : C.accent}`,
-          borderRadius: 10, padding: "12px", cursor: "pointer",
-          color: lg?.pse ? C.green : C.accent, fontSize: 13,
-          fontWeight: 700, fontFamily: "Poppins", marginBottom: 12 }}>
-        {lg?.pse ? `✓ Ver registro (PSE real: ${lg.pse})` : "📝 Registrar esta sesión"}
-      </button>
+      {/* Botón registro (en teléfono queda fijo sobre la barra inferior) */}
+      <div className="plan-cta" style={{ marginBottom: 12 }}>
+        <button onClick={onLog}
+          style={{ width: "100%", minHeight: 48, background: lg?.pse ? C.greenA : C.accentA,
+            border: `1px solid ${lg?.pse ? C.green : C.accent}`,
+            borderRadius: 10, padding: "12px", cursor: "pointer",
+            color: lg?.pse ? C.green : C.accent, fontSize: 13,
+            fontWeight: 700, fontFamily: "Poppins" }}>
+          {lg?.pse ? `✓ Ver registro (PSE real: ${lg.pse})` : "📝 Registrar esta sesión"}
+        </button>
+      </div>
 
       {/* Recordatorio de movilidad */}
       {movRec && (
@@ -723,6 +804,31 @@ function SesionTab({ plan, week, session, logs, calc, perfil, onWeekChange, onSe
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── SELECTOR DE DOLOR (0–4) ──────────────────────────────
+// En teléfono va en una fila: zona a la izquierda y botones anchos para el dedo.
+function SelectorDolor({ label, valor, onChange }) {
+  const movil = useMovil();
+  return (
+    <div style={{ background: C.cardAlt, borderRadius: 8, padding: "7px 9px",
+      display: movil ? "flex" : "block", alignItems: "center", gap: 10 }}>
+      <div style={{ color: C.sub, fontSize: movil ? 11 : 10, marginBottom: movil ? 0 : 5, fontFamily: "Poppins",
+        width: movil ? 64 : undefined, flexShrink: 0 }}>{label}</div>
+      <div style={{ display: "flex", gap: movil ? 6 : 3, flex: 1 }}>
+        {[0, 1, 2, 3, 4].map(v => (
+          <button key={v} onClick={() => onChange(v)}
+            style={{ width: movil ? undefined : 22, flex: movil ? 1 : undefined, height: movil ? 36 : 22,
+              borderRadius: 5, cursor: "pointer", fontWeight: 700, fontSize: movil ? 13 : 10, fontFamily: "Poppins",
+              background: valor === v ? (v === 0 ? C.greenA : v <= 2 ? C.accentA : C.redA) : C.border,
+              border: `1px solid ${valor === v ? (v === 0 ? C.green : v <= 2 ? C.accent : C.red) : "transparent"}`,
+              color: valor === v ? (v === 0 ? C.green : v <= 2 ? C.accent : C.red) : C.sub }}>
+            {v}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -747,6 +853,7 @@ const SEM_TEST = [
 
 // ─── REGISTRO TAB ─────────────────────────────────────────
 function RegistroTab({ week, session, semanas, logs, onGuardar, testSesiones, perfil }) {
+  const movil = useMovil();
   const ZONES = ["Dedos D", "Dedos I", "Codo D", "Codo I", "Hombro D", "Hombro I", "Espalda"];
   const logKey = `${week}_${session}`;
   const wd = semanas.find(w => w.id === week);
@@ -833,11 +940,11 @@ function RegistroTab({ week, session, semanas, logs, onGuardar, testSesiones, pe
       <div style={{ background: C.card, borderRadius: 11, padding: "12px", marginBottom: 9 }}>
         <div style={{ color: C.sub, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
           letterSpacing: 0.5, marginBottom: 8, fontFamily: "Poppins" }}>PSE real (0–10)</div>
-        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        <div style={{ display: "grid", gridTemplateColumns: movil ? "repeat(6, 1fr)" : "repeat(11, 36px)", gap: movil ? 6 : 5 }}>
           {[...Array(11)].map((_, i) => (
             <button key={i} onClick={() => setDraft(d => ({ ...d, pse: String(i) }))}
-              style={{ width: 36, height: 36, borderRadius: 7, cursor: "pointer",
-                fontWeight: 700, fontSize: 13, fontFamily: "Poppins",
+              style={{ height: movil ? 44 : 36, borderRadius: 7, cursor: "pointer",
+                fontWeight: 700, fontSize: movil ? 15 : 13, fontFamily: "Poppins",
                 background: draft.pse === String(i) ? (i <= 4 ? C.greenA : i <= 7 ? C.accentA : C.redA) : C.cardAlt,
                 border: `2px solid ${draft.pse === String(i) ? (i <= 4 ? C.green : i <= 7 ? C.accent : C.red) : C.border}`,
                 color: draft.pse === String(i) ? (i <= 4 ? C.green : i <= 7 ? C.accent : C.red) : C.sub }}>
@@ -858,29 +965,13 @@ function RegistroTab({ week, session, semanas, logs, onGuardar, testSesiones, pe
           letterSpacing: 0.5, marginBottom: 8, fontFamily: "Poppins" }}>
           🚦 Semáforo de dolor (0–4)
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        <div style={{ display: "grid", gridTemplateColumns: movil ? "1fr" : "1fr 1fr", gap: 6 }}>
           {ZONES.map(z => (
-            <div key={z} style={{ background: C.cardAlt, borderRadius: 8, padding: "7px 9px" }}>
-              <div style={{ color: C.sub, fontSize: 10, marginBottom: 5, fontFamily: "Poppins" }}>{z}</div>
-              <div style={{ display: "flex", gap: 3 }}>
-                {[0, 1, 2, 3, 4].map(v => {
-                  const cur = parseInt(draft[`p_${z}`] || 0);
-                  return (
-                    <button key={v} onClick={() => setDraft(d => ({ ...d, [`p_${z}`]: String(v) }))}
-                      style={{ width: 22, height: 22, borderRadius: 5, cursor: "pointer",
-                        fontWeight: 700, fontSize: 10, fontFamily: "Poppins",
-                        background: cur === v ? (v === 0 ? C.greenA : v <= 2 ? C.accentA : C.redA) : C.border,
-                        border: `1px solid ${cur === v ? (v === 0 ? C.green : v <= 2 ? C.accent : C.red) : "transparent"}`,
-                        color: cur === v ? (v === 0 ? C.green : v <= 2 ? C.accent : C.red) : C.sub }}>
-                      {v}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <SelectorDolor key={z} label={z} valor={parseInt(draft[`p_${z}`] || 0)}
+              onChange={v => setDraft(d => ({ ...d, [`p_${z}`]: String(v) }))} />
           ))}
         </div>
-        <div style={{ marginTop: 8, display: "flex", gap: 10, fontSize: 10, fontFamily: "Poppins" }}>
+        <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10, fontFamily: "Poppins" }}>
           <span style={{ color: C.green }}>🟢 0–2 continúa</span>
           <span style={{ color: C.accent }}>🟡 3 reduce</span>
           <span style={{ color: C.red }}>🔴 4+ para+fisio</span>
@@ -941,7 +1032,7 @@ function RegistroTab({ week, session, semanas, logs, onGuardar, testSesiones, pe
                         border: `1px solid ${draft[`tsem_${p.id}`] === s.v ? s.border : C.border}`,
                         background: draft[`tsem_${p.id}`] === s.v ? s.bg : 'transparent',
                         color: draft[`tsem_${p.id}`] === s.v ? s.color : C.muted,
-                        fontFamily: "Poppins", fontSize: 9, fontWeight: draft[`tsem_${p.id}`] === s.v ? 700 : 400,
+                        fontFamily: "Poppins", fontSize: movil ? 11 : 9, minHeight: movil ? 32 : undefined, fontWeight: draft[`tsem_${p.id}`] === s.v ? 700 : 400,
                         cursor: "pointer" }}>
                       {s.label}
                     </button>
@@ -998,7 +1089,7 @@ function RegistroTab({ week, session, semanas, logs, onGuardar, testSesiones, pe
       <div onClick={() => setDraft(d => ({ ...d, completed: !d.completed }))}
         style={{ background: draft.completed ? C.greenA : C.card,
           border: `1px solid ${draft.completed ? C.green : C.border}`,
-          borderRadius: 11, padding: "12px 14px", marginBottom: 12,
+          borderRadius: 11, padding: movil ? "14px" : "12px 14px", marginBottom: 12,
           cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 22, height: 22, borderRadius: 5,
           background: draft.completed ? C.green : C.border,
@@ -1009,12 +1100,14 @@ function RegistroTab({ week, session, semanas, logs, onGuardar, testSesiones, pe
           fontSize: 13, fontWeight: 600, fontFamily: "Poppins" }}>Sesión completada</span>
       </div>
 
-      <button onClick={save}
-        style={{ width: "100%", background: C.accent, border: "none", borderRadius: 10,
-          padding: "12px", cursor: "pointer", color: "#121212", fontSize: 14,
-          fontWeight: 700, marginBottom: aviso ? 10 : 20, fontFamily: "Poppins" }}>
-        {saved || "Guardar registro"}
-      </button>
+      <div className="plan-cta" style={{ marginBottom: aviso ? 10 : 20 }}>
+        <button onClick={save}
+          style={{ width: "100%", minHeight: 48, background: C.accent, border: "none", borderRadius: 10,
+            padding: "12px", cursor: "pointer", color: "#121212", fontSize: 14,
+            fontWeight: 700, fontFamily: "Poppins" }}>
+          {saved || "Guardar registro"}
+        </button>
+      </div>
       {aviso && (
         <div style={{ background: C.orangeA, border: `1px solid ${C.orange}55`, borderRadius: 9,
           padding: "10px 12px", marginBottom: 20, color: C.orange, fontSize: 12,
@@ -1250,6 +1343,7 @@ const CAMPOS_NUM = ["peso", "edad", "anosCampus", ...CAMPOS_TEST.map(([k]) => k)
 const REQ = new Set(["peso", "edad", "t2", "t4", "gradoMaxVista"]);
 
 function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
+  const movil = useMovil();
   const [draft, setDraft] = useState(() => {
     const base = perfil
       ? { ...perfil, nombre: nombre || perfil.nombre }
@@ -1284,7 +1378,7 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
   const titulo = { color: C.sub, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
     letterSpacing: 0.5, marginBottom: 8, fontFamily: "Poppins" };
   const input = { width: "100%", background: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 7,
-    padding: "7px 9px", color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "Poppins" };
+    padding: movil ? "10px 11px" : "7px 9px", color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "Poppins" };
   const campo = (k, label, unidad, type = "number") => (
     <div>
       <div style={{ color: C.sub, fontSize: 10, marginBottom: 4, fontFamily: "Poppins" }}>
@@ -1374,27 +1468,11 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
 
       <div style={card}>
         <div style={titulo}>🚦 Dolor activo por zona (0–4)</div>
-        <div style={grid}>
-          {ZONAS.map(z => {
-            const cur = Number(draft.lesionesActivas?.[z.key] ?? 0);
-            return (
-              <div key={z.key} style={{ background: C.cardAlt, borderRadius: 8, padding: "7px 9px" }}>
-                <div style={{ color: C.sub, fontSize: 10, marginBottom: 5, fontFamily: "Poppins" }}>{z.label}</div>
-                <div style={{ display: "flex", gap: 3 }}>
-                  {[0, 1, 2, 3, 4].map(v => (
-                    <button key={v} onClick={() => set("lesionesActivas", { ...draft.lesionesActivas, [z.key]: v })}
-                      style={{ width: 22, height: 22, borderRadius: 5, cursor: "pointer", fontWeight: 700, fontSize: 10,
-                        fontFamily: "Poppins",
-                        background: cur === v ? (v === 0 ? C.greenA : v <= 2 ? C.accentA : C.redA) : C.border,
-                        border: `1px solid ${cur === v ? (v === 0 ? C.green : v <= 2 ? C.accent : C.red) : "transparent"}`,
-                        color: cur === v ? (v === 0 ? C.green : v <= 2 ? C.accent : C.red) : C.sub }}>
-                      {v}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+        <div style={movil ? { display: "grid", gap: 6 } : grid}>
+          {ZONAS.map(z => (
+            <SelectorDolor key={z.key} label={z.label} valor={Number(draft.lesionesActivas?.[z.key] ?? 0)}
+              onChange={v => set("lesionesActivas", { ...draft.lesionesActivas, [z.key]: v })} />
+          ))}
         </div>
       </div>
 
@@ -1420,7 +1498,7 @@ function PerfilTab({ perfil, logs, nombre, onboarding, onSave }) {
       )}
 
       <button onClick={guardar}
-        style={{ width: "100%", background: faltan.length ? C.cardAlt : C.accent,
+        style={{ width: "100%", minHeight: 48, background: faltan.length ? C.cardAlt : C.accent,
           border: faltan.length ? `1px solid ${C.border}` : "none", borderRadius: 10, padding: "12px",
           cursor: "pointer", color: faltan.length ? C.sub : "#121212", fontSize: 14, fontWeight: 700,
           marginBottom: 20, fontFamily: "Poppins" }}>
@@ -1465,18 +1543,20 @@ function Bloqueado({ estado, nombre, mensaje }) {
           Revisa el estado de tus pagos o contacta a tu entrenador.
         </p>
       </>}
-      <button onClick={() => navigate("/app/mis-pagos")}
-        style={{ background: C.accent, border: "none", borderRadius: 8, padding: "12px 28px",
-          cursor: "pointer", color: "#121212", fontSize: "0.9rem",
-          fontWeight: 700, fontFamily: "Poppins", marginRight: 12 }}>
-        Ver mis pagos
-      </button>
-      <button onClick={() => navigate("/app")}
-        style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8,
-          padding: "12px 28px", cursor: "pointer", color: C.sub,
-          fontSize: "0.9rem", fontFamily: "Poppins" }}>
-        Volver al inicio
-      </button>
+      <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+        <button onClick={() => navigate("/app/mis-pagos")}
+          style={{ flex: "1 1 160px", maxWidth: 220, background: C.accent, border: "none", borderRadius: 8, padding: "12px 20px",
+            cursor: "pointer", color: "#121212", fontSize: "0.9rem",
+            fontWeight: 700, fontFamily: "Poppins" }}>
+          Ver mis pagos
+        </button>
+        <button onClick={() => navigate("/app")}
+          style={{ flex: "1 1 160px", maxWidth: 220, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8,
+            padding: "12px 20px", cursor: "pointer", color: C.sub,
+            fontSize: "0.9rem", fontFamily: "Poppins" }}>
+          Volver al inicio
+        </button>
+      </div>
     </div>
   );
 }
@@ -1509,15 +1589,16 @@ function SinInscripcion({ nombre }) {
 
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────
 const TABS = [
-  { id: "plan",      label: "🗓️ Plan"      },
-  { id: "sesion",    label: "💪 Sesión"    },
-  { id: "registro",  label: "✏️ Registro"  },
-  { id: "movilidad", label: "🧘 Movilidad" },
-  { id: "perfil",    label: "👤 Perfil"    },
+  { id: "plan",      icon: "🗓️", label: "Plan"      },
+  { id: "sesion",    icon: "💪", label: "Sesión"    },
+  { id: "registro",  icon: "✏️", label: "Registro"  },
+  { id: "movilidad", icon: "🧘", label: "Movilidad" },
+  { id: "perfil",    icon: "👤", label: "Perfil"    },
 ];
 
 export default function PlanTrackerPage() {
   const { user, refreshUser } = useAuth();
+  const movil = useMovil();
   const [plan, setPlan]       = useState(null);
   const [error, setError]     = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1625,8 +1706,10 @@ export default function PlanTrackerPage() {
       .finally(() => setLoading(false));
   }, [user?.id]);
 
-  const goToSession = (w, s) => { setWeek(w); setSession(s); setTab("sesion"); };
-  const goToRegistro = (w, s) => { setWeek(w); setSession(s); setVistaRegistro("registrar"); setTab("registro"); };
+  // Al cambiar de pestaña se vuelve arriba (en teléfono la página es larga)
+  const irA = t => { setTab(t); window.scrollTo({ top: 0 }); };
+  const goToSession = (w, s) => { setWeek(w); setSession(s); irA("sesion"); };
+  const goToRegistro = (w, s) => { setWeek(w); setSession(s); setVistaRegistro("registrar"); irA("registro"); };
 
   if (loading) return <Skeleton />;
 
@@ -1661,11 +1744,19 @@ export default function PlanTrackerPage() {
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto" }}>
+      <style>{`
+        .plan-tabs { position: sticky; top: 0; z-index: 25; background: #121212; }
+        @media (max-width: 1023px) {
+          .plan-tabs { top: 56px; }
+          .plan-cta { position: sticky; bottom: var(--nav-inf); z-index: 20; background: #121212;
+            padding: 10px 0; box-shadow: 0 -12px 14px -10px rgba(0,0,0,0.9); }
+        }
+      `}</style>
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: movil ? 12 : 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <h1 style={{ fontFamily: "Antonio, sans-serif", fontSize: "1.8rem", color: C.text }}>
-            {plan.trimestre} — Plan de Entrenamiento
+          <h1 style={{ fontFamily: "Antonio, sans-serif", fontSize: movil ? "1.5rem" : "1.8rem", color: C.text }}>
+            {movil ? `Mi plan · ${plan.trimestre}` : `${plan.trimestre} — Plan de Entrenamiento`}
           </h1>
           <span style={{ background: `${nivelColor}22`, color: nivelColor, fontSize: 10,
             fontWeight: 800, padding: "3px 10px", borderRadius: 999,
@@ -1673,7 +1764,7 @@ export default function PlanTrackerPage() {
             {nivelLabel}
           </span>
         </div>
-        <p style={{ color: C.sub, fontSize: "0.85rem", fontFamily: "Poppins" }}>
+        <p style={{ color: C.sub, fontSize: movil ? "0.8rem" : "0.85rem", lineHeight: 1.5, fontFamily: "Poppins" }}>
           {user?.escalador?.nombre || plan.nombre} · {plan.cicloCodigo}
           {mesActual && plan.acceso !== "ciclo_terminado" && <> · <strong style={{ color: C.text }}>Mes {mesActual.mes} de 3</strong> ({fmtRango(mesActual.fechaInicio, mesActual.fechaFin)})</>}
         </p>
@@ -1714,16 +1805,26 @@ export default function PlanTrackerPage() {
 
       {/* Tabs */}
       {!onboarding && <>
-      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
+      <div className="plan-tabs" style={movil
+        ? { display: "grid", gridTemplateColumns: `repeat(${TABS.length}, 1fr)`, gap: 4, margin: "0 -16px 14px",
+            padding: "8px 16px", borderBottom: `1px solid ${C.border}` }
+        : { display: "flex", gap: 6, marginBottom: 20, padding: "8px 0", flexWrap: "wrap" }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ background: tab === t.id ? C.accentA : C.card,
+          <button key={t.id} onClick={() => irA(t.id)}
+            style={movil ? {
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minHeight: 50,
+              background: tab === t.id ? C.accentA : "transparent",
+              border: `1px solid ${tab === t.id ? C.accent : "transparent"}`, borderRadius: 10,
+              padding: "6px 2px", cursor: "pointer", color: tab === t.id ? C.accent : C.sub,
+              fontSize: 10, fontWeight: tab === t.id ? 700 : 500, fontFamily: "Poppins",
+            } : {
+              background: tab === t.id ? C.accentA : C.card,
               border: `1px solid ${tab === t.id ? C.accent : C.border}`,
               borderRadius: 8, padding: "8px 14px", cursor: "pointer",
               color: tab === t.id ? C.accent : C.sub,
               fontSize: 12, fontWeight: tab === t.id ? 700 : 400,
               fontFamily: "Poppins", whiteSpace: "nowrap" }}>
-            {t.label}
+            {movil ? <><span style={{ fontSize: 18, lineHeight: 1 }}>{t.icon}</span>{t.label}</> : `${t.icon} ${t.label}`}
           </button>
         ))}
       </div>
@@ -1735,8 +1836,8 @@ export default function PlanTrackerPage() {
       )}
       {tab === "sesion" && week && (
         <SesionTab plan={plan} week={week} session={session} logs={logs} calc={calc} perfil={perfil}
-          onWeekChange={setWeek} onSessionChange={setSession} onLog={() => setTab("registro")}
-          onPerfil={() => setTab("perfil")} onOverride={onOverride} />
+          onWeekChange={setWeek} onSessionChange={setSession} onLog={() => irA("registro")}
+          onPerfil={() => irA("perfil")} onOverride={onOverride} />
       )}
       {tab === "registro" && week && (
         <>
