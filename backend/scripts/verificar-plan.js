@@ -5,6 +5,7 @@
  * Revisa los 12 planes (T1–T4 × 3 niveles):
  *   1. Sesiones sin bloques (salvo "No hay sesión" o una sesión libre con nota).
  *   2. Bloques sin ningún parámetro (en la app no se pueden abrir: solo se ve el nombre).
+ *      Bloques con series que no dicen cuánto se hace en cada serie (movimientos, reps, tiempo…).
  *   3. Con FUENTES_DIR: cada valor de "Series" de la guía completa debe aparecer en la sesión
  *      correspondiente de la BD (tablas verticales "| Series | 4 |" y horizontales con columna Series).
  *
@@ -50,6 +51,8 @@ function seriesDeLaGuia(texto) {
 }
 
 async function main() {
+  // Misma lectura que usa la app para mostrar "N series × X por serie" (frontend/src/plan/lectura.js)
+  const { leerDosis } = await import("../../frontend/src/plan/lectura.js");
   const planes = await prisma.$queryRawUnsafe(
     `SELECT trimestre, nivel, semanas FROM plan_contenido ORDER BY nivel, trimestre`
   );
@@ -63,6 +66,10 @@ async function main() {
         if (!(s.blocks || []).length && !libre) problemas.push(`${donde}: sin bloques`);
         for (const b of s.blocks || []) {
           if (!(b.params || []).length) problemas.push(`${donde} · ${b.n}: bloque vacío`);
+          const dosis = leerDosis(b.params || []);
+          if (dosis && !dosis.completa) {
+            problemas.push(`${donde} · ${b.n}: tiene series pero no dice cuánto se hace en cada una (movimientos, repeticiones, tiempo, ciclos o intentos por serie)`);
+          }
         }
       }
     }

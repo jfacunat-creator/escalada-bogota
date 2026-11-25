@@ -13,6 +13,7 @@ import {
   camposFaltantes, perfilCompleto, perfilDesdeTestS0, calcularParametros, fmtRangoKg,
 } from "../plan/perfil";
 import { personalizarBloques } from "../plan/personalizar";
+import { leerBloque } from "../plan/lectura";
 import { fmtRango, useMovil } from "../components/ui";
 import { BotonVideoGuia, ModalVideos } from "../components/VideoGuia";
 import { evaluarSobrecarga, esSobrecarga, dolorVigente, regletaPrevia, aplicarAdaptaciones } from "../plan/adaptacion";
@@ -196,7 +197,10 @@ function Block({ b }) {
   // Sin la dosis del plan de grabación (es la de T1 Avanzado): la de cada plan ya está en los parámetros del bloque.
   const ejercicios = (b.ejercicios || []).map(e => ({ ...e, dosis: undefined }));
   const nVideos = ejercicios.filter(e => e.video).length;
-  const hasParams = b.params && b.params.length > 0;
+  // Dosis sin ambigüedad: resumen bajo el nombre y etiquetas "por serie" / "entre series"
+  const lectura = useMemo(() => leerBloque(b), [b]);
+  const params = lectura.params;
+  const hasParams = params.length > 0;
   const expandible = hasParams || b.ficha || b.avisos?.length > 0;
 
   if (b.bloqueado) {
@@ -231,8 +235,14 @@ function Block({ b }) {
       <div onClick={() => expandible && setOpen(o => !o)}
         style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 46,
           padding: "10px 13px", cursor: expandible ? "pointer" : "default" }}>
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.text,
-          lineHeight: 1.3, fontFamily: "Poppins" }}>{b.n}</span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.text,
+            lineHeight: 1.3, fontFamily: "Poppins" }}>{b.n}</span>
+          {lectura.resumen && (
+            <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: C.teal,
+              lineHeight: 1.4, marginTop: 3, fontFamily: "Poppins" }}>{lectura.resumen}</span>
+          )}
+        </span>
         {nVideos > 0 && <BotonVideoGuia n={nVideos} onClick={() => setVerVideo(true)} />}
         {b.avisos?.length > 0 && <span style={{ fontSize: 12 }}>⚠️</span>}
         {expandible && (
@@ -261,7 +271,12 @@ function Block({ b }) {
               {como && <Ficha f={b.ficha} />}
             </>
           )}
-          {hasParams && b.params.map(([k, v], i) => (
+          {lectura.aclaracion && (
+            <div style={{ background: C.tealA, border: `1px solid ${C.teal}33`, borderRadius: 7,
+              padding: "7px 10px", marginBottom: 8, color: C.teal, fontSize: 12, lineHeight: 1.5,
+              fontFamily: "Poppins" }}>{lectura.aclaracion}</div>
+          )}
+          {hasParams && params.map(([k, v], i) => (
             <div key={i} style={{ display: movil ? "block" : "flex", gap: 8, padding: movil ? "7px 0" : "5px 0",
               borderTop: `1px solid ${C.border}` }}>
               {k && (
